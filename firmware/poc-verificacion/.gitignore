@@ -1,0 +1,5 @@
+# Artefactos de compilación de la PoC (se regeneran con run-poc.sh)
+verificar
+verificar.exe
+*.o
+*.obj

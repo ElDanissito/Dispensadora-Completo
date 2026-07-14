@@ -116,3 +116,24 @@ on_qr_scanned(raw):
 
 - **Con Dept. 02:** contrato del token es la interfaz más crítica del proyecto. Un solo documento de verdad, versionado.
 - **Con Dept. 01:** voltajes, motores, sensores, espacio físico.
+
+## 12. Progreso
+
+- **[2026-07-14] PoC de verificación cripto en PC — COMPLETADA.** `firmware/poc-verificacion/`.
+  Programa en C con **Monocypher 4.0.2** (vendorizado, sin dependencias) que implementa la
+  verificación exacta del contrato §5 y los códigos §7. Corrido contra los vectores oficiales
+  (`especificaciones/vectores-prueba/`) da resultados **idénticos** al simulador del backend (02):
+  `token-valido`→`OK`, `token-expirado`→`EXPIRED`, `token-firma-mala`→`BAD_SIGNATURE`, y anti-reuso
+  `OK`→`ALREADY_USED`. **Arquitectura cripto validada antes de comprar hardware.**
+  Reproducir: `bash firmware/poc-verificacion/run-poc.sh` (requiere gcc/clang/`zig cc`).
+
+### Notas para otros departamentos
+
+- **Dept. 02 (Software):** confirmado que Go `crypto/ed25519` ⇔ Monocypher `crypto_ed25519_check`
+  (ambos Ed25519 estándar RFC 8032 / **SHA-512**) son compatibles. Ver **ADR-008**. Si algún día se
+  cambia el hash de la firma en el servidor, avisar: rompe la verificación del firmware en silencio.
+- **Dept. 02:** el firmware ya respondió a **ADR-006** (tamaño de QR): de acuerdo con validar con el
+  GM65 real primero; opción 2 ("JSON adelgazado") es trivial en firmware si se necesita margen.
+- **Dept. 01 (Producto/HW):** próximo paso con hardware pendiente de presupuesto — lectura GM65→ESP32
+  por UART, RTC DS3231 para `exp`, y driver de motor + sensor de confirmación. Necesitaré de 01 los
+  voltajes/motor/sensor definitivos del mecanismo de dispensado elegido.

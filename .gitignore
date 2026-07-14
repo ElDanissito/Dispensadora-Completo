@@ -1,0 +1,27 @@
+# Llaves criptográficas — la PRIVADA nunca entra al repo (regla no negociable)
+.keys/
+*.key
+*.pem
+.env
+.env.*
+
+# Binarios compilados
+software/dsp
+software/dsp.exe
+*.exe
+*.out
+
+# Bases de datos del piloto
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# QR generados en pruebas locales (los vectores versionados van aparte)
+*.png
+!especificaciones/**/*.png
+
+# Sistema / editor
+.DS_Store
+Thumbs.db
+
