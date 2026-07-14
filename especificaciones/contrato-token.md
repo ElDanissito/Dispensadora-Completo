@@ -1,18 +1,24 @@
-# Contrato del Token de Dispensado — v1
+# Contrato del Token de Dispensado — v2
 
 > **Fuente de verdad** de la interfaz entre [Software/Web (02)](../departamentos/02-software-web.md)
 > y [Firmware (03)](../departamentos/03-firmware-electronica.md). El servidor **emite y firma**;
 > la máquina **verifica y dispensa**. Ambos lados DEBEN implementar exactamente lo que dice
-> este documento. Cambios ⇒ nueva versión (v2) + entrada en `DECISIONS.md`.
+> este documento. Cambios ⇒ nueva versión + entrada en `DECISIONS.md`.
 
-**Versión:** 1 · **Estado:** propuesta (pendiente de aprobación de Daniel) · **Fecha:** 2026-07-14
+**Versión:** 2 · **Estado:** APROBADA por Daniel (2026-07-14) · **Reemplaza:** v1
+
+> **Cambio v1 → v2 (ADR-006):** se eliminan del payload los campos `iss` e `iat` para
+> **adelgazar el token** y dar holgura de tamaño de QR con pedidos de varios items. `iss` era
+> constante (la máquina ya asume el emisor) e `iat` era solo auditoría (se registra en el
+> servidor, no hace falta en el token; la máquina solo necesita `exp`). Ahorro ≈ 40 chars.
+> **Los vectores de prueba v1 quedan obsoletos y deben regenerarse para v2.**
 
 ---
 
 ## 1. Resumen
 
 - **Formato:** JWS compacto (estilo JWT) → `base64url(header).base64url(payload).base64url(firma)`.
-- **Algoritmo de firma:** **Ed25519** (`alg: "EdDSA"`).
+- **Algoritmo de firma:** **Ed25519** (`alg: "EdDSA"`, RFC 8032 / SHA-512 — ver ADR-008).
 - **Quién tiene qué:** servidor = llave privada; máquina = **solo** la llave pública.
 - **Transporte:** el string del token se codifica en un **QR** que el cliente muestra al lector.
 - **Verificación:** 100% **offline** en la máquina.
@@ -25,18 +31,16 @@
 
 | Campo | Significado |
 |-------|-------------|
-| `alg` | Siempre `"EdDSA"` en v1. La máquina RECHAZA cualquier otro valor (evita ataques de downgrade). |
-| `typ` | `"DSP"` (dispensado). Ayuda a distinguir de otros tokens. |
+| `alg` | Siempre `"EdDSA"`. La máquina RECHAZA cualquier otro valor (evita ataques de downgrade). |
+| `typ` | `"DSP"` (dispensado). Distingue de otros tokens. |
 | `kid` | Id de la llave usada. Permite rotar/revocar llaves sin cambiar todas las máquinas. La máquina guarda un mapa `kid → llave pública`. |
 
-## 3. Payload
+## 3. Payload (v2 — adelgazado)
 
 ```json
 {
-  "iss": "dispensadoras.co",
   "mid": "M001",
   "jti": "b3f1c9a7d2",
-  "iat": 1752460800,
   "exp": 1752461100,
   "items": [
     { "s": 3, "q": 1 },
@@ -47,23 +51,21 @@
 
 | Campo | Tipo | Obligatorio | Regla de validación en la máquina |
 |-------|------|-------------|-----------------------------------|
-| `iss` | string | sí | Debe ser `"dispensadoras.co"`. |
-| `mid` | string | sí | Debe ser **igual** al `machine_id` de ESTA máquina. Si no, rechazar (`WRONG_MACHINE`). |
-| `jti` | string | sí | Id único de la orden. Si ya está en la lista de usados ⇒ rechazar (`ALREADY_USED`). |
-| `iat` | int (epoch s) | sí | Momento de emisión. Informativo/auditoría. |
-| `exp` | int (epoch s) | sí | Si `now > exp` ⇒ rechazar (`EXPIRED`). `now` viene del RTC. |
+| `mid` | string | sí | Debe ser **igual** al `machine_id` de ESTA máquina. Si no ⇒ `WRONG_MACHINE`. |
+| `jti` | string | sí | Id único de la orden. Si ya está en la lista de usados ⇒ `ALREADY_USED`. |
+| `exp` | int (epoch s) | sí | Si `now > exp` ⇒ `EXPIRED`. `now` viene del RTC. |
 | `items` | array | sí | Lista de `{ s: slot (int), q: cantidad (int ≥1) }`. La máquina dispensa cada uno. |
 
-**Ventana de expiración recomendada:** `exp = iat + 300` (5 min). Suficiente para que el
-cliente escanee, corto para limitar abuso si el QR se filtra. Ajustable por configuración del servidor.
+> **Eliminados en v2:** `iss` (constante, implícito) e `iat` (auditoría, se guarda solo en el
+> servidor). El servidor SIGUE registrando `iat` y el emisor en su base de datos; simplemente
+> no viajan en el QR.
 
-**Notas de diseño para mantener el QR pequeño:**
-- Slots numéricos (`s`) y cantidades (`q`), no nombres de producto.
-- Nada de campos innecesarios. Mantener el payload mínimo.
+**Ventana de expiración:** el servidor pone `exp = now_emisión + 300` (5 min) por defecto.
+Configurable en el servidor. Suficiente para escanear, corto para limitar abuso si el QR se filtra.
 
 ## 4. Codificación y firma (lado servidor)
 
-1. Serializar header y payload como JSON **compacto** (sin espacios).
+1. Serializar header y payload como JSON **compacto** (sin espacios). Orden de claves sugerido: `mid, jti, exp, items`.
 2. `signing_input = base64url(header) + "." + base64url(payload)` (base64url **sin padding**).
 3. `firma = Ed25519_sign(clave_privada, signing_input)` → 64 bytes.
 4. `token = signing_input + "." + base64url(firma)`.
@@ -77,13 +79,12 @@ cliente escanee, corto para limitar abuso si el QR se filtra. Ajustable por conf
 3. Buscar la llave pública para ese kid. Si no existe ⇒ UNKNOWN_KEY.
 4. Verificar la firma Ed25519 sobre (parte1 + "." + parte2). Si falla ⇒ BAD_SIGNATURE.
 5. Decodificar payload.
-6. iss == "dispensadoras.co"           si no ⇒ BAD_ISSUER
-7. mid == MACHINE_ID                     si no ⇒ WRONG_MACHINE
-8. now (RTC) <= exp                       si no ⇒ EXPIRED
-9. jti NO está en usados                  si no ⇒ ALREADY_USED
-10. Guardar jti como usado (persistente) ANTES de dispensar.
-11. Para cada item: dispensar slot s, cantidad q, esperando sensor de confirmación.
-12. Registrar resultado (OK / fallo por slot) en log local.
+6. mid == MACHINE_ID                      si no ⇒ WRONG_MACHINE
+7. now (RTC) <= exp                        si no ⇒ EXPIRED
+8. jti NO está en usados                   si no ⇒ ALREADY_USED
+9. Guardar jti como usado (persistente) ANTES de dispensar.
+10. Para cada item: dispensar slot s, cantidad q, esperando sensor de confirmación.
+11. Registrar resultado (OK / fallo por slot) en log local.
 ```
 
 > **Regla clave:** marcar `jti` como usado **antes** de accionar motores, para que un reinicio
@@ -91,11 +92,12 @@ cliente escanee, corto para limitar abuso si el QR se filtra. Ajustable por conf
 
 ## 6. Presupuesto de tamaño del QR
 
-- El GM65 lee QR de pantalla de celular bien hasta cierto tamaño; **objetivo: token ≤ ~300 caracteres** para un QR cómodo (versión de QR baja/media, buena tolerancia).
-- Header+firma ocupan ~120–130 chars. El resto es el payload → mantener `items` corto.
-- **Si un pedido con muchos items excede el presupuesto:** opciones (decidir en v2 si ocurre):
-  (a) limitar nº de items por orden; (b) migrar a un formato binario firmado **COSE/CBOR**
-  (más compacto que JWT). Por ahora v1 usa JWT/JSON por simplicidad de implementación.
+- **Objetivo:** token ≤ ~300 caracteres → QR cómodo y legible por el GM65 desde pantalla de celular.
+- Con v2 (sin `iss` ni `iat`): header ~51 + firma ~86 + 2 puntos = 139 fijos; payload base (1 item)
+  baja de ~160 a ~120 chars. Estimado: **1 item ≈ 259 · 2 items ≈ 278 · 3 items ≈ 297**. Un pedido
+  normal (2–3 productos) queda **dentro del objetivo**, que era justo lo que buscábamos con v2.
+- **Pendiente de confirmar con hardware:** que el GM65 lea bien ese QR desde varios celulares
+  (checklist §11). Si aún hiciera falta más margen, la reserva es formato binario **COSE/CBOR**.
 
 ## 7. Códigos de error (feedback al usuario)
 
@@ -103,17 +105,18 @@ cliente escanee, corto para limitar abuso si el QR se filtra. Ajustable por conf
 |--------|-------|-----------------------|
 | `MALFORMED` | QR no es un token válido | "QR no válido" |
 | `BAD_SIGNATURE` | Firma inválida | "QR no válido" |
-| `UNKNOWN_KEY` / `BAD_ISSUER` / `WRONG_MACHINE` | Token no es para esta máquina | "Este código no es de esta máquina" |
+| `UNKNOWN_KEY` / `WRONG_MACHINE` | Token no es para esta máquina | "Este código no es de esta máquina" |
 | `EXPIRED` | Venció la ventana | "El código expiró, vuelve a comprar" |
 | `ALREADY_USED` | Reuso | "Este código ya fue usado" |
 | `DISPENSE_FAIL` | Sensor no confirmó salida | "Hubo un problema, contáctanos" + registrar para reembolso |
+
+> `BAD_ISSUER` se elimina en v2 (ya no hay campo `iss`).
 
 ## 8. Reloj (RTC)
 
 - La máquina usa **RTC DS3231** para `now`. Se ajusta al aprovisionar y se puede resincronizar
   cuando la máquina tenga wifi ocasional (opcional).
-- Tolerancia: como `exp` es de minutos, un pequeño desfase del RTC es aceptable; aún así,
-  mantener el RTC en hora en cada visita de mantenimiento.
+- Como `exp` es de minutos, un pequeño desfase del RTC es aceptable; mantenerlo en hora en cada visita.
 
 ## 9. Aprovisionamiento (qué se carga en cada máquina)
 
@@ -122,32 +125,31 @@ cliente escanee, corto para limitar abuso si el QR se filtra. Ajustable por conf
 - Hora del RTC.
 - (Config) ventana de tolerancia, mapa de slots↔motores.
 
-## 10. Vectores de prueba (para que ambos lados prueben igual)
+## 10. Vectores de prueba
 
-> **Pendiente de generar.** Tarea conjunta 02+03: el servidor genera un par de llaves de
-> prueba y produce 3 tokens de ejemplo (válido, expirado, firma corrupta) + la llave pública.
-> Se guardan aquí en `especificaciones/vectores-prueba/` para que el firmware valide contra
-> ellos **sin hardware**. El [simulador de verificación](../departamentos/02-software-web.md)
-> del backend debe producir exactamente los mismos resultados que el ESP32.
+> **Regenerar para v2.** Los vectores v1 (con `iss`/`iat`) quedan obsoletos. Tarea del agente de
+> Software (02): con `dsp vectors` producir de nuevo `token-valido`, `token-expirado`,
+> `token-firma-mala` (+ `token-valido.png` y `resultados-esperados.md`) usando el payload v2.
+> El firmware (03) debe re-verificar contra ellos y seguir dando resultados idénticos al backend.
 
-Ejemplo de estructura a generar:
+Estructura en `especificaciones/vectores-prueba/`:
 ```
-especificaciones/vectores-prueba/
-  llave-publica-k1.txt        (base64)
-  token-valido.txt
-  token-expirado.txt
-  token-firma-mala.txt
-  resultados-esperados.md     (qué código de error debe dar cada uno)
+llave-publica-k1.txt        (base64)
+token-valido.txt / .png
+token-expirado.txt
+token-firma-mala.txt
+resultados-esperados.md
 ```
 
-## 11. Checklist de aprobación (antes de codificar en firme)
+## 11. Checklist de v2 (para cerrar)
 
-- [ ] Daniel aprueba algoritmo, campos y ventana de expiración.
-- [ ] Confirmado que el GM65 lee un QR de ~300 chars desde varios celulares.
-- [ ] Generados los vectores de prueba.
-- [ ] Simulador (02) y firmware (03) dan resultados idénticos sobre los vectores.
+- [x] Daniel aprueba algoritmo y campos (v2, sin `iss`/`iat`).
+- [ ] Software (02): actualizar `dsptoken` al payload v2 y **regenerar vectores**.
+- [ ] Firmware (03): actualizar la PoC al payload v2 y re-verificar contra los vectores.
+- [ ] Confirmar con el GM65 real que el QR de 2–3 items se lee bien desde varios celulares.
 
 ---
 
 ### Historial de versiones
-- **v1 (2026-07-14):** propuesta inicial. JWT/JSON + Ed25519.
+- **v2 (2026-07-14):** adelgazado. Se quitan `iss` e `iat` del payload (ADR-006). Vectores a regenerar.
+- **v1 (2026-07-14):** propuesta inicial. JWT/JSON + Ed25519. Validada en PoC (ADR-008) antes del cambio de tamaño.

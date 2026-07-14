@@ -47,8 +47,33 @@
 - **Nota para Dept. 02:** cualquier cambio del algoritmo de hash de la firma en el servidor debe
   reflejarse aquí; el par correcto es Go `ed25519` ⇔ Monocypher `crypto_ed25519_*`.
 
-## ADR-006 · (PROPUESTA) Tamaño del token supera el presupuesto de QR con ≥2 items
-- **Fecha:** 2026-07-14 · **Estado:** propuesta (pendiente de aprobación de Daniel)
+## ADR-009 · Producto piloto: mixto snacks + bebidas
+- **Fecha:** 2026-07-14
+- **Decisión:** El piloto vende **snacks empacados sellados + bebidas** (latas/botellas).
+- **Razón:** Definición de Daniel. Más variedad y ticket que un solo tipo. Snacks empacados = baja fricción sanitaria (vienen sellados con registro del fabricante).
+- **Impacto:**
+  - **Hardware (01):** se requieren **canales de dos tamaños** (espiral para snack + canal/espiral reforzado para bebida). Mecánica algo más compleja; validar dispensado por tipo.
+  - **Legal (07):** productos empacados de fábrica; el operador vende sellado. Confirmar requisitos de manipulación/rotulado para venta en expendedora; evitar productos que exijan cadena de frío estricta si no hay refrigeración en el piloto (definir si la máquina tendrá refrigeración para bebidas).
+  - **Finanzas (07):** dos categorías de margen/rotación a modelar.
+- **Pendiente derivado:** ¿la máquina piloto lleva **refrigeración** para bebidas? (afecta costo y consumo).
+
+## ADR-010 · Figura jurídica inicial: persona natural
+- **Fecha:** 2026-07-14
+- **Decisión:** Arrancar el piloto como **persona natural** (RUT + registro mercantil), no SAS.
+- **Razón:** Rápido y barato para validar 1 máquina. Se reevalúa pasar a SAS al escalar (protección patrimonial e imagen B2B).
+- **Impacto:** habilita abrir cuenta/llave Bre-B de negocio y facturar. Negocio (07) prepara el checklist de trámites en Cali (RUT/DIAN, ICA municipal, facturación electrónica).
+
+## ADR-011 · Comprar hardware mínimo del piloto
+- **Fecha:** 2026-07-14
+- **Decisión:** Comprar el **BOM mínimo** (ESP32 + GM65 + RTC DS3231 + 1 motor/espiral + sensor + fuente) para desbloquear el frente de Firmware y validar la lectura del QR real.
+- **Razón:** La cripto ya está validada en PC (ADR-008); el siguiente cuello de botella es hardware. Lista de compra en `hardware/lista-compra-piloto.md`.
+
+## ADR-006 · Tamaño del token → APROBADO adelgazar a v2 (quitar iss/iat)
+- **Fecha:** 2026-07-14 · **Estado:** APROBADA por Daniel (era propuesta)
+- **Decisión:** Se adopta el **contrato v2**: se eliminan `iss` e `iat` del payload. Con eso 2–3 items caben bajo el objetivo de ~300 chars del QR. El servidor sigue registrando `iat`/emisor en su BD, solo que no viajan en el token.
+- **Acción requerida:** Software (02) actualiza `dsptoken` y **regenera los vectores**; Firmware (03) actualiza la PoC y re-verifica. Ver `especificaciones/contrato-token.md` v2.
+- **Nota:** los vectores de prueba v1 quedan **obsoletos**.
+- **Contexto original del hallazgo (agente 02):**
 - **Autor:** Agente de Software (02).
 - **Hallazgo:** Con el contrato v1 (JWT/JSON + Ed25519), medido con `dsp` sobre un `jti`
   realista de 14 chars:
@@ -93,10 +118,11 @@
 ---
 
 ## Decisiones pendientes (por tomar)
-- [ ] **Producto piloto** (define mecánica, canales y requisitos sanitarios).
-- [ ] **Figura jurídica** inicial (persona natural vs. SAS).
+- [x] **Producto piloto** → mixto snacks + bebidas (ADR-009).
+- [x] **Figura jurídica** → persona natural (ADR-010).
+- [x] **Ventana de expiración** del token → 5 min (300 s), configurable en servidor (contrato v2).
+- [ ] **¿Refrigeración en la máquina piloto?** (derivado de vender bebidas — afecta costo/consumo).
 - [ ] **Nombre/dominio** definitivo de la empresa/web.
-- [ ] **Ventana de expiración** final del token (propuesta: 5 min).
 - [ ] **Entidad/llave Bre-B del piloto** — recomendación de Negocio: **Bancolombia** (persona natural, producto dedicado) por sus alertas de correo en tiempo real, que habilitan la conciliación del MVP. Ver [`negocio/bre-b-guia-negocio.md`](./negocio/bre-b-guia-negocio.md).
 - [ ] **Agregador Bre-B** para la fase 2 (tras comparar comisiones/onboarding). Estructura y cuestionario de cotización listos en [`negocio/agregadores-bre-b-comparativa.md`](./negocio/agregadores-bre-b-comparativa.md).
 - [ ] **Mecanismo de dispensado** definitivo (espiral vs. gravedad) según producto piloto.
