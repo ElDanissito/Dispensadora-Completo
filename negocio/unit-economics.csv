@@ -1,0 +1,57 @@
+Dispensadora - Unit Economics (piloto Cali, persona natural, sin refrigeracion),,,,
+Moneda: COP. Valores de ejemplo (EDITAR con datos reales). Fuentes entre parentesis.,,,,
+,,,,
+BLOQUE 1 - SUPUESTOS,,,,
+Concepto,Valor ejemplo,Unidad,Fuente,Nota
+Mix ventas - snacks,60%,,Comercial(06),Ajustar con ventas reales
+Mix ventas - bebidas,40%,,Comercial(06),
+Ventas por dia (unidades),15,und/dia,Operaciones(05),Metrica reina; medir en piloto
+Dias operacion / mes,30,dias,,
+Merma estimada,3%,% del costo,Operaciones(05),Vencimiento/atascos
+Comision de pago Fase 0 (Bre-B directo),0%,,Pagos(04),Fase 2 agregador ~1-2%
+,,,,
+BLOQUE 2 - POR UNIDAD (por categoria),,,,
+Concepto,SNACKS,BEBIDAS,Fuente,Nota
+Precio de venta,3000,4000,Comercial(06),Precio conveniencia
+Costo mayorista (IVA incl.),1800,2500,Comercial(06),Compra al por mayor
+Margen contribucion und,1200,1500,=Precio-Costo,
+Margen %,40%,37.5%,=Margen/Precio,
+,,,,
+BLOQUE 3 - PROMEDIO PONDERADO (blended),,,,
+Concepto,Valor ejemplo,Unidad,Formula,Nota
+Precio promedio ponderado,3400,COP,=0.6*3000+0.4*4000,
+Costo promedio ponderado,2080,COP,=0.6*1800+0.4*2500,
+Margen contribucion promedio,1320,COP,=Precio-Costo prom,
+Margen % promedio,38.8%,,=1320/3400,
+,,,,
+BLOQUE 4 - MENSUAL POR MAQUINA,,,,
+Concepto,Valor ejemplo,Unidad,Formula,Nota
+Unidades / mes,450,und,=15*30,
+Margen contribucion mensual,594000,COP,=450*1320,
+(-) Costo reabastecimiento/operacion,100000,COP,,Transporte + tiempo (Oper. 05)
+(-) Renta espacio,0,COP,,Comodato en piloto (Comercial 06)
+(-) Prorrateo infra software (VPS+dominio),20000,COP,,Se diluye al escalar (Software 02)
+(-) Merma (3% del costo vendido),28080,COP,=0.03*450*2080,
+= Utilidad mensual por maquina,445920,COP,=594000-100000-0-20000-28080,
+,,,,
+BLOQUE 5 - CAPEX POR MAQUINA (PLACEHOLDER - pedir a Hardware/Firmware),,,,
+Concepto,Valor ejemplo,Unidad,Fuente,Nota
+Estructura + mecanica + ensamblaje,1200000,COP,Hardware(01),BOM real pendiente
+Electronica (ESP32+GM65+RTC+fuente+motores+sensor),300000,COP,Firmware(03),Ver hardware/lista-compra-piloto.md
+Instalacion / anclaje,100000,COP,Operaciones(05),
+TOTAL CAPEX por maquina,1600000,COP,=suma,
+Payback (meses),3.6,meses,=1600000/445920,Menor es mejor
+,,,,
+BLOQUE 6 - ESCENARIOS DE ESCALADO,,,,
+Concepto,1 maquina,5 maquinas,20 maquinas,Nota
+Ventas/dia por maquina (und),15,15,15,Supuesto conservador igual
+Margen contribucion mensual / maq,594000,594000,594000,Mejora si baja costo mayorista por volumen
+Prorrateo infra software / maq,20000,4000,1000,VPS fijo ~20k/mes repartido
+Costo operacion / maq,100000,70000,50000,Ruta mas eficiente al agrupar
+Merma / maq,28080,28080,28080,
+Utilidad mensual / maq,445920,491920,514920,=MC - infra - operacion - merma
+Utilidad mensual TOTAL,445920,2459600,10298400,=util/maq * n
+CAPEX total,1600000,8000000,32000000,=1.6M * n (baja por volumen de compra)
+Payback promedio (meses),3.6,3.3,3.1,=CAPEX/util total
+,,,,
+NOTA: Vigilar decreto de retencion ~1.5% a pagos digitales (Nequi/DaviPlata/PSE/Bre-B): si aplica, restar de la utilidad. Ver bre-b-guia-negocio.md seccion 5.,,,,

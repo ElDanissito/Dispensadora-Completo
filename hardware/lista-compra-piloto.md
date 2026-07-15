@@ -26,6 +26,25 @@ Con esto pruebas: el GM65 leyendo el QR real desde el celular, el ESP32 verifica
 
 **Subtotal Fase A estimado:** ~**240.000 – 450.000 COP** (rango amplio según GM65 y motor).
 
+### Cantidades y repuestos (importante en prototipado)
+
+En prototipado los repuestos ahorran tiempo: lo barato y fácil de quemar se compra por varios;
+lo caro/lento de importar, mínimo 2 para no volver a esperar el envío.
+
+| Componente | Comprar | Motivo |
+|-----------|---------|--------|
+| ESP32 | **2–3** | Barato y fácil de freír (voltaje invertido, cable mal puesto). |
+| Lector 2D (GM66/GM65) | **2** | Es lo caro y lento de importar; repuesto cubre unidad DOA o dañada. |
+| Driver de motor (MOSFET/L298N) | **2–3** | El que **más se quema** (corriente y picos del motor). |
+| RTC DS3231 | **2** | Cuesta poco; tener respaldo. |
+| Motor + espiral | **1–2** | Con 2 se prueban canal de snack y de bebida a la vez. |
+| Sensores (microswitch/IR) | **3–4** | Muy baratos, se dañan con el manoseo. |
+| Fuente 12V | **1** | Robusta; no vale duplicar en el piloto. |
+
+**Consumibles de protección a sumar:** fusibles, **level shifter** (3.3V ESP32 ↔ 5V lector),
+cables dupont de sobra, protoboard extra y — si no lo tienes — un **multímetro** (herramienta #1
+para medir antes de conectar y no quemar componentes).
+
 > El **GM65 es el componente clave y el más caro** del kit. Si la lectura desde pantalla de
 > celular fallara (brillo/ángulo), alternativas más robustas: **GM805/GM810** o un módulo
 > Waveshare. Por eso esta fase valida ese punto ANTES de construir la máquina.

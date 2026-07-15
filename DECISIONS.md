@@ -73,6 +73,8 @@
 - **Decisión:** Se adopta el **contrato v2**: se eliminan `iss` e `iat` del payload. Con eso 2–3 items caben bajo el objetivo de ~300 chars del QR. El servidor sigue registrando `iat`/emisor en su BD, solo que no viajan en el token.
 - **Acción requerida:** Software (02) actualiza `dsptoken` y **regenera los vectores**; Firmware (03) actualiza la PoC y re-verifica. Ver `especificaciones/contrato-token.md` v2.
 - **Nota:** los vectores de prueba v1 quedan **obsoletos**.
+- **Estado Software (02) — 2026-07-14:** HECHO. `dsptoken` y el CLI `dsp` migrados a v2 (payload `{mid,jti,exp,items}`, sin `iss`/`iat`, código `BAD_ISSUER` eliminado); tests verdes; vectores regenerados con el **mismo par de llaves** (la pública no cambia). Tamaño medido (jti de 11 chars): **1 item 239 · 2 items 258 chars**, holgado bajo el objetivo de ~300 del §6 (antes v1: 2 items = 318). Falta solo la validación con el GM65 real (Firmware/Hardware).
+- **Estado Firmware (03) — 2026-07-14:** HECHO. PoC (`firmware/poc-verificacion/`) migrada a v2: eliminado el paso `iss` y el código `R_BAD_ISSUER`; orden de verificación firma→`mid`→`exp`→`jti` (§5 v2). Re-compilada (MSVC en el PC de Daniel; añadido `run-poc.ps1` para Windows además de `run-poc.sh`) y re-verificada contra los vectores v2 regenerados por 02 → resultados **idénticos** al backend: `token-valido`→`OK`, `token-expirado`→`EXPIRED`, `token-firma-mala`→`BAD_SIGNATURE`, reuso→`ALREADY_USED`. La llave pública `k1` no cambió, así que sigue siendo compatible. Pendiente único: validación óptica con GM65 real (bloqueada por hardware).
 - **Contexto original del hallazgo (agente 02):**
 - **Autor:** Agente de Software (02).
 - **Hallazgo:** Con el contrato v1 (JWT/JSON + Ed25519), medido con `dsp` sobre un `jti`
@@ -121,8 +123,8 @@
 - [x] **Producto piloto** → mixto snacks + bebidas (ADR-009).
 - [x] **Figura jurídica** → persona natural (ADR-010).
 - [x] **Ventana de expiración** del token → 5 min (300 s), configurable en servidor (contrato v2).
-- [ ] **¿Refrigeración en la máquina piloto?** (derivado de vender bebidas — afecta costo/consumo).
-- [ ] **Nombre/dominio** definitivo de la empresa/web.
+- [ ] **¿Refrigeración en la máquina piloto?** (derivado de vender bebidas — afecta costo/consumo). **Recomendación de Negocio: NO refrigerar en el piloto** y surtir bebidas estables a temperatura ambiente (gaseosa PET/lata, agua, jugo UHT, energizantes) → menor CAPEX y consumo, mecánica más simple. Análisis y fuentes en [`negocio/requisitos-sanitarios-piloto.md`](./negocio/requisitos-sanitarios-piloto.md) §4.
+- [ ] **Nombre/dominio** definitivo de la empresa/web. 3 propuestas listas (**Piqa**, **Antoja**, **Untoque**) con dominios y método de verificación en [`negocio/propuestas-nombre-dominio.md`](./negocio/propuestas-nombre-dominio.md) (disponibilidad por verificar).
 - [ ] **Entidad/llave Bre-B del piloto** — recomendación de Negocio: **Bancolombia** (persona natural, producto dedicado) por sus alertas de correo en tiempo real, que habilitan la conciliación del MVP. Ver [`negocio/bre-b-guia-negocio.md`](./negocio/bre-b-guia-negocio.md).
 - [ ] **Agregador Bre-B** para la fase 2 (tras comparar comisiones/onboarding). Estructura y cuestionario de cotización listos en [`negocio/agregadores-bre-b-comparativa.md`](./negocio/agregadores-bre-b-comparativa.md).
 - [ ] **Mecanismo de dispensado** definitivo (espiral vs. gravedad) según producto piloto.

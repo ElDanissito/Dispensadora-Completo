@@ -119,13 +119,21 @@ on_qr_scanned(raw):
 
 ## 12. Progreso
 
+- **[2026-07-14] PoC actualizada al contrato v2 y re-verificada — COMPLETADA.** Migrada la PoC al
+  payload v2 (ADR-006): eliminado el campo `iss` y el código `R_BAD_ISSUER`; orden de verificación
+  firma→`mid`→`exp`→`jti` (§5 v2). Re-compilada y corrida contra los **vectores v2** regenerados por
+  el agente 02 → resultados **idénticos** al backend (`OK` / `EXPIRED` / `BAD_SIGNATURE` / `ALREADY_USED`).
+  La llave pública `k1` no cambió. Añadido `run-poc.ps1` para reproducir en **Windows con MSVC**
+  (`cl.exe`), ya que este PC no tiene gcc/clang/zig; `run-poc.sh` sigue sirviendo en Linux/macOS/MSYS.
+  Checklist §11 del contrato: tarea de Firmware marcada [x].
 - **[2026-07-14] PoC de verificación cripto en PC — COMPLETADA.** `firmware/poc-verificacion/`.
   Programa en C con **Monocypher 4.0.2** (vendorizado, sin dependencias) que implementa la
   verificación exacta del contrato §5 y los códigos §7. Corrido contra los vectores oficiales
   (`especificaciones/vectores-prueba/`) da resultados **idénticos** al simulador del backend (02):
   `token-valido`→`OK`, `token-expirado`→`EXPIRED`, `token-firma-mala`→`BAD_SIGNATURE`, y anti-reuso
   `OK`→`ALREADY_USED`. **Arquitectura cripto validada antes de comprar hardware.**
-  Reproducir: `bash firmware/poc-verificacion/run-poc.sh` (requiere gcc/clang/`zig cc`).
+  Reproducir: `bash firmware/poc-verificacion/run-poc.sh` (gcc/clang/`zig cc`) o
+  `powershell -File firmware/poc-verificacion/run-poc.ps1` (Windows/MSVC).
 
 ### Notas para otros departamentos
 
@@ -134,6 +142,11 @@ on_qr_scanned(raw):
   cambia el hash de la firma en el servidor, avisar: rompe la verificación del firmware en silencio.
 - **Dept. 02:** el firmware ya respondió a **ADR-006** (tamaño de QR): de acuerdo con validar con el
   GM65 real primero; opción 2 ("JSON adelgazado") es trivial en firmware si se necesita margen.
-- **Dept. 01 (Producto/HW):** próximo paso con hardware pendiente de presupuesto — lectura GM65→ESP32
-  por UART, RTC DS3231 para `exp`, y driver de motor + sensor de confirmación. Necesitaré de 01 los
-  voltajes/motor/sensor definitivos del mecanismo de dispensado elegido.
+- **Dept. 01 (Producto/HW):** próximo paso con hardware pendiente de **llegada** (Fase A ya decidida
+  en ADR-011) — lectura GM65→ESP32 por UART, RTC DS3231 para `exp`, y driver de motor + sensor de
+  confirmación. El **plan de port está listo** en [`firmware/PLAN-PORT-ESP32.md`](../firmware/PLAN-PORT-ESP32.md)
+  (pinout, máquina de estados, prueba de humo). Necesitaré de 01 los voltajes/motor/sensor definitivos
+  del mecanismo de dispensado elegido para cerrar el pinout.
+- **Dept. 02 (Software):** para la prueba de humo en vivo del ESP32 necesitaré un `token-valido` con
+  `exp` **futuro** (los vectores tienen `exp` fijo ya vencido en tiempo real). Un flag/endpoint del CLI
+  `dsp` que emita un token con expiración configurable sería suficiente.

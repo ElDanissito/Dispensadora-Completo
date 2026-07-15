@@ -2,7 +2,7 @@
 
 Módulo Go del [Departamento 02 · Software/Web](../departamentos/02-software-web.md).
 Esta primera tanda entrega el núcleo criptográfico: **firmar y verificar** el token de
-dispensado (JWS Ed25519) según [`especificaciones/contrato-token.md`](../especificaciones/contrato-token.md) v1,
+dispensado (JWS Ed25519) según [`especificaciones/contrato-token.md`](../especificaciones/contrato-token.md) v2,
 generar su **QR** y producir los **vectores de prueba** para que Firmware valide sin hardware.
 
 ## Estructura
@@ -10,8 +10,11 @@ generar su **QR** y producir los **vectores de prueba** para que Firmware valide
 ```
 software/
   cmd/dsp/            CLI `dsp` (keygen, sign, verify, qr, vectors)
+  cmd/server/         servidor web (página pública /m/{id} + panel admin)
   internal/dsptoken/  firma + verificación (referencia canónica del contrato)
   internal/qr/        generación de QR PNG
+  internal/store/     capa de datos SQLite (máquinas, productos, órdenes)
+  internal/web/       handlers HTTP + plantillas html/template
   .keys/              llaves privadas — IGNORADO por git (nunca commitear)
 ```
 
@@ -46,8 +49,9 @@ inyectarse por la variable de entorno `DSP_PRIVATE_KEY` (base64), sin tocar el d
 ./dsp sign -mid M001 -items "3:1,5:2" -qr orden.png
 ```
 
-Imprime el token en stdout y, por stderr, el `jti`, `iat`, `exp` y la longitud en caracteres.
-Por defecto `exp = iat + 300s` (ventana de 5 min del contrato) y el `jti` es aleatorio.
+Imprime el token en stdout y, por stderr, el `jti`, `exp` y la longitud en caracteres.
+Por defecto `exp = ahora + 300s` (ventana de 5 min del contrato) y el `jti` es aleatorio.
+En v2 el payload es `{mid, jti, exp, items}`: `iss`/`iat` ya no viajan en el token (ADR-006).
 
 ### Verificar un token (simulador de la máquina)
 
@@ -67,20 +71,44 @@ con código 3 si no es `OK` (útil para scripts). `-now` fija la hora del RTC si
 Escribe `token-valido`, `token-expirado`, `token-firma-mala` y `resultados-esperados.md`
 en `especificaciones/vectores-prueba/`.
 
+## Servidor web (`cmd/server`)
+
+Sirve la **página pública por máquina** (`GET /m/{id}`) con catálogo, precios y stock, y un
+**panel de administración** en `/admin` (crear máquinas, cargar productos, asignar
+slot→producto/precio/stock, ver órdenes). Front server-rendered con `html/template`, sin JS
+pesado (ADR-002). Datos en **SQLite** (pura-Go, sin cgo).
+
+```sh
+go build -o dispensadoras-web ./cmd/server        # en Windows: dispensadoras-web.exe
+ADMIN_PASS=algo-seguro ./dispensadoras-web -seed   # -seed carga datos de demo
+```
+
+- `-db dispensadoras.db` ruta del archivo SQLite · `-addr :8080` dirección · `-seed` datos demo.
+- El panel `/admin` va protegido con **Basic Auth** (`ADMIN_USER`/`ADMIN_PASS`, por defecto
+  `admin`/`changeme` con aviso — define `ADMIN_PASS` antes de exponerlo).
+- Rutas: `GET /m/{id}` (pública) · `GET /admin`, `POST /admin/machines`, `POST /admin/products`,
+  `GET /admin/m/{id}`, `POST /admin/m/{id}/slot`, `GET /admin/orders`.
+
+El pago y la emisión del QR **no** se hacen aún en la página pública: se integran con
+Dept. 04 (Pagos) y nunca se confiará en el comprobante que muestre el cliente (regla del
+`CLAUDE.md` §4), solo en la notificación real de la cuenta.
+
 ## Pruebas
 
 ```sh
 go test ./...
 ```
 
-Los tests de `internal/dsptoken` cubren cada código de error del contrato y el orden de
-validación (p. ej. que la firma se valida antes que la expiración).
+- `internal/dsptoken`: cada código de error del contrato v2 y el orden de validación
+  (p. ej. que la firma se valida antes que la expiración).
+- `internal/store`: catálogo (upsert de slots) y órdenes (incl. rechazo de `jti` duplicado).
 
 ## Estado y pendientes
 
-Entregado en esta tanda: keygen, sign, verify, qr, vectors + tests.
-Siguiente (ver plan del Dept. 02 §6): esquema de datos, endpoint `GET /m/{id}`, integración
-de pago con Dept. 04, panel admin y deploy con TLS.
+Entregado: `dsp` (keygen/sign/verify/qr/vectors, contrato **v2**) + `server` con `GET /m/{id}`
+y panel admin mínimo + capa de datos SQLite + tests.
+Siguiente (Dept. 02 §6): integración de pago con Dept. 04 (emisión de orden + QR tras pago
+confirmado), refinar estados de orden, y **deploy en VPS con dominio + TLS** (Caddy).
 
-Ver el hallazgo sobre **tamaño del token vs. presupuesto del QR** en
-[`DECISIONS.md`](../DECISIONS.md) (propuesta ADR-006).
+Migración a **v2** del token registrada en [`DECISIONS.md`](../DECISIONS.md) (ADR-006):
+2 items = 258 chars, holgado bajo el objetivo de ~300 del §6.

@@ -1,0 +1,45 @@
+{{define "content"}}
+<div class="card">
+  <div class="muted"><a class="link" href="/admin">← Panel</a></div>
+  <h2 style="margin-top:8px">{{.Machine.ID}} — {{.Machine.Name}}</h2>
+  <div class="muted">kid {{.Machine.Kid}} · <a class="link" href="/m/{{.Machine.ID}}">página pública</a></div>
+</div>
+
+<div class="card">
+  <h2>Slots y stock</h2>
+  {{if .Catalog}}
+  <table>
+    <thead><tr><th>Slot</th><th>Producto</th><th>Precio</th><th>Stock</th></tr></thead>
+    <tbody>
+    {{range .Catalog}}
+      <tr>
+        <td>{{.Slot}}</td>
+        <td>{{.ProductName}}</td>
+        <td class="price">{{cop .PriceCOP}}</td>
+        <td>{{if gt .Stock 0}}{{.Stock}}{{else}}<span class="badge out">0</span>{{end}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="muted">Sin slots configurados.</div>{{end}}
+</div>
+
+<div class="card">
+  <h2>Asignar / actualizar slot</h2>
+  {{if .Products}}
+  <form class="inline" method="post" action="/admin/m/{{.Machine.ID}}/slot">
+    <div><label>Slot</label><input name="slot" type="number" min="1" required size="4"></div>
+    <div><label>Producto</label>
+      <select name="product_id" required>
+        {{range .Products}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
+      </select>
+    </div>
+    <div><label>Precio (COP)</label><input name="price" type="number" min="0" step="50" required></div>
+    <div><label>Stock</label><input name="stock" type="number" min="0" value="0" required size="5"></div>
+    <button type="submit">Guardar slot</button>
+  </form>
+  {{else}}
+  <div class="muted">Primero crea productos en el <a class="link" href="/admin">panel</a>.</div>
+  {{end}}
+</div>
+{{end}}

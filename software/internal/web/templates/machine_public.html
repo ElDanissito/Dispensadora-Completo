@@ -1,0 +1,31 @@
+{{define "content"}}
+<div class="card">
+  <div class="muted">Máquina {{.Machine.ID}}</div>
+  <h2 style="margin-top:4px">{{.Machine.Name}}</h2>
+  {{if not .Machine.Active}}<span class="badge out">fuera de servicio</span>{{end}}
+</div>
+
+{{if .Catalog}}
+<div class="card">
+  {{range .Catalog}}
+  <div class="row">
+    <div>
+      <div>{{.ProductName}}</div>
+      <div class="muted">Slot {{.Slot}}
+        {{if gt .Stock 0}}<span class="badge ok">{{.Stock}} disp.</span>{{else}}<span class="badge out">agotado</span>{{end}}
+      </div>
+    </div>
+    <div class="price">{{cop .PriceCOP}}</div>
+  </div>
+  {{end}}
+</div>
+
+<div class="note">
+  <strong>¿Cómo compro?</strong> Paga por <strong>Bre-B</strong> el valor de tu selección y
+  recibirás un <strong>QR</strong> para mostrar al lector de la máquina.
+  El flujo de pago se está integrando (Dept. 04 · Pagos).
+</div>
+{{else}}
+<div class="card muted">Esta máquina aún no tiene productos cargados.</div>
+{{end}}
+{{end}}

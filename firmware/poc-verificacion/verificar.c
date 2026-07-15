@@ -8,6 +8,9 @@
  * Implementa la verificación EXACTA de `especificaciones/contrato-token.md` §5
  * y devuelve los códigos de error de §7.
  *
+ * Actualizado al contrato v2 (ADR-006): el payload ya no lleva `iss` ni `iat`.
+ * La validación pasa de firma -> mid -> exp -> jti (sin el paso de `iss`).
+ *
  * IMPORTANTE (compatibilidad de firma):
  *   El servidor (Go, crypto/ed25519) firma con Ed25519 estándar RFC 8032, que
  *   usa SHA-512. Por eso aquí usamos crypto_ed25519_check() del módulo OPCIONAL
@@ -36,9 +39,10 @@
 #include "monocypher-ed25519.h"
 
 /* ---- Constantes del contrato (parámetros de ESTA máquina) ---------------- */
+/* Contrato v2: el payload ya NO lleva `iss` ni `iat` (ADR-006). La máquina
+ * asume el emisor de forma implícita, así que no hay constante ISSUER.        */
 #define MACHINE_ID   "M001"                /* mid que acepta esta máquina      */
-#define ISSUER       "dispensadoras.co"    /* iss esperado                     */
-#define ALG          "EdDSA"               /* header.alg obligatorio en v1     */
+#define ALG          "EdDSA"               /* header.alg obligatorio (v2)      */
 #define TYP          "DSP"                 /* header.typ obligatorio           */
 #define KID_LOCAL    "k1"                  /* único kid aprovisionado          */
 #define NOW_DEFAULT  1752460900LL          /* RTC simulado (resultados-esperados.md) */
@@ -49,11 +53,10 @@ typedef enum {
     R_MALFORMED,
     R_BAD_SIGNATURE,
     R_UNKNOWN_KEY,
-    R_BAD_ISSUER,
     R_WRONG_MACHINE,
     R_EXPIRED,
     R_ALREADY_USED
-} result_t;
+} result_t;   /* v2: se elimina R_BAD_ISSUER (ya no hay campo `iss`). */
 
 static const char *result_str(result_t r) {
     switch (r) {
@@ -61,7 +64,6 @@ static const char *result_str(result_t r) {
         case R_MALFORMED:     return "MALFORMED";
         case R_BAD_SIGNATURE: return "BAD_SIGNATURE";
         case R_UNKNOWN_KEY:   return "UNKNOWN_KEY";
-        case R_BAD_ISSUER:    return "BAD_ISSUER";
         case R_WRONG_MACHINE: return "WRONG_MACHINE";
         case R_EXPIRED:       return "EXPIRED";
         case R_ALREADY_USED:  return "ALREADY_USED";
@@ -220,30 +222,25 @@ static result_t verificar_token(const char *token, size_t tlen,
     if (pn < 0) return R_MALFORMED;
     payload[pn] = '\0';
 
-    /* Paso 6: iss. */
-    char iss[64];
-    if (json_get_str(payload, "iss", iss, sizeof iss) != 0) return R_MALFORMED;
-    if (strcmp(iss, ISSUER) != 0) return R_BAD_ISSUER;
-
-    /* Paso 7: mid == MACHINE_ID. */
+    /* Paso 6 (v2): mid == MACHINE_ID. */
     char mid[32];
     if (json_get_str(payload, "mid", mid, sizeof mid) != 0) return R_MALFORMED;
     if (strcmp(mid, MACHINE_ID) != 0) return R_WRONG_MACHINE;
 
-    /* Paso 8: now (RTC) <= exp. */
+    /* Paso 7 (v2): now (RTC) <= exp. */
     long long exp;
     if (json_get_int(payload, "exp", &exp) != 0) return R_MALFORMED;
     if (now > exp) return R_EXPIRED;
 
-    /* Paso 9: jti no usado. */
+    /* Paso 8 (v2): jti no usado. */
     char jti[JTI_LEN];
     if (json_get_str(payload, "jti", jti, sizeof jti) != 0) return R_MALFORMED;
     if (jti_is_used(jti)) return R_ALREADY_USED;
 
-    /* Paso 10: marcar jti como usado ANTES de dispensar (persistente en HW). */
+    /* Paso 9 (v2): marcar jti como usado ANTES de dispensar (persistente en HW). */
     jti_mark_used(jti);
 
-    /* Paso 11: "dispensar" items (en la PoC solo los reportamos). Copiamos el
+    /* Paso 10 (v2): "dispensar" items (en la PoC solo los reportamos). Copiamos el
      * arreglo `[...]` respetando el balance de corchetes. */
     if (items_out && items_cap) {
         const char *it = json_after_key(payload, "items");

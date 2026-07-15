@@ -1,9 +1,13 @@
 // Package dsptoken implementa la emisión (firma) y verificación del token de
-// dispensado descrito en especificaciones/contrato-token.md (v1).
+// dispensado descrito en especificaciones/contrato-token.md (v2).
 //
 // El servidor firma; la máquina (ESP32) verifica offline. Este paquete es la
 // referencia canónica que el firmware debe replicar bit a bit: mismo formato
 // JWS compacto, mismo orden de validaciones (§5) y mismos códigos de error (§7).
+//
+// Cambio v1 → v2 (ADR-006): el payload se adelgaza; se eliminan `iss` (constante,
+// implícita) e `iat` (auditoría, se guarda solo en el servidor). El emisor sigue
+// registrando esos datos en su BD; simplemente no viajan en el QR.
 package dsptoken
 
 import (
@@ -13,13 +17,12 @@ import (
 	"strings"
 )
 
-// Constantes del contrato v1.
+// Constantes del contrato v2.
 const (
-	Issuer     = "dispensadoras.co" // valor obligatorio de iss
-	AlgEdDSA   = "EdDSA"            // único alg aceptado en v1 (anti-downgrade)
-	TypDSP     = "DSP"             // tipo de token: dispensado
-	DefaultKID = "k1"             // id de llave por defecto
-	DefaultTTL = 300             // ventana de expiración recomendada: 5 min
+	AlgEdDSA   = "EdDSA" // único alg aceptado (anti-downgrade)
+	TypDSP     = "DSP"   // tipo de token: dispensado
+	DefaultKID = "k1"    // id de llave por defecto
+	DefaultTTL = 300     // ventana de expiración recomendada: 5 min
 )
 
 // b64 es base64url SIN padding, como exige el contrato §4.
@@ -40,12 +43,12 @@ type Item struct {
 	Q int `json:"q"` // cantidad (≥1)
 }
 
-// Payload del token. Orden de campos fijo para JSON determinista.
+// Payload del token (v2). Orden de campos fijo para JSON determinista:
+// {"mid":...,"jti":...,"exp":...,"items":[...]} (contrato §3 y §4).
+// `iss` e `iat` se eliminaron en v2 (ADR-006).
 type Payload struct {
-	Iss   string `json:"iss"`
 	Mid   string `json:"mid"`
 	Jti   string `json:"jti"`
-	Iat   int64  `json:"iat"`
 	Exp   int64  `json:"exp"`
 	Items []Item `json:"items"`
 }
@@ -58,7 +61,6 @@ const (
 	Malformed    Code = "MALFORMED"     // no son 3 partes / JSON inválido / alg|typ no aceptados
 	BadSignature Code = "BAD_SIGNATURE" // firma Ed25519 inválida
 	UnknownKey   Code = "UNKNOWN_KEY"   // no hay llave pública para el kid
-	BadIssuer    Code = "BAD_ISSUER"    // iss != dispensadoras.co
 	WrongMachine Code = "WRONG_MACHINE" // mid != machine_id de esta máquina
 	Expired      Code = "EXPIRED"       // now > exp
 	AlreadyUsed  Code = "ALREADY_USED"  // jti ya consumido
@@ -185,23 +187,19 @@ func Verify(token string, vp VerifyParams) Result {
 		return Result{Code: Malformed, Header: &h}
 	}
 
-	// 6. iss.
-	if p.Iss != Issuer {
-		return Result{Code: BadIssuer, Header: &h, Payload: &p}
-	}
-	// 7. mid.
+	// 6. mid (v2: ya no hay chequeo de iss, eliminado en ADR-006).
 	if p.Mid != vp.MachineID {
 		return Result{Code: WrongMachine, Header: &h, Payload: &p}
 	}
-	// 8. exp.
+	// 7. exp.
 	if vp.Now > p.Exp {
 		return Result{Code: Expired, Header: &h, Payload: &p}
 	}
-	// 9. jti no usado.
+	// 8. jti no usado.
 	if vp.Used != nil && vp.Used.IsUsed(p.Jti) {
 		return Result{Code: AlreadyUsed, Header: &h, Payload: &p}
 	}
-	// 10. Marcar jti como usado ANTES de dispensar (aquí: solo registro).
+	// 9. Marcar jti como usado ANTES de dispensar (aquí: solo registro).
 	if vp.Used != nil {
 		vp.Used.MarkUsed(p.Jti)
 	}

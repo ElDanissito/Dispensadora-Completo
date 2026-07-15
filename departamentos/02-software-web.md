@@ -125,18 +125,23 @@ La máquina **nunca habla con el servidor** para vender. Solo necesita su llave 
 
 ## 11. Notas para otros departamentos
 
-### Para Firmware (Dept. 03) — ya pueden trabajar sin hardware
+### Para Firmware (Dept. 03) — actualizar la PoC a v2
 - La implementación de referencia de firma/verificación está en `software/internal/dsptoken`
-  y sigue **exactamente** el contrato v1 (orden de validación §5, códigos §7).
-- **Vectores de prueba listos** en `especificaciones/vectores-prueba/`:
-  `llave-publica-k1.txt`, `token-valido.txt`, `token-expirado.txt`, `token-firma-mala.txt`,
-  `token-valido.png` (QR para probar el GM65) y `resultados-esperados.md`.
+  y ya sigue el contrato **v2** (payload `{mid, jti, exp, items}`, sin `iss`/`iat`; se elimina
+  el código `BAD_ISSUER`; orden de validación §5, códigos §7).
+- **Vectores REGENERADOS para v2** en `especificaciones/vectores-prueba/`:
+  `llave-publica-k1.txt` (sin cambios — mismo par de llaves), `token-valido.txt`,
+  `token-expirado.txt`, `token-firma-mala.txt`, `token-valido.png` (QR nuevo) y
+  `resultados-esperados.md`. **Los vectores v1 quedan obsoletos.**
 - Evaluar con `NOW = 1752460900` y `MACHINE_ID = "M001"` (los tokens llevan `exp` fijo).
-  El firmware DEBE dar los mismos códigos que el simulador `dsp verify`.
-- **Pendiente conjunto:** confirmar con el GM65 real que un QR de ~300–320 chars se lee bien
-  desde varias pantallas de celular. Si no, ver ADR-006 (propuesta de adelgazar el token).
+  El firmware DEBE dar los mismos códigos que el simulador `dsp verify`:
+  `token-valido → OK`, `token-expirado → EXPIRED`, `token-firma-mala → BAD_SIGNATURE`.
+- **Buena noticia de tamaño:** con v2, el token de **2 items baja a 258 chars** (antes 318).
+  Queda holgado bajo el objetivo de ~300 del §6.
+- **Pendiente conjunto:** confirmar con el GM65 real que el QR se lee bien desde varias
+  pantallas de celular (checklist §11 del contrato).
 
 ### Para Daniel / Gerencia
-- Decisión pendiente en `DECISIONS.md` **ADR-006**: el token supera ~300 chars con 2+ items.
-  No cambio el contrato hasta que decidas entre (1) limitar items, (2) v2 JSON adelgazado,
-  (3) v2 COSE/CBOR. Recomendación: probar hardware primero.
+- **ADR-006 cerrada por parte de Software (02):** migrado `dsptoken` a v2 y regenerados los
+  vectores. El token de 2 items pasó de 318 a **258 chars**. Queda pendiente solo la
+  validación con el GM65 real (frente de Firmware/Hardware).

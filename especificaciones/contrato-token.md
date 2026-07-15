@@ -144,9 +144,9 @@ resultados-esperados.md
 ## 11. Checklist de v2 (para cerrar)
 
 - [x] Daniel aprueba algoritmo y campos (v2, sin `iss`/`iat`).
-- [ ] Software (02): actualizar `dsptoken` al payload v2 y **regenerar vectores**.
-- [ ] Firmware (03): actualizar la PoC al payload v2 y re-verificar contra los vectores.
-- [ ] Confirmar con el GM65 real que el QR de 2–3 items se lee bien desde varios celulares.
+- [x] Software (02): actualizar `dsptoken` al payload v2 y **regenerar vectores**. Hecho (2026-07-14): 2 items = 258 chars.
+- [x] Firmware (03): actualizar la PoC al payload v2 y re-verificar contra los vectores. Hecho (2026-07-14): PoC migrada a v2 (sin `iss`; código `BAD_ISSUER` eliminado; orden firma→mid→exp→jti). Re-verificada contra los vectores regenerados → resultados **idénticos** al backend: `token-valido`→`OK`, `token-expirado`→`EXPIRED`, `token-firma-mala`→`BAD_SIGNATURE`, reuso→`ALREADY_USED`.
+- [ ] Confirmar con el GM65 real que el QR de 2–3 items se lee bien desde varios celulares. (Bloqueado por llegada de hardware — Fase A de `hardware/lista-compra-piloto.md`.)
 
 ---
 

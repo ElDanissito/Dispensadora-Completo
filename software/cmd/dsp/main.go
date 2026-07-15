@@ -1,5 +1,5 @@
 // Comando dsp: herramienta CLI del agente de Software para el token de
-// dispensado (contrato-token.md v1). Permite:
+// dispensado (contrato-token.md v2). Permite:
 //
 //	dsp keygen    genera un par de llaves Ed25519 (privada fuera del repo)
 //	dsp sign      firma un token y (opcional) genera su QR
@@ -67,11 +67,11 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `dsp — herramienta del token de dispensado (contrato v1)
+	fmt.Fprint(os.Stderr, `dsp — herramienta del token de dispensado (contrato v2)
 
 Uso:
   dsp keygen  [-priv RUTA] [-pub RUTA] [-kid k1] [-force]
-  dsp sign    [-priv RUTA] -mid M001 [-items "3:1,5:2"] [-jti X] [-iat N] [-exp N|-ttl 300] [-kid k1] [-qr salida.png] [-size 512]
+  dsp sign    [-priv RUTA] -mid M001 [-items "3:1,5:2"] [-jti X] [-exp N|-ttl 300] [-kid k1] [-qr salida.png] [-size 512]
   dsp verify  -pub RUTA -mid M001 (-token STR | -in RUTA) [-now N]
   dsp qr      (-token STR | -in RUTA) -out salida.png [-size 512]
   dsp vectors [-priv RUTA] [-pub RUTA]
@@ -117,8 +117,7 @@ func cmdSign(args []string) error {
 	mid := fs.String("mid", "", "machine_id (obligatorio)")
 	items := fs.String("items", "", `items "slot:cant,slot:cant" (ej. "3:1,5:2")`)
 	jti := fs.String("jti", "", "id de orden (por defecto aleatorio)")
-	iat := fs.Int64("iat", 0, "emitido en (epoch s; 0 = ahora)")
-	exp := fs.Int64("exp", 0, "expira en (epoch s; 0 = iat+ttl)")
+	exp := fs.Int64("exp", 0, "expira en (epoch s; 0 = ahora+ttl)")
 	ttl := fs.Int64("ttl", dsptoken.DefaultTTL, "ventana de validez en segundos si -exp=0")
 	kid := fs.String("kid", dsptoken.DefaultKID, "id de la llave")
 	qrOut := fs.String("qr", "", "si se indica, escribe el QR PNG a esta ruta")
@@ -137,13 +136,12 @@ func cmdSign(args []string) error {
 		return err
 	}
 
-	iatVal := *iat
-	if iatVal == 0 {
-		iatVal = time.Now().Unix()
-	}
+	// v2: `iat` ya no viaja en el token. Se usa solo como base para calcular exp
+	// (el servidor real lo registra en su BD, no en el QR).
+	emit := time.Now().Unix()
 	expVal := *exp
 	if expVal == 0 {
-		expVal = iatVal + *ttl
+		expVal = emit + *ttl
 	}
 	jtiVal := *jti
 	if jtiVal == "" {
@@ -151,10 +149,8 @@ func cmdSign(args []string) error {
 	}
 
 	p := dsptoken.Payload{
-		Iss:   dsptoken.Issuer,
 		Mid:   *mid,
 		Jti:   jtiVal,
-		Iat:   iatVal,
 		Exp:   expVal,
 		Items: parsedItems,
 	}
@@ -164,8 +160,7 @@ func cmdSign(args []string) error {
 	}
 
 	fmt.Println(token)
-	fmt.Fprintf(os.Stderr, "jti=%s  iat=%d  exp=%d (ttl=%ds)  len=%d chars\n",
-		jtiVal, iatVal, expVal, expVal-iatVal, len(token))
+	fmt.Fprintf(os.Stderr, "jti=%s  exp=%d  len=%d chars\n", jtiVal, expVal, len(token))
 
 	if *qrOut != "" {
 		if err := qr.WritePNG(token, *qrOut, *size); err != nil {
@@ -282,10 +277,10 @@ func cmdVectors(args []string) error {
 	)
 	items := []dsptoken.Item{{S: 3, Q: 1}, {S: 5, Q: 2}}
 
-	// token-valido: vigente respecto a nowRef (iat < nowRef < exp).
+	// token-valido: vigente respecto a nowRef (nowRef < exp).
 	valido, err := dsptoken.Sign(sk, dsptoken.DefaultHeader(dsptoken.DefaultKID), dsptoken.Payload{
-		Iss: dsptoken.Issuer, Mid: machineID, Jti: "ord_valid01",
-		Iat: 1752460800, Exp: 1752461100, Items: items,
+		Mid: machineID, Jti: "ord_valid01",
+		Exp: 1752461100, Items: items,
 	})
 	if err != nil {
 		return err
@@ -293,8 +288,8 @@ func cmdVectors(args []string) error {
 
 	// token-expirado: firma válida pero exp < nowRef.
 	expirado, err := dsptoken.Sign(sk, dsptoken.DefaultHeader(dsptoken.DefaultKID), dsptoken.Payload{
-		Iss: dsptoken.Issuer, Mid: machineID, Jti: "ord_exp01",
-		Iat: 1752460000, Exp: 1752460300, Items: items,
+		Mid: machineID, Jti: "ord_exp01",
+		Exp: 1752460300, Items: items,
 	})
 	if err != nil {
 		return err
@@ -303,8 +298,8 @@ func cmdVectors(args []string) error {
 	// token-firma-mala: partimos de uno válido y corrompemos el último carácter
 	// de la firma, manteniéndolo bien formado (3 partes, base64url válido).
 	base, err := dsptoken.Sign(sk, dsptoken.DefaultHeader(dsptoken.DefaultKID), dsptoken.Payload{
-		Iss: dsptoken.Issuer, Mid: machineID, Jti: "ord_badsig01",
-		Iat: 1752460800, Exp: 1752461100, Items: items,
+		Mid: machineID, Jti: "ord_badsig01",
+		Exp: 1752461100, Items: items,
 	})
 	if err != nil {
 		return err
@@ -313,9 +308,9 @@ func cmdVectors(args []string) error {
 
 	// Escribir archivos.
 	files := map[string]string{
-		"token-valido.txt":      valido + "\n",
-		"token-expirado.txt":    expirado + "\n",
-		"token-firma-mala.txt":  firmaMala + "\n",
+		"token-valido.txt":     valido + "\n",
+		"token-expirado.txt":   expirado + "\n",
+		"token-firma-mala.txt": firmaMala + "\n",
 	}
 	for name, content := range files {
 		if err := writeFile(filepath.Join(vectorsDir, name), []byte(content), 0o644); err != nil {
@@ -355,7 +350,7 @@ func corromperFirma(token string) string {
 func resultadosMD(mid string, nowRef int64, pub, valido, expirado, firmaMala string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Vectores de prueba — resultados esperados\n\n")
-	fmt.Fprintf(&b, "> Generado por `dsp vectors`. Fuente: contrato-token.md v1.\n")
+	fmt.Fprintf(&b, "> Generado por `dsp vectors`. Fuente: contrato-token.md v2.\n")
 	fmt.Fprintf(&b, "> El simulador de verificación (02) y el firmware (03) DEBEN dar exactamente estos resultados.\n\n")
 	fmt.Fprintf(&b, "## Parámetros de evaluación\n\n")
 	fmt.Fprintf(&b, "- **MACHINE_ID de la máquina de prueba:** `%s`\n", mid)
@@ -368,8 +363,8 @@ func resultadosMD(mid string, nowRef int64, pub, valido, expirado, firmaMala str
 	fmt.Fprintf(&b, "## Casos\n\n")
 	fmt.Fprintf(&b, "| Archivo | Resultado esperado | Por qué |\n")
 	fmt.Fprintf(&b, "|---------|--------------------|---------|\n")
-	fmt.Fprintf(&b, "| `token-valido.txt` | `OK` | Firma válida, iss/mid correctos, `now (%d) ≤ exp (1752461100)`, jti no usado. Dispensa items `[{s:3,q:1},{s:5,q:2}]`. |\n", nowRef)
-	fmt.Fprintf(&b, "| `token-expirado.txt` | `EXPIRED` | Firma válida pero `now (%d) > exp (1752460300)`. Se rechaza en el paso 8. |\n", nowRef)
+	fmt.Fprintf(&b, "| `token-valido.txt` | `OK` | Firma válida, `mid` correcto, `now (%d) ≤ exp (1752461100)`, jti no usado. Dispensa items `[{s:3,q:1},{s:5,q:2}]`. |\n", nowRef)
+	fmt.Fprintf(&b, "| `token-expirado.txt` | `EXPIRED` | Firma válida pero `now (%d) > exp (1752460300)`. Se rechaza en el paso 7 (v2). |\n", nowRef)
 	fmt.Fprintf(&b, "| `token-firma-mala.txt` | `BAD_SIGNATURE` | Igual que el válido pero con la firma corrompida. Se rechaza en el paso 4 (antes de mirar exp). |\n\n")
 	fmt.Fprintf(&b, "## Nota sobre segundo uso (ALREADY_USED)\n\n")
 	fmt.Fprintf(&b, "Si se verifica `token-valido.txt` DOS veces con el mismo registro de `jti`,\n")

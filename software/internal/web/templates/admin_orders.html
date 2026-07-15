@@ -1,0 +1,22 @@
+{{define "content"}}
+<div class="card">
+  <div class="muted"><a class="link" href="/admin">← Panel</a></div>
+  <h2 style="margin-top:8px">Órdenes recientes</h2>
+  {{if .Orders}}
+  <table>
+    <thead><tr><th>jti</th><th>Máquina</th><th>Total</th><th>Estado</th><th>Creada</th></tr></thead>
+    <tbody>
+    {{range .Orders}}
+      <tr>
+        <td><code>{{.Jti}}</code></td>
+        <td>{{.MachineID}}</td>
+        <td class="price">{{cop .TotalCOP}}</td>
+        <td><span class="badge">{{.Status}}</span></td>
+        <td class="muted">{{ts .CreatedAt}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<div class="muted">Aún no hay órdenes.</div>{{end}}
+</div>
+{{end}}

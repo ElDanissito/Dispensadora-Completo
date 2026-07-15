@@ -1,0 +1,36 @@
+{{define "content"}}
+<div class="card">
+  <h2>Máquinas</h2>
+  {{if .Machines}}
+  {{range .Machines}}
+  <div class="row">
+    <div>
+      <a class="link" href="/admin/m/{{.ID}}">{{.ID}} — {{.Name}}</a>
+      <div class="muted">kid {{.Kid}} · <a class="link" href="/m/{{.ID}}">ver página pública</a></div>
+    </div>
+    {{if .Active}}<span class="badge ok">activa</span>{{else}}<span class="badge out">inactiva</span>{{end}}
+  </div>
+  {{end}}
+  {{else}}<div class="muted">Sin máquinas todavía.</div>{{end}}
+
+  <h2 style="margin-top:20px">Crear máquina</h2>
+  <form class="inline" method="post" action="/admin/machines">
+    <div><label>ID (mid)</label><input name="id" placeholder="M001" required></div>
+    <div><label>Nombre / ubicación</label><input name="name" placeholder="Cafetería U. del Valle" required></div>
+    <div><label>kid</label><input name="kid" value="k1" size="4"></div>
+    <button type="submit">Crear</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Catálogo global de productos</h2>
+  {{if .Products}}
+  <div class="muted">{{range .Products}}{{.Name}} · {{end}}</div>
+  {{else}}<div class="muted">Sin productos todavía.</div>{{end}}
+  <h2 style="margin-top:16px">Nuevo producto</h2>
+  <form class="inline" method="post" action="/admin/products">
+    <div><label>Nombre</label><input name="name" placeholder="Papas Margarita" required></div>
+    <button type="submit">Agregar</button>
+  </form>
+</div>
+{{end}}

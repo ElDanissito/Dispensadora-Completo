@@ -19,8 +19,8 @@ func newTestKeys(t *testing.T) (ed25519.PrivateKey, MapKeyStore) {
 
 func validPayload() Payload {
 	return Payload{
-		Iss: Issuer, Mid: "M001", Jti: "ord_test01",
-		Iat: 1000, Exp: 2000, Items: []Item{{S: 3, Q: 1}, {S: 5, Q: 2}},
+		Mid: "M001", Jti: "ord_test01",
+		Exp: 2000, Items: []Item{{S: 3, Q: 1}, {S: 5, Q: 2}},
 	}
 }
 
@@ -77,16 +77,6 @@ func TestVerifyWrongMachine(t *testing.T) {
 	vp.MachineID = "M999"
 	if res := Verify(tok, vp); res.Code != WrongMachine {
 		t.Fatalf("esperaba WRONG_MACHINE, obtuve %s", res.Code)
-	}
-}
-
-func TestVerifyBadIssuer(t *testing.T) {
-	priv, keys := newTestKeys(t)
-	p := validPayload()
-	p.Iss = "otro.co"
-	tok, _ := Sign(priv, DefaultHeader(DefaultKID), p)
-	if res := Verify(tok, baseParams(keys)); res.Code != BadIssuer {
-		t.Fatalf("esperaba BAD_ISSUER, obtuve %s", res.Code)
 	}
 }
 

@@ -1,0 +1,48 @@
+{{define "base"}}<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<style>
+  :root { --bg:#0f1115; --card:#1a1d24; --fg:#e8eaed; --muted:#9aa0aa; --line:#2a2e37; --accent:#3ba55d; --danger:#e05252; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--fg); line-height:1.5; }
+  header { padding:16px 20px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  header h1 { font-size:1.1rem; margin:0; }
+  header a { color:var(--muted); text-decoration:none; font-size:.9rem; margin-left:14px; }
+  main { max-width:760px; margin:0 auto; padding:20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .row:last-child { border-bottom:none; }
+  .muted { color:var(--muted); font-size:.9rem; }
+  .price { font-weight:600; white-space:nowrap; }
+  .badge { font-size:.75rem; padding:2px 8px; border-radius:999px; background:var(--line); color:var(--muted); }
+  .badge.ok { background:rgba(59,165,93,.15); color:var(--accent); }
+  .badge.out { background:rgba(224,82,82,.15); color:var(--danger); }
+  table { width:100%; border-collapse:collapse; font-size:.9rem; }
+  th,td { text-align:left; padding:8px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:600; }
+  form.inline { display:flex; flex-wrap:wrap; gap:8px; align-items:end; }
+  label { display:block; font-size:.8rem; color:var(--muted); margin-bottom:4px; }
+  input,select { background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-size:.95rem; }
+  button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:9px 16px; font-size:.95rem; cursor:pointer; }
+  button.secondary { background:var(--line); color:var(--fg); }
+  h2 { font-size:1rem; margin:0 0 12px; }
+  a.link { color:var(--accent); text-decoration:none; }
+  .note { font-size:.85rem; color:var(--muted); background:rgba(59,165,93,.06); border:1px dashed var(--line); border-radius:8px; padding:10px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>{{.Title}}</h1>
+  {{if .Admin}}<nav>
+    <a href="/admin">Panel</a>
+    <a href="/admin/orders">Órdenes</a>
+  </nav>{{end}}
+</header>
+<main>
+{{template "content" .Data}}
+</main>
+</body>
+</html>{{end}}
