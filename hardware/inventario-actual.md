@@ -54,10 +54,13 @@ El `exp` se añade cuando llegue el RTC.
 
 ## Antes de conectar nada — checklist de seguridad (para no quemar el ESP32)
 
-- [ ] **E18-D80NK → D26:** el E18 es NPN (colector abierto). Alimentado a 5V, su OUT en reposo
-      puede quedar en 5V y el GPIO del ESP32 **no tolera 5V**. Opciones seguras: usar `INPUT_PULLUP`
-      del ESP32 (pull-up interno a 3.3V) y que el sensor solo lleve la señal a GND al detectar, **o**
-      alimentar el sensor a 3.3V, **o** divisor de voltaje. **Medir el OUT con multímetro antes de conectar.**
+- [x] **E18-D80NK → D26 — MEDIDO Y RESUELTO (2026-07-14).** Alimentado a **5V**. Medido con multímetro:
+      **reposo ≈ 2.2V, detección (mano) = 0V.** El 2.2V es la salida **flotando** y queda por debajo del
+      umbral de HIGH fiable del ESP32 (~2.5V) → **usar `pinMode(D26, INPUT_PULLUP)`**: el pull-up interno
+      lo sube a **3.3V limpio** en reposo y el sensor lo tira a **0V** al detectar. Como es **NPN colector
+      abierto** (solo tira a GND, nunca empuja 5V al pin), **no hay riesgo de 5V en el D26** aunque el
+      sensor se alimente a 5V. **Lógica en código: HIGH = libre, LOW = producto detectado.**
+      Verificación de seguridad: con el pull-up activo, el pin en reposo debe medir ~3.3V (no más).
 - [ ] **GM65 (UART) → ESP32:** confirmar a qué voltaje va la línea TX del GM65. Si es 5V, alimentar
       el GM65 a 3.3V o usar level shifter; el RX del ESP32 no tolera 5V.
 - [ ] **Doble fuente de 5V:** al **programar por USB** hay 5V del USB; si el **buck 12→5V** también
@@ -74,6 +77,6 @@ El `exp` se añade cuando llegue el RTC.
    1. [x] **Blink + motor — HECHO (2026-07-14).** Sketch `paso1-motores.ino` funciona: mueve un motor con lógica inversa. Daniel corrigió el pinout (estaba invertido respecto al circuito físico): Motor 1 = D27, Motor 2 = D14.
    2. [x] **Paso 2 — HECHO (2026-07-14).** GM65 por UART2 (RX2=GPIO16, TX2=GPIO17) con `firmware/paso2-gm65/paso2-gm65.ino`. Leyó `token-valido.png`: 258 chars del token v2 completos e intactos (`eyJhbGciOiJFZERTQS...`).
    3. [x] **Paso 3 — HECHO (2026-07-14). ¡Núcleo de seguridad en hardware!** `firmware/paso3-verificacion/paso3-verificacion.ino` con **Monocypher** (`crypto_ed25519_check`, RFC 8032/SHA-512, compatible con Go). En el ESP32, escaneando por GM65: `token-valido`→**`OK`** + items `[{s:3,q:1},{s:5,q:2}]`; segundo escaneo del mismo → **`ALREADY_USED`** (anti-reuso demostrado). `NOW = 1752460900` fijo (sin RTC). Anti-reuso de `jti` en **RAM** → **pendiente pasar a NVS** para que sobreviva reinicios.
-   4. [ ] **Paso 4 (siguiente):** si el resultado es `OK`, accionar el/los motor(es) del slot con lógica inversa y timeout. Definir **mapa slot→GPIO** (ej.: slot 3→D27, slot 5→D14) para el demo con los 2 motores usables.
+   4. [x] **Paso 4 — HECHO (2026-07-14). ¡FLUJO COMPLETO EN HARDWARE!** `firmware/paso4-dispensado/paso4-dispensado.ino` (paso 3 + motores). Escanear `token-valido` → verifica `OK` → **dispensa** moviendo el/los motor(es) del slot (lógica inversa + timeout). Segundo escaneo del mismo QR → **niega** (`ALREADY_USED`, no dispensa). Mapa slot→GPIO: slot 3→D27, slot 5→D14. El `jti` se marca antes de mover motores (§5). **Prueba de concepto del producto completa: cobra por QR firmado, offline, dispensa una sola vez.**
    5. [ ] Leer el **E18-D80NK** y confirmar la caída del producto.
    6. [ ] Unir todo en la máquina de estados (con `exp` fijo hasta que llegue el RTC).
