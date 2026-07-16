@@ -6,24 +6,42 @@
 </div>
 
 {{if .Catalog}}
-<div class="card">
-  {{range .Catalog}}
-  <div class="row">
-    <div>
-      <div>{{.ProductName}}</div>
-      <div class="muted">Slot {{.Slot}}
-        {{if gt .Stock 0}}<span class="badge ok">{{.Stock}} disp.</span>{{else}}<span class="badge out">agotado</span>{{end}}
+<form method="post" action="/m/{{.Machine.ID}}/simular-pago">
+  <div class="card">
+    {{range .Catalog}}
+    <div class="row">
+      <div>
+        <div>{{.ProductName}}</div>
+        <div class="muted">Slot {{.Slot}}
+          {{if gt .Stock 0}}<span class="badge ok">{{.Stock}} disp.</span>{{else}}<span class="badge out">agotado</span>{{end}}
+        </div>
+      </div>
+      <div class="price">{{cop .PriceCOP}}</div>
+      <div>
+        {{if gt .Stock 0}}
+        <input type="number" name="qty_{{.Slot}}" value="0" min="0" max="{{.Stock}}"
+               style="width:4rem" aria-label="Cantidad de {{.ProductName}}">
+        {{else}}
+        <input type="number" value="0" min="0" max="0" disabled style="width:4rem">
+        {{end}}
       </div>
     </div>
-    <div class="price">{{cop .PriceCOP}}</div>
+    {{end}}
   </div>
-  {{end}}
-</div>
+
+  <div class="card">
+    <button type="submit" style="width:100%;padding:.8rem;font-size:1rem;font-weight:600">
+      Simular pago y generar QR
+    </button>
+    <div class="muted" style="margin-top:.5rem;text-align:center">
+      Pago Bre-B real en integración (Dept. 04). Por ahora esto emite el QR directamente para pruebas.
+    </div>
+  </div>
+</form>
 
 <div class="note">
-  <strong>¿Cómo compro?</strong> Paga por <strong>Bre-B</strong> el valor de tu selección y
-  recibirás un <strong>QR</strong> para mostrar al lector de la máquina.
-  El flujo de pago se está integrando (Dept. 04 · Pagos).
+  <strong>¿Cómo compro?</strong> Elige cantidades y pulsa el botón. En la versión final pagarás por
+  <strong>Bre-B</strong> y solo entonces recibirás el <strong>QR</strong> para mostrar al lector de la máquina.
 </div>
 {{else}}
 <div class="card muted">Esta máquina aún no tiene productos cargados.</div>

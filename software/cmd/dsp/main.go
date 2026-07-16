@@ -333,15 +333,20 @@ func cmdVectors(args []string) error {
 }
 
 // corromperFirma altera un carácter de la firma sin romper el formato.
+//
+// IMPORTANTE: se corrompe el PRIMER carácter, no el último. El último carácter
+// de una firma de 64 bytes en base64url solo lleva 2 bits significativos (los
+// altos); cambiar 'A'↔'B' ahí solo toca un bit de relleno y la firma decodifica
+// IGUAL → el token seguiría siendo válido. El primer carácter lleva 6 bits
+// significativos, así que cambiarlo garantiza una firma distinta (inválida).
 func corromperFirma(token string) string {
 	parts := strings.Split(token, ".")
 	sig := []byte(parts[2])
-	last := sig[len(sig)-1]
-	// cambiar por un carácter base64url distinto pero válido
-	if last == 'A' {
-		sig[len(sig)-1] = 'B'
+	// cambiar el primer carácter por otro base64url válido pero distinto
+	if sig[0] == 'A' {
+		sig[0] = 'B'
 	} else {
-		sig[len(sig)-1] = 'A'
+		sig[0] = 'A'
 	}
 	parts[2] = string(sig)
 	return strings.Join(parts, ".")

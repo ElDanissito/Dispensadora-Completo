@@ -5,8 +5,11 @@
 package web
 
 import (
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/subtle"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"html/template"
@@ -14,6 +17,8 @@ import (
 	"strconv"
 	"time"
 
+	"dispensadoras/software/internal/dsptoken"
+	"dispensadoras/software/internal/qr"
 	"dispensadoras/software/internal/store"
 )
 
@@ -53,10 +58,13 @@ type Server struct {
 	tmpl      *template.Template
 	adminUser string
 	adminPass string
+	priv      ed25519.PrivateKey // llave privada de firma; nil ⇒ "simular pago" deshabilitado
 }
 
 // New construye el servidor. adminUser/adminPass protegen /admin con Basic Auth.
-func New(st *store.Store, adminUser, adminPass string) (*Server, error) {
+// priv es la llave privada Ed25519 con la que se firman los tokens; si es nil,
+// la ruta "simular pago" responde con un aviso (no se puede emitir el QR).
+func New(st *store.Store, adminUser, adminPass string, priv ed25519.PrivateKey) (*Server, error) {
 	// Cada página se compone de base.html + su propia plantilla "content".
 	// Parseamos todo junto: base define "base"; cada archivo redefine "content",
 	// así que renderizamos clonando y parseando la página concreta bajo demanda.
@@ -64,7 +72,7 @@ func New(st *store.Store, adminUser, adminPass string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{st: st, tmpl: base, adminUser: adminUser, adminPass: adminPass}
+	s := &Server{st: st, tmpl: base, adminUser: adminUser, adminPass: adminPass, priv: priv}
 	return s, nil
 }
 
@@ -74,6 +82,7 @@ func (s *Server) Routes() http.Handler {
 
 	// Pública.
 	mux.HandleFunc("GET /m/{id}", s.handleMachinePublic)
+	mux.HandleFunc("POST /m/{id}/simular-pago", s.handleSimularPago)
 
 	// Admin (protegido con Basic Auth).
 	mux.Handle("GET /admin", s.auth(http.HandlerFunc(s.handleAdminDashboard)))
@@ -154,6 +163,116 @@ func (s *Server) handleMachinePublic(w http.ResponseWriter, r *http.Request) {
 			Machine *store.Machine
 			Catalog []store.CatalogRow
 		}{m, cat},
+	})
+}
+
+// handleSimularPago cierra el ciclo web→máquina SIN pago real (Bre-B queda para
+// después): lee la selección de productos, crea la orden, FIRMA el token v2 y
+// muestra su QR para escanear en la máquina.
+//
+// OJO seguridad (CLAUDE.md §4): esto NO confirma un pago real. Es un atajo de
+// pruebas; en producción el QR solo se emite tras la notificación real de la
+// cuenta. Por eso la orden se marca "paid_sim" (pago simulado), distinguible.
+func (s *Server) handleSimularPago(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	m, err := s.st.GetMachine(r.Context(), id)
+	if err != nil {
+		s.notFound(w, "Máquina no encontrada")
+		return
+	}
+	if s.priv == nil {
+		http.Error(w, "el servidor no tiene llave de firma cargada; ejecuta 'dsp keygen' o define DSP_PRIVATE_KEY", http.StatusServiceUnavailable)
+		return
+	}
+	cat, err := s.st.Catalog(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "formulario inválido", http.StatusBadRequest)
+		return
+	}
+
+	// Construir los items a partir de las cantidades enviadas (qty_<slot>).
+	// Se valida contra el catálogo: solo slots existentes y con stock suficiente.
+	var items []dsptoken.Item
+	var orderItems []store.OrderItem
+	var total int64
+	for _, row := range cat {
+		qty, _ := strconv.Atoi(r.FormValue(fmt.Sprintf("qty_%d", row.Slot)))
+		if qty <= 0 {
+			continue
+		}
+		if qty > row.Stock {
+			http.Error(w, fmt.Sprintf("slot %d (%s): pediste %d pero hay %d en stock",
+				row.Slot, row.ProductName, qty, row.Stock), http.StatusBadRequest)
+			return
+		}
+		items = append(items, dsptoken.Item{S: row.Slot, Q: qty})
+		orderItems = append(orderItems, store.OrderItem{Slot: row.Slot, Qty: qty, PriceCOP: row.PriceCOP})
+		total += row.PriceCOP * int64(qty)
+	}
+	if len(items) == 0 {
+		http.Error(w, "selecciona al menos un producto", http.StatusBadRequest)
+		return
+	}
+
+	// Emitir la orden y el token v2 (contrato §3/§4).
+	now := time.Now().Unix()
+	exp := now + dsptoken.DefaultTTL // ventana de 5 min (contrato §3)
+	jti := randomJTI()
+
+	order := store.Order{
+		Jti:       jti,
+		MachineID: id,
+		TotalCOP:  total,
+		Status:    "paid_sim", // pago SIMULADO (no confiar como pago real)
+		Iat:       now,
+		Exp:       exp,
+		CreatedAt: now,
+		Items:     orderItems,
+	}
+	if err := s.st.CreateOrder(r.Context(), order); err != nil {
+		http.Error(w, "no se pudo crear la orden: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	token, err := dsptoken.Sign(s.priv, dsptoken.DefaultHeader(m.Kid), dsptoken.Payload{
+		Mid:   id,
+		Jti:   jti,
+		Exp:   exp,
+		Items: items,
+	})
+	if err != nil {
+		http.Error(w, "no se pudo firmar el token: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	dataURI, err := qr.DataURI(token, 512)
+	if err != nil {
+		http.Error(w, "no se pudo generar el QR: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	s.render(w, "machine_qr.html", page{
+		Title: "Tu QR · Máquina " + id,
+		Admin: false,
+		Data: struct {
+			Machine  *store.Machine
+			Items    []store.OrderItem
+			Catalog  []store.CatalogRow
+			TotalCOP int64
+			Jti      string
+			Exp      int64
+			Token    string
+			TokenLen int
+			QRDataURI template.URL
+		}{
+			Machine: m, Items: orderItems, Catalog: cat, TotalCOP: total,
+			Jti: jti, Exp: exp, Token: token, TokenLen: len(token),
+			QRDataURI: template.URL(dataURI),
+		},
 	})
 }
 
@@ -269,4 +388,14 @@ func (s *Server) handleAdminOrders(w http.ResponseWriter, r *http.Request) {
 func (s *Server) notFound(w http.ResponseWriter, msg string) {
 	w.WriteHeader(http.StatusNotFound)
 	fmt.Fprintf(w, "%s", msg)
+}
+
+// randomJTI genera un id de orden único (mismo formato que el CLI dsp: "ord_"+
+// 5 bytes hex). Es el jti de un solo uso del token (contrato §3).
+func randomJTI() string {
+	var b [5]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "ord_00000000"
+	}
+	return "ord_" + hex.EncodeToString(b[:])
 }

@@ -57,12 +57,14 @@ func TestVerifyBadSignature(t *testing.T) {
 	priv, keys := newTestKeys(t)
 	tok, _ := Sign(priv, DefaultHeader(DefaultKID), validPayload())
 	parts := strings.Split(tok, ".")
-	// corromper último char de la firma manteniendo base64url válido
+	// Corromper el PRIMER char de la firma (base64url válido). No el último: el
+	// último solo lleva 2 bits significativos y 'A'↔'B' ahí no cambia la firma
+	// decodificada (bug que hacía este test flaky). El primero lleva 6 bits.
 	sig := []byte(parts[2])
-	if sig[len(sig)-1] == 'A' {
-		sig[len(sig)-1] = 'B'
+	if sig[0] == 'A' {
+		sig[0] = 'B'
 	} else {
-		sig[len(sig)-1] = 'A'
+		sig[0] = 'A'
 	}
 	parts[2] = string(sig)
 	if res := Verify(strings.Join(parts, "."), baseParams(keys)); res.Code != BadSignature {

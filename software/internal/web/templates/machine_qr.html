@@ -1,0 +1,39 @@
+{{define "content"}}
+<div class="card">
+  <div class="muted">Máquina {{.Machine.ID}} — {{.Machine.Name}}</div>
+  <h2 style="margin-top:4px">Escanea este QR en la máquina</h2>
+
+  <div style="text-align:center;background:#fff;border-radius:12px;padding:16px;margin:12px 0">
+    <img src="{{.QRDataURI}}" alt="QR de tu compra" style="width:280px;max-width:100%;height:auto;image-rendering:pixelated">
+  </div>
+
+  <div class="row"><div>Total</div><div class="price">{{cop .TotalCOP}}</div></div>
+  <div class="row"><div class="muted">Expira</div><div class="muted">{{ts .Exp}} (Bogotá)</div></div>
+  <div class="row"><div class="muted">Orden (jti)</div><div class="muted">{{.Jti}}</div></div>
+</div>
+
+<div class="card">
+  <h2>Tu selección</h2>
+  {{range .Items}}
+  <div class="row">
+    <div>Slot {{.Slot}} · {{.Qty}} u.</div>
+    <div class="price">{{cop .PriceCOP}} c/u</div>
+  </div>
+  {{end}}
+</div>
+
+<div class="card">
+  <div class="muted">Token (para depuración / inspección · {{.TokenLen}} chars)</div>
+  <div style="word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:.75rem;margin-top:6px;color:var(--muted)">{{.Token}}</div>
+</div>
+
+<div class="note">
+  <strong>Pago simulado (pruebas).</strong> Este QR se emitió sin cobro real; la orden queda marcada
+  como <code>paid_sim</code>. En producción el QR solo se genera tras la notificación real de Bre-B
+  (CLAUDE.md §4). El QR es válido una sola vez: la máquina lo consume al dispensar.
+</div>
+
+<div class="card" style="text-align:center">
+  <a class="link" href="/m/{{.Machine.ID}}">← Volver a la máquina</a>
+</div>
+{{end}}

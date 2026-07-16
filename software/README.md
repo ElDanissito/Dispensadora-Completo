@@ -86,12 +86,30 @@ ADMIN_PASS=algo-seguro ./dispensadoras-web -seed   # -seed carga datos de demo
 - `-db dispensadoras.db` ruta del archivo SQLite · `-addr :8080` dirección · `-seed` datos demo.
 - El panel `/admin` va protegido con **Basic Auth** (`ADMIN_USER`/`ADMIN_PASS`, por defecto
   `admin`/`changeme` con aviso — define `ADMIN_PASS` antes de exponerlo).
-- Rutas: `GET /m/{id}` (pública) · `GET /admin`, `POST /admin/machines`, `POST /admin/products`,
-  `GET /admin/m/{id}`, `POST /admin/m/{id}/slot`, `GET /admin/orders`.
+- Rutas: `GET /m/{id}` (pública) · `POST /m/{id}/simular-pago` (emite el QR) · `GET /admin`,
+  `POST /admin/machines`, `POST /admin/products`, `GET /admin/m/{id}`, `POST /admin/m/{id}/slot`,
+  `GET /admin/orders`.
 
-El pago y la emisión del QR **no** se hacen aún en la página pública: se integran con
-Dept. 04 (Pagos) y nunca se confiará en el comprobante que muestre el cliente (regla del
-`CLAUDE.md` §4), solo en la notificación real de la cuenta.
+### Ciclo web→máquina (pago simulado, para pruebas)
+
+`GET /m/{id}` muestra el catálogo como **formulario**: el cliente elige cantidades y pulsa
+**"Simular pago y generar QR"**. Ese `POST /m/{id}/simular-pago`:
+
+1. Valida la selección contra el catálogo (slots existentes, stock suficiente).
+2. Crea la **orden** (`store.CreateOrder`) con estado `paid_sim`.
+3. **Firma el token v2** (`dsptoken.Sign`) con la llave privada del servidor (kid de la máquina).
+4. Muestra el **QR** del token embebido en la página (`data:image/png;base64,...`) para escanearlo.
+
+Requiere la **llave privada** cargada: `software/.keys/private-k1.key` (de `dsp keygen`) o la
+env `DSP_PRIVATE_KEY`. Sin llave, el servidor arranca igual pero "simular pago" responde 503.
+
+> **Seguridad (CLAUDE.md §4):** `simular-pago` **NO** es un pago real — es un atajo de pruebas.
+> La orden queda marcada `paid_sim` para distinguirla. Bre-B real (Dept. 04) emitirá el QR solo
+> tras la **notificación real** de la cuenta; nunca se confía en el comprobante del cliente.
+
+> **Nota sobre `exp` y el RTC:** el token se firma con `exp = ahora + 300s`. La máquina del piloto
+> aún usa un `NOW` fijo (sin RTC), que está en el pasado respecto a ese `exp`, así que el token
+> verifica `OK`. Cuando llegue el DS3231, `exp` se validará contra la hora real.
 
 ## Pruebas
 
@@ -105,10 +123,19 @@ go test ./...
 
 ## Estado y pendientes
 
-Entregado: `dsp` (keygen/sign/verify/qr/vectors, contrato **v2**) + `server` con `GET /m/{id}`
-y panel admin mínimo + capa de datos SQLite + tests.
-Siguiente (Dept. 02 §6): integración de pago con Dept. 04 (emisión de orden + QR tras pago
-confirmado), refinar estados de orden, y **deploy en VPS con dominio + TLS** (Caddy).
+Entregado: `dsp` (keygen/sign/verify/qr/vectors, contrato **v2**) + `server` con `GET /m/{id}`,
+**ciclo web→máquina con pago simulado** (`POST /m/{id}/simular-pago` → orden + token firmado + QR),
+panel admin mínimo + capa de datos SQLite + tests. Verificado de punta a punta: el token emitido
+por la web da `OK` en el simulador con el `NOW` fijo del firmware (mismos items del pedido).
+Siguiente (Dept. 02 §6): integración de **pago real Bre-B** con Dept. 04 (emitir el QR solo tras la
+notificación confirmada), descontar stock al confirmar, refinar estados de orden, y **deploy en VPS
+con dominio + TLS** (Caddy).
+
+**Fix (2026-07-16):** `dsp vectors`/tests corrompían el ÚLTIMO carácter base64url de la firma para
+generar `token-firma-mala`; ese carácter solo lleva 2 bits significativos, así que a veces la firma
+quedaba **intacta** (test flaky + riesgo de un vector "malo" en realidad válido). Ahora se corrompe
+el PRIMER carácter (6 bits significativos). Los vectores commiteados ya eran genuinamente inválidos
+(no hubo que regenerarlos).
 
 Migración a **v2** del token registrada en [`DECISIONS.md`](../DECISIONS.md) (ADR-006):
 2 items = 258 chars, holgado bajo el objetivo de ~300 del §6.

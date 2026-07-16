@@ -9,15 +9,46 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
 	"flag"
 	"log"
 	"net/http"
 	"os"
 	"time"
 
+	"dispensadoras/software/internal/dsptoken"
 	"dispensadoras/software/internal/store"
 	"dispensadoras/software/internal/web"
 )
+
+// defaultPrivPath es la ubicación de la llave privada relativa a /software
+// (misma que usa el CLI dsp). Nunca se commitea (.keys está en .gitignore).
+const defaultPrivPath = ".keys/private-k1.key"
+
+// loadPrivate carga la llave privada de firma desde la env DSP_PRIVATE_KEY o,
+// si no está, desde el archivo .keys/private-k1.key. Devuelve nil (sin error)
+// si no hay llave: el servidor arranca igual, solo que "simular pago" avisará.
+func loadPrivate() ed25519.PrivateKey {
+	if env := os.Getenv("DSP_PRIVATE_KEY"); env != "" {
+		sk, err := dsptoken.DecodePrivate(env)
+		if err != nil {
+			log.Printf("AVISO: DSP_PRIVATE_KEY inválida: %v (simular pago quedará deshabilitado)", err)
+			return nil
+		}
+		return sk
+	}
+	data, err := os.ReadFile(defaultPrivPath)
+	if err != nil {
+		log.Printf("AVISO: no hay llave privada en %s ni DSP_PRIVATE_KEY; 'simular pago' quedará deshabilitado. Ejecuta 'dsp keygen'.", defaultPrivPath)
+		return nil
+	}
+	sk, err := dsptoken.DecodePrivate(string(data))
+	if err != nil {
+		log.Printf("AVISO: llave privada en %s inválida: %v", defaultPrivPath, err)
+		return nil
+	}
+	return sk
+}
 
 func main() {
 	db := flag.String("db", "dispensadoras.db", "ruta del archivo SQLite")
@@ -44,7 +75,8 @@ func main() {
 		log.Printf("AVISO: ADMIN_PASS no está definido; usando 'changeme'. Defínelo antes de exponer el panel.")
 	}
 
-	srv, err := web.New(st, adminUser, adminPass)
+	priv := loadPrivate()
+	srv, err := web.New(st, adminUser, adminPass, priv)
 	if err != nil {
 		log.Fatalf("construyendo servidor: %v", err)
 	}
