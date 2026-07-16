@@ -1,0 +1,341 @@
+/*
+ * Dispensadora — Firmware (Depto. 03)
+ * PASO 3: Verificar el token v2 EN EL ESP32 y mostrar el codigo de resultado.
+ *
+ * Placa:   ESP32 Dev Module (Arduino IDE)
+ * Monitor: Serial (USB) a 115200.
+ * Lector:  GM65 por UART2 (RX2=GPIO16, TX2=GPIO17)  -- igual que el paso 2.
+ *
+ * Que hace:
+ *   1. Recibe un string de token por DOS vias (lo que llegue primero):
+ *        - GM65 (Serial2): escaneando un QR.
+ *        - USB (Serial):   pegando el texto del token en el Monitor Serie.
+ *      (La via USB permite probar token-expirado / token-firma-mala aunque
+ *       ahora mismo solo exista el PNG de token-valido.)
+ *   2. Verifica el token con la logica EXACTA del contrato v2 (§5),
+ *      firma Ed25519 con Monocypher (modulo -ed25519, RFC 8032 / SHA-512,
+ *      compatible con el backend Go). Portado de firmware/poc-verificacion.
+ *   3. Imprime el codigo de resultado del contrato (§7).
+ *
+ * RTC: todavia no hay DS3231. Se usa NOW fijo = 1752460900 (resultados-esperados.md)
+ * para que token-valido de OK. Cuando llegue el RTC, NOW vendra del DS3231.
+ *
+ * SEGURIDAD: la maquina SOLO tiene la llave publica (regla no negociable).
+ * Anti-reuso de jti: por ahora en RAM (se pierde al reiniciar). El paso a
+ * NVS persistente es una tarea posterior; se marca ANTES de "dispensar".
+ *
+ * Monocypher: los 4 archivos (monocypher.c/.h, monocypher-ed25519.c/.h) estan
+ * en esta misma carpeta para que el Arduino IDE los compile.
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+extern "C" {
+  #include "monocypher.h"
+  #include "monocypher-ed25519.h"
+}
+
+/* ---- Parametros de ESTA maquina (aprovisionamiento) ---------------------- */
+#define MACHINE_ID  "M001"       /* mid que acepta esta maquina        */
+#define ALG         "EdDSA"      /* header.alg obligatorio (v2)        */
+#define TYP         "DSP"        /* header.typ obligatorio             */
+#define KID_LOCAL   "k1"         /* unico kid aprovisionado            */
+
+/* Llave publica k1 en base64 (especificaciones/vectores-prueba/llave-publica-k1.txt).
+ * La maquina SOLO tiene la publica. Se decodifica a 32 bytes en setup().        */
+const char *PUBKEY_B64 = "L46okF6kj8SN742gYX9zNQD1P+V2ryNh0j4Yw29c9js=";
+
+/* RTC simulado hasta que llegue el DS3231 (resultados-esperados.md). */
+const long long NOW_FIJO = 1752460900LL;
+
+/* ---- UART2 hacia el GM65 (igual que el paso 2) --------------------------- */
+const int  GM65_RX_PIN = 16;    /* RX2 <- TX del GM65 */
+const int  GM65_TX_PIN = 17;    /* TX2 -> RX del GM65 */
+const long GM65_BAUD   = 9600;  /* si no lee, probar 115200 */
+
+/* ---- Framing por inactividad -------------------------------------------- */
+const unsigned long FIN_LECTURA_MS = 60;
+const size_t        BUFFER_MAX     = 1024;
+
+/* Lector de un stream (GM65 por Serial2, o USB por Serial). Se define aqui
+ * arriba, antes de cualquier funcion, porque el IDE de Arduino auto-genera
+ * los prototipos al inicio del archivo; si el struct estuviera mas abajo, el
+ * prototipo de lector_service() lo usaria sin conocerlo aun. */
+struct LectorStream {
+  Stream       *io;
+  const char   *nombre;
+  String        buf;
+  unsigned long ultimoByte;
+};
+
+/* ---- Codigos de resultado (contrato §7) --------------------------------- */
+/* Nota: NO usar R_OK/W_OK/X_OK/F_OK como nombres: son macros POSIX de
+ * <unistd.h> (modos de access()), que el core del ESP32 arrastra via
+ * Arduino.h y romperian el enum. Por eso el prefijo RES_. */
+typedef enum {
+  RES_OK = 0,
+  RES_MALFORMED,
+  RES_BAD_SIGNATURE,
+  RES_UNKNOWN_KEY,
+  RES_WRONG_MACHINE,
+  RES_EXPIRED,
+  RES_ALREADY_USED
+} result_t;
+
+static const char *result_str(result_t r) {
+  switch (r) {
+    case RES_OK:            return "OK";
+    case RES_MALFORMED:     return "MALFORMED";
+    case RES_BAD_SIGNATURE: return "BAD_SIGNATURE";
+    case RES_UNKNOWN_KEY:   return "UNKNOWN_KEY";
+    case RES_WRONG_MACHINE: return "WRONG_MACHINE";
+    case RES_EXPIRED:       return "EXPIRED";
+    case RES_ALREADY_USED:  return "ALREADY_USED";
+    default:                return "?";
+  }
+}
+
+/* Llave publica ya decodificada (32 bytes Ed25519). */
+static uint8_t g_pubkey[32];
+static bool    g_pubkey_ok = false;
+
+/* ---- Base64 / Base64URL decode (identico a la PoC) ---------------------- */
+static int b64_val(int c) {
+  if (c >= 'A' && c <= 'Z') return c - 'A';
+  if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+  if (c >= '0' && c <= '9') return c - '0' + 52;
+  if (c == '+' || c == '-') return 62;
+  if (c == '/' || c == '_') return 63;
+  return -1;
+}
+
+static int b64_decode(const char *in, size_t in_len, uint8_t *out, size_t out_cap) {
+  uint32_t acc = 0;
+  int      bits = 0;
+  size_t   n = 0;
+  for (size_t i = 0; i < in_len; i++) {
+    int c = (unsigned char)in[i];
+    if (c == '=' || c == '\r' || c == '\n' || c == ' ') continue;
+    int v = b64_val(c);
+    if (v < 0) return -1;
+    acc = (acc << 6) | (uint32_t)v;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      if (n >= out_cap) return -1;
+      out[n++] = (uint8_t)((acc >> bits) & 0xFF);
+    }
+  }
+  return (int)n;
+}
+
+/* ---- Extraccion minima de JSON (identico a la PoC) ---------------------- */
+static const char *json_after_key(const char *json, const char *key) {
+  char pat[64];
+  int  m = snprintf(pat, sizeof pat, "\"%s\":", key);
+  if (m <= 0 || (size_t)m >= sizeof pat) return NULL;
+  const char *p = strstr(json, pat);
+  if (!p) return NULL;
+  return p + m;
+}
+
+static int json_get_str(const char *json, const char *key, char *out, size_t cap) {
+  const char *p = json_after_key(json, key);
+  if (!p || *p != '"') return -1;
+  p++;
+  size_t n = 0;
+  while (*p && *p != '"') {
+    if (n + 1 >= cap) return -1;
+    out[n++] = *p++;
+  }
+  if (*p != '"') return -1;
+  out[n] = '\0';
+  return 0;
+}
+
+static int json_get_int(const char *json, const char *key, long long *out) {
+  const char *p = json_after_key(json, key);
+  if (!p) return -1;
+  char *end;
+  long long v = strtoll(p, &end, 10);
+  if (end == p) return -1;
+  *out = v;
+  return 0;
+}
+
+/* ---- Registro de jti usados (anti-reuso; en RAM por ahora) --------------- */
+#define JTI_MAX  64
+#define JTI_LEN  64
+static char jti_used[JTI_MAX][JTI_LEN];
+static int  jti_count = 0;
+
+static int jti_is_used(const char *jti) {
+  for (int i = 0; i < jti_count; i++)
+    if (strcmp(jti_used[i], jti) == 0) return 1;
+  return 0;
+}
+static void jti_mark_used(const char *jti) {
+  if (jti_count < JTI_MAX) {
+    snprintf(jti_used[jti_count], JTI_LEN, "%s", jti);
+    jti_count++;
+  }
+}
+
+/* ---- Verificacion (contrato §5, orden EXACTO — portado de la PoC) -------- */
+static result_t verificar_token(const char *token, size_t tlen,
+                                const uint8_t pubkey[32], long long now,
+                                char *items_out, size_t items_cap) {
+  if (items_out && items_cap) items_out[0] = '\0';
+
+  /* Paso 1: separar en 3 partes por '.'. Debe haber EXACTAMENTE 2 puntos. */
+  long p1 = -1, p2 = -1;
+  int dots = 0;
+  for (size_t i = 0; i < tlen; i++) {
+    if (token[i] == '.') {
+      dots++;
+      if (dots == 1) p1 = (long)i;
+      else if (dots == 2) p2 = (long)i;
+    }
+  }
+  if (dots != 2 || p1 <= 0 || p2 <= p1 + 1 || (size_t)p2 + 1 >= tlen)
+    return RES_MALFORMED;
+
+  const char *h_b64 = token;             size_t h_len = (size_t)p1;
+  const char *p_b64 = token + p1 + 1;    size_t p_len = (size_t)(p2 - p1 - 1);
+  const char *s_b64 = token + p2 + 1;    size_t s_len = tlen - (size_t)p2 - 1;
+
+  /* Paso 2: header -> alg/typ/kid. */
+  char header[512];
+  int hn = b64_decode(h_b64, h_len, (uint8_t *)header, sizeof header - 1);
+  if (hn < 0) return RES_MALFORMED;
+  header[hn] = '\0';
+
+  char alg[32], typ[16], kid[32];
+  if (json_get_str(header, "alg", alg, sizeof alg) != 0 ||
+      json_get_str(header, "typ", typ, sizeof typ) != 0 ||
+      json_get_str(header, "kid", kid, sizeof kid) != 0)
+    return RES_MALFORMED;
+  if (strcmp(alg, ALG) != 0 || strcmp(typ, TYP) != 0)
+    return RES_MALFORMED;
+
+  /* Paso 3: kid conocido. */
+  if (strcmp(kid, KID_LOCAL) != 0)
+    return RES_UNKNOWN_KEY;
+
+  /* Paso 4: firma Ed25519 sobre (header_b64 + "." + payload_b64) = token[0..p2). */
+  uint8_t sig[64];
+  int sn = b64_decode(s_b64, s_len, sig, sizeof sig);
+  if (sn != 64) return RES_BAD_SIGNATURE;
+  if (crypto_ed25519_check(sig, pubkey, (const uint8_t *)token, (size_t)p2) != 0)
+    return RES_BAD_SIGNATURE;
+
+  /* Paso 5: decodificar payload. */
+  char payload[1024];
+  int pn = b64_decode(p_b64, p_len, (uint8_t *)payload, sizeof payload - 1);
+  if (pn < 0) return RES_MALFORMED;
+  payload[pn] = '\0';
+
+  /* Paso 6: mid == MACHINE_ID. */
+  char mid[32];
+  if (json_get_str(payload, "mid", mid, sizeof mid) != 0) return RES_MALFORMED;
+  if (strcmp(mid, MACHINE_ID) != 0) return RES_WRONG_MACHINE;
+
+  /* Paso 7: now <= exp. */
+  long long exp;
+  if (json_get_int(payload, "exp", &exp) != 0) return RES_MALFORMED;
+  if (now > exp) return RES_EXPIRED;
+
+  /* Paso 8: jti no usado. */
+  char jti[JTI_LEN];
+  if (json_get_str(payload, "jti", jti, sizeof jti) != 0) return RES_MALFORMED;
+  if (jti_is_used(jti)) return RES_ALREADY_USED;
+
+  /* Paso 9: marcar jti ANTES de dispensar (en HW ira a NVS persistente). */
+  jti_mark_used(jti);
+
+  /* Paso 10: reportar items (aqui aun no accionamos motores; eso es el paso 4). */
+  if (items_out && items_cap) {
+    const char *it = json_after_key(payload, "items");
+    if (it && *it == '[') {
+      int depth = 0;
+      size_t n = 0;
+      for (const char *p = it; *p && n + 1 < items_cap; p++) {
+        items_out[n++] = *p;
+        if (*p == '[') depth++;
+        else if (*p == ']' && --depth == 0) break;
+      }
+      items_out[n] = '\0';
+    }
+  }
+  return RES_OK;
+}
+
+/* ---- Procesar un token completo ya recibido ----------------------------- */
+static void procesar_token(const char *fuente, const String &tok) {
+  char items[256];
+  result_t r = verificar_token(tok.c_str(), tok.length(), g_pubkey, NOW_FIJO,
+                               items, sizeof items);
+  Serial.println("----- token recibido -----");
+  Serial.print("Fuente:   "); Serial.println(fuente);
+  Serial.print("Longitud: "); Serial.println(tok.length());
+  Serial.print("Resultado: "); Serial.print(result_str(r));
+  if (r == RES_OK && items[0]) { Serial.print("   dispensar items="); Serial.print(items); }
+  Serial.println();
+  Serial.println("--------------------------");
+}
+
+/* ---- Lector de stream con framing por inactividad ----------------------- *
+ * (El struct LectorStream se define arriba, antes de cualquier funcion, para
+ *  evitar el error de los prototipos auto-generados del IDE de Arduino.)      */
+static void lector_service(LectorStream &L) {
+  while (L.io->available() > 0) {
+    char c = (char)L.io->read();
+    if (c == '\r' || c == '\n') { L.ultimoByte = millis(); continue; }
+    if (L.buf.length() < BUFFER_MAX) L.buf += c;
+    L.ultimoByte = millis();
+  }
+  if (L.buf.length() > 0 && (millis() - L.ultimoByte) > FIN_LECTURA_MS) {
+    procesar_token(L.nombre, L.buf);
+    L.buf = "";
+  }
+}
+
+LectorStream lectorGM65;
+LectorStream lectorUSB;
+
+void setup() {
+  Serial.begin(115200);
+  delay(200);
+
+  Serial2.begin(GM65_BAUD, SERIAL_8N1, GM65_RX_PIN, GM65_TX_PIN);
+
+  lectorGM65 = { &Serial2, "GM65 (QR)", "", 0 };
+  lectorUSB  = { &Serial,  "USB (pegado)", "", 0 };
+  lectorGM65.buf.reserve(BUFFER_MAX);
+  lectorUSB.buf.reserve(BUFFER_MAX);
+
+  /* Decodificar la llave publica una sola vez. */
+  int n = b64_decode(PUBKEY_B64, strlen(PUBKEY_B64), g_pubkey, sizeof g_pubkey);
+  g_pubkey_ok = (n == 32);
+
+  Serial.println();
+  Serial.println("=== PASO 3: verificacion del token v2 en el ESP32 ===");
+  Serial.print("MACHINE_ID="); Serial.print(MACHINE_ID);
+  Serial.print("  kid="); Serial.print(KID_LOCAL);
+  Serial.print("  NOW(fijo)="); Serial.println((long)NOW_FIJO);
+  if (!g_pubkey_ok) {
+    Serial.println("ERROR: la llave publica no decodifico a 32 bytes. Revisa PUBKEY_B64.");
+  } else {
+    Serial.println("Llave publica cargada (32 bytes).");
+  }
+  Serial.println("Escanea un QR con el GM65, o pega el texto del token aqui y envia.");
+}
+
+void loop() {
+  if (!g_pubkey_ok) return;   /* sin llave no tiene sentido verificar */
+  lector_service(lectorGM65);
+  lector_service(lectorUSB);
+}
