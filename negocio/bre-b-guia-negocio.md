@@ -1,6 +1,6 @@
 # Guía Bre-B para el negocio — cómo cobrar en el piloto
 
-> Autor: Agente de Negocio · Fecha: 2026-07-14 · Ciudad piloto: **Cali**
+> Autor: Agente de Negocio · Fecha: 2026-07-14 · **Rev. 2026-07-16** (paso a paso concreto Bancolombia) · Ciudad piloto: **Cali**
 > Estado: investigación (no es asesoría financiera/legal; validar cuenta y trámites con la entidad).
 > Relacionado: [`04-pagos.md`](../departamentos/04-pagos.md) · [`spec-conciliacion-correo.md`](./spec-conciliacion-correo.md) · [`agregadores-bre-b-comparativa.md`](./agregadores-bre-b-comparativa.md) · ADR-004 en [`DECISIONS.md`](../DECISIONS.md)
 
@@ -52,9 +52,30 @@ Fuentes: [Cobre — Llaves Bre-B para empresas](https://www.cobre.com/blog/llave
 ## 3. Opciones de entidad para el piloto (persona natural, sin gastar)
 
 ### Opción A — Bancolombia (recomendada para el MVP de conciliación por correo)
-- **Registro de llave de negocio:** app *Mi Bancolombia* → "Bre-B / Tus llaves" → **Negocios** → *Registrar llaves* → elegir punto de venta/cuenta → aceptar tratamiento de datos → *Registrar llave* y generar **Código QR**. Gratis. ([Bancolombia — Cómo registrar tu negocio en Bre-B](https://www.bancolombia.com/centro-de-ayuda/preguntas-frecuentes/como-registrar-negocio-en-bre-b))
-- **Notificaciones:** Bancolombia envía **alertas en tiempo real por correo/SMS/push** cada vez que llega dinero (configurable, con topes mínimos): *Sucursal Virtual → Ajustes → Seguridad → Alertas y Notificaciones*. ([Bancolombia — Alertas y notificaciones](https://www.bancolombia.com/personas/aprender-es-facil/como-usar-banco/seguridad/alertas-notificaciones/1000))
 - **Por qué encaja:** el **correo por transacción** es lo que el MVP parsea. Es la razón por la que Bancolombia es la primera opción del piloto.
+
+#### A.1 · Paso a paso — registrar la Llave Bre-B de negocio
+Requisito previo: tener un **producto Bancolombia** (cuenta de ahorros/corriente) y **registro de comercio / punto de venta** en Bancolombia. Si aún no lo tienes como persona natural, ábrelo primero (ver §1 de trámites, [`tramites-cali-persona-natural.md`](./tramites-cali-persona-natural.md)). Todo el registro de llave es **gratis**. ([Bancolombia — ¿Cómo me registro en Bre-B como negocio?](https://www.bancolombia.com/centro-de-ayuda/preguntas-frecuentes/como-registrar-negocio-en-bre-b))
+
+1. Abre la app **Mi Bancolombia** (o Sucursal Virtual) → entra a **Bre-B · Tus llaves** (desde el inicio o desde *Transacciones*).
+2. Elige la sección **Negocios** → **Registrar llaves**.
+3. Selecciona el **punto de venta / cuenta** al que quedará atada la llave (si tienes varios, elige el dedicado a la máquina).
+4. Escoge el **tipo de llave** de la lista disponible y **marca la casilla de tratamiento de datos**. Para el piloto persona natural sirve el **Código de Negocio** (o celular/documento, ya habilitados tras el 1T-2026); a futuro con NIT se pasa a llave de comercio. Ver §2.
+5. Pulsa **Registrar llave** → confirma. Si pasa las validaciones, verás el **comprobante de registro exitoso**.
+6. Genera el **Código QR** del negocio desde el comprobante (*Tu Código QR digital*) o en *Ir a tus puntos de venta → ⋮ → Consultar Código QR*. Guárdalo: es el QR estático que puedes exhibir en la máquina en Fase 0/1.
+
+> Guía visual oficial: [blog Bancolombia — Guía Bre-B con Llave Bancolombia Negocios](https://blog.bancolombia.com/educacion-financiera/guia-breb-llave-bancolombia-negocios-independientes/) · [Preguntas frecuentes Bre-B negocios](https://blog.bancolombia.com/negocios/preguntas-frecuentes-breb-negocios/).
+
+#### A.2 · Paso a paso — activar alertas por correo en tiempo real (el insumo del MVP)
+El correo por cada abono es **lo que el parser lee**. Sin esto, la conciliación automática no funciona.
+
+1. Entra a **Sucursal Virtual Personas** con usuario y clave (la config fina de alertas se hace mejor en web que en la app).
+2. Menú **Ajustes** (o barra superior **Seguridad**) → **Alertas y Notificaciones**.
+3. **Activa** el servicio y **confirma tu correo electrónico** y celular de contacto. Usa un **correo dedicado del negocio** (el mismo buzón que leerá el servidor por Gmail API/IMAP), no tu correo personal.
+4. En **Editar preferencias**, activa la alerta de **transferencias / abonos recibidos** y **baja el tope mínimo al menor valor posible** (idealmente $0–$1). ⚠️ Crítico: el ticket de vending es ~$2.000–6.000; si el tope queda alto, los pagos pequeños **no generan correo** y no se concilian.
+5. Verifica el **remitente exacto** del correo (dominio oficial Bancolombia) → ese valor se fija en la *allowlist* del parser (spec §4).
+
+> Config oficial: [Bancolombia — Cómo crear alertas y notificaciones](https://www.bancolombia.com/centro-de-ayuda/preguntas-frecuentes/inscripcion-alertas-notificaciones) · [Alertas y notificaciones (cómo activar)](https://www.bancolombia.com/personas/aprender-es-facil/como-usar-banco/seguridad/alertas-notificaciones/1000). Si las alertas no llegan en canal negocios/pymes, ver [FAQ: por qué no llegan alertas del canal Pymes](https://www.bancolombia.com/centro-de-ayuda/preguntas-frecuentes/no-llegan-alertas-y-notificaciones-canal-pymes).
 
 ### Opción B — Nequi Negocios (excelente para recibir, ojo con la conciliación por correo)
 - **QR Negocios:** requiere ser **persona natural** con **CC, CE o PPT**; el registro y uso es **gratis**. Muestras tu QR de negocio y recibes de cualquier banco/billetera Bre-B. ([Nequi — QR Negocios en Bre-B](https://ayuda.nequi.com.co/hc/es/articles/40068240132749-Todo-lo-que-necesitas-saber-sobre-tu-QR-Negocios-en-Bre-B))
@@ -102,7 +123,8 @@ Fuentes: [Cobre — Llaves Bre-B para empresas](https://www.cobre.com/blog/llave
 ## Fuentes
 
 - [Banrep — ¿Qué es Bre-B?](https://www.banrep.gov.co/es/bre-b/que-es) · [Preguntas frecuentes Bre-B](https://www.banrep.gov.co/es/bre-b/preguntas-frecuentes) · [Documento técnico Bre-B (feb 2026, PDF)](https://d1b4gd4m8561gs.cloudfront.net/sites/default/files/publicaciones/archivos/documento-tecnico-bre-b-febrero-2026.pdf)
-- [Bancolombia — Cómo registrar tu negocio en Bre-B](https://www.bancolombia.com/centro-de-ayuda/preguntas-frecuentes/como-registrar-negocio-en-bre-b) · [Alertas y notificaciones](https://www.bancolombia.com/personas/aprender-es-facil/como-usar-banco/seguridad/alertas-notificaciones/1000) · [Preguntas frecuentes Bre-B negocios](https://blog.bancolombia.com/negocios/preguntas-frecuentes-breb-negocios/)
+- [Bancolombia — Cómo registrar tu negocio en Bre-B](https://www.bancolombia.com/centro-de-ayuda/preguntas-frecuentes/como-registrar-negocio-en-bre-b) · [Guía Bre-B con Llave Bancolombia Negocios (independientes)](https://blog.bancolombia.com/educacion-financiera/guia-breb-llave-bancolombia-negocios-independientes/) · [Preguntas frecuentes Bre-B negocios](https://blog.bancolombia.com/negocios/preguntas-frecuentes-breb-negocios/)
+- [Bancolombia — Cómo crear alertas y notificaciones (Sucursal Virtual)](https://www.bancolombia.com/centro-de-ayuda/preguntas-frecuentes/inscripcion-alertas-notificaciones) · [Alertas y notificaciones (cómo activar)](https://www.bancolombia.com/personas/aprender-es-facil/como-usar-banco/seguridad/alertas-notificaciones/1000) · [Por qué no llegan alertas del canal Pymes](https://www.bancolombia.com/centro-de-ayuda/preguntas-frecuentes/no-llegan-alertas-y-notificaciones-canal-pymes)
 - [Nequi — QR Negocios en Bre-B](https://ayuda.nequi.com.co/hc/es/articles/40068240132749-Todo-lo-que-necesitas-saber-sobre-tu-QR-Negocios-en-Bre-B) · [Nequi — Negocios QR](https://www.nequi.com.co/negocios/negocios-qr)
 - [Cobre — Llaves Bre-B para empresas](https://www.cobre.com/blog/llaves-bre-b-para-empresas)
 - [La República — Llaves para negocios de Bre-B](https://www.larepublica.co/finanzas/llaves-para-negocios-de-bre-b-4241983)

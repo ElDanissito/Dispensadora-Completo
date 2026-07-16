@@ -27,11 +27,18 @@
   <div style="word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:.75rem;margin-top:6px;color:var(--muted)">{{.Token}}</div>
 </div>
 
+{{if .Sim}}
 <div class="note">
-  <strong>Pago simulado (pruebas).</strong> Este QR se emitió sin cobro real; la orden queda marcada
+  <strong>Pago simulado (pruebas).</strong> Este QR se emitió sin cobro real; la orden quedó marcada
   como <code>paid_sim</code>. En producción el QR solo se genera tras la notificación real de Bre-B
   (CLAUDE.md §4). El QR es válido una sola vez: la máquina lo consume al dispensar.
 </div>
+{{else}}
+<div class="note">
+  <strong>¡Pago confirmado!</strong> Tu QR está listo. Muéstralo al lector de la máquina; es válido
+  una sola vez y por tiempo limitado (expira arriba).
+</div>
+{{end}}
 
 <div class="card" style="text-align:center">
   <a class="link" href="/m/{{.Machine.ID}}">← Volver a la máquina</a>

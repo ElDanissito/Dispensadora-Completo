@@ -52,6 +52,10 @@ func main() {
 		err = cmdQR(os.Args[2:])
 	case "vectors":
 		err = cmdVectors(os.Args[2:])
+	case "concil-parse":
+		err = cmdConcilParse(os.Args[2:])
+	case "concil-login":
+		err = cmdConcilLogin(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -75,8 +79,11 @@ Uso:
   dsp verify  -pub RUTA -mid M001 (-token STR | -in RUTA) [-now N]
   dsp qr      (-token STR | -in RUTA) -out salida.png [-size 512]
   dsp vectors [-priv RUTA] [-pub RUTA]
+  dsp concil-parse -in correo.eml
+  dsp concil-login [-env .env] [-list]
 
 La llave privada se toma de -priv o de la variable de entorno DSP_PRIVATE_KEY.
+Las credenciales IMAP (conciliación) salen del .env (GRABI_IMAP_*), nunca del repo.
 `)
 }
 

@@ -1,0 +1,12 @@
+{{define "content"}}
+<div class="card">
+  <div class="muted">Máquina {{.Machine.ID}} — {{.Machine.Name}}</div>
+  <h2 style="margin-top:4px">La orden expiró</h2>
+  <p class="muted">No recibimos el pago dentro de la ventana de tiempo, así que esta orden ya no es válida.
+  Si ya transferiste, tu dinero está seguro: contáctanos para reembolsarte o reemitir el QR.</p>
+</div>
+
+<div class="card" style="text-align:center">
+  <a class="link" href="/m/{{.Machine.ID}}">← Volver a intentar la compra</a>
+</div>
+{{end}}

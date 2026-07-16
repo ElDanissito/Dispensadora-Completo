@@ -14,12 +14,20 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
+	"dispensadoras/software/internal/concil"
+	"dispensadoras/software/internal/config"
 	"dispensadoras/software/internal/dsptoken"
 	"dispensadoras/software/internal/store"
 	"dispensadoras/software/internal/web"
 )
+
+// defaultEnvPath es el archivo de secretos local (git-ignored), relativo a
+// /software. Trae GRABI_IMAP_* (conciliación) y opcionalmente GRABI_BREB_KEY_*.
+const defaultEnvPath = ".env"
 
 // defaultPrivPath es la ubicación de la llave privada relativa a /software
 // (misma que usa el CLI dsp). Nunca se commitea (.keys está en .gitignore).
@@ -54,7 +62,17 @@ func main() {
 	db := flag.String("db", "dispensadoras.db", "ruta del archivo SQLite")
 	addr := flag.String("addr", ":8080", "dirección de escucha")
 	seed := flag.Bool("seed", false, "cargar datos de demostración si la base está vacía")
+	allowSim := flag.Bool("allow-sim", false, "habilita POST /m/{id}/simular-pago (atajo de pruebas; NO en producción)")
+	enableConcil := flag.Bool("concil", false, "arranca la conciliación de pagos por correo (requiere GRABI_IMAP_* en .env)")
+	concilInterval := flag.Duration("concil-interval", 12*time.Second, "cada cuánto revisa el correo la conciliación")
+	payWindow := flag.Duration("pay-window", web.DefaultPayWindow, "ventana de validez de pago de las órdenes")
 	flag.Parse()
+
+	// Cargar secretos locales (.env, git-ignored). Las variables reales del
+	// entorno tienen prioridad; el .env solo rellena lo que falte.
+	if _, err := config.LoadDotEnv(defaultEnvPath); err != nil {
+		log.Printf("AVISO: no se pudo leer %s: %v", defaultEnvPath, err)
+	}
 
 	st, err := store.Open(*db)
 	if err != nil {
@@ -76,9 +94,23 @@ func main() {
 	}
 
 	priv := loadPrivate()
-	srv, err := web.New(st, adminUser, adminPass, priv)
+	srv, err := web.New(st, adminUser, adminPass, priv, *allowSim, *payWindow)
 	if err != nil {
 		log.Fatalf("construyendo servidor: %v", err)
+	}
+
+	// Contexto de apagado limpio (Ctrl-C / SIGTERM): detiene la conciliación.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	var mailer *reconnMailer
+	if *enableConcil {
+		mailer = startConciliacion(ctx, st, srv, priv, *concilInterval)
+		if mailer != nil {
+			defer mailer.Close()
+		}
+	} else {
+		log.Printf("conciliación por correo DESHABILITADA (usa -concil para activarla)")
 	}
 
 	httpSrv := &http.Server{
@@ -86,12 +118,41 @@ func main() {
 		Handler:           srv.Routes(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = httpSrv.Shutdown(shutdownCtx)
+	}()
+
 	log.Printf("dispensadoras web escuchando en %s (db=%s)", *addr, *db)
 	log.Printf("  público: http://localhost%s/m/M001", *addr)
 	log.Printf("  panel:   http://localhost%s/admin (usuario %q)", *addr, adminUser)
+	if *allowSim {
+		log.Printf("  AVISO: -allow-sim activo (simular-pago habilitado; solo para pruebas)")
+	}
 	if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
+}
+
+// startConciliacion arranca el poller de conciliación en una goroutine. Devuelve
+// el mailer para poder cerrarlo al apagar. Si faltan credenciales o llave de
+// firma, avisa y devuelve nil (el servidor web sigue funcionando).
+func startConciliacion(ctx context.Context, st *store.Store, srv *web.Server, priv ed25519.PrivateKey, interval time.Duration) *reconnMailer {
+	imapCfg, err := config.LoadIMAP()
+	if err != nil {
+		log.Printf("AVISO: conciliación NO arranca: %v", err)
+		return nil
+	}
+	if priv == nil {
+		log.Printf("AVISO: conciliación NO arranca: no hay llave privada para firmar el QR (ejecuta 'dsp keygen' o define DSP_PRIVATE_KEY)")
+		return nil
+	}
+	mailer := &reconnMailer{cfg: imapCfg, log: log.Default()}
+	svc := concil.New(st, mailer, srv, log.Default())
+	go svc.Run(ctx, interval)
+	return mailer
 }
 
 func envOr(key, def string) string {

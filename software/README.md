@@ -9,13 +9,18 @@ generar su **QR** y producir los **vectores de prueba** para que Firmware valide
 
 ```
 software/
-  cmd/dsp/            CLI `dsp` (keygen, sign, verify, qr, vectors)
-  cmd/server/         servidor web (página pública /m/{id} + panel admin)
+  cmd/dsp/            CLI `dsp` (keygen, sign, verify, qr, vectors, concil-parse, concil-login)
+  cmd/server/         servidor web (página pública /m/{id} + panel admin + poller de conciliación)
   internal/dsptoken/  firma + verificación (referencia canónica del contrato)
   internal/qr/        generación de QR PNG
-  internal/store/     capa de datos SQLite (máquinas, productos, órdenes)
+  internal/store/     capa de datos SQLite (máquinas, productos, órdenes, movimientos bancarios)
   internal/web/       handlers HTTP + plantillas html/template
+  internal/bankmail/  parser de las alertas de correo Bancolombia (GRABI)
+  internal/imapmail/  cliente IMAP mínimo (lee el buzón de conciliación grabibot)
+  internal/config/    carga de .env + credenciales IMAP + mapa de llaves Bre-B
+  internal/concil/    servicio de conciliación (casa pago↔orden, dispara el QR)
   .keys/              llaves privadas — IGNORADO por git (nunca commitear)
+  .env                credenciales locales (IMAP, llaves Bre-B) — IGNORADO por git
 ```
 
 La verificación en `internal/dsptoken` sigue **exactamente** el orden de validaciones del
@@ -86,26 +91,62 @@ ADMIN_PASS=algo-seguro ./dispensadoras-web -seed   # -seed carga datos de demo
 - `-db dispensadoras.db` ruta del archivo SQLite · `-addr :8080` dirección · `-seed` datos demo.
 - El panel `/admin` va protegido con **Basic Auth** (`ADMIN_USER`/`ADMIN_PASS`, por defecto
   `admin`/`changeme` con aviso — define `ADMIN_PASS` antes de exponerlo).
-- Rutas: `GET /m/{id}` (pública) · `POST /m/{id}/simular-pago` (emite el QR) · `GET /admin`,
-  `POST /admin/machines`, `POST /admin/products`, `GET /admin/m/{id}`, `POST /admin/m/{id}/slot`,
-  `GET /admin/orders`.
+- Rutas públicas: `GET /m/{id}` · `POST /m/{id}/pagar` · `GET /m/{id}/orden/{jti}/estado`
+  · `POST /m/{id}/simular-pago` (solo con `-allow-sim`).
+- Rutas admin: `GET /admin`, `POST /admin/machines`, `POST /admin/products`, `GET /admin/m/{id}`,
+  `POST /admin/m/{id}/slot`, `GET /admin/orders`.
 
-### Ciclo web→máquina (pago simulado, para pruebas)
+### Ciclo web→máquina (pago REAL Bre-B por conciliación de correo)
 
 `GET /m/{id}` muestra el catálogo como **formulario**: el cliente elige cantidades y pulsa
-**"Simular pago y generar QR"**. Ese `POST /m/{id}/simular-pago`:
+**"Pagar con Bre-B"**. Ese `POST /m/{id}/pagar`:
 
 1. Valida la selección contra el catálogo (slots existentes, stock suficiente).
-2. Crea la **orden** (`store.CreateOrder`) con estado `paid_sim`.
-3. **Firma el token v2** (`dsptoken.Sign`) con la llave privada del servidor (kid de la máquina).
-4. Muestra el **QR** del token embebido en la página (`data:image/png;base64,...`) para escanearlo.
+2. Calcula un **monto único** = base + **desambiguador** `d` (1–99 pesos) que no colisione con otra
+   orden `pending` de la máquina (ancla del matching, spec §2).
+3. Crea la **orden** `pending` con `unique_amount` y una **ventana de pago** (`-pay-window`, 15 min).
+4. Redirige a `GET /m/{id}/orden/{jti}/estado`: la **pantalla de pago** muestra el valor exacto a
+   transferir (resaltando `d`), la **llave Bre-B** de la máquina y una cuenta atrás. Se **auto-refresca**
+   cada 4 s con `<meta http-equiv="refresh">` (sin JS pesado, ADR-011bis).
 
-Requiere la **llave privada** cargada: `software/.keys/private-k1.key` (de `dsp keygen`) o la
-env `DSP_PRIVATE_KEY`. Sin llave, el servidor arranca igual pero "simular pago" responde 503.
+El **QR NO se emite aquí**. Lo emite la **conciliación** (`internal/concil`) cuando la notificación
+real de Bancolombia (correo a grabibot) casa con la orden por **(máquina + monto único + ventana)**.
+Al casar: firma el token v2 (`dsptoken.Sign`), transiciona la orden `pending → paid` de forma
+**atómica** (`store.MarkOrderPaid`), **descuenta stock** (ADR-012) y la pantalla de estado pasa a
+mostrar el QR.
 
-> **Seguridad (CLAUDE.md §4):** `simular-pago` **NO** es un pago real — es un atajo de pruebas.
-> La orden queda marcada `paid_sim` para distinguirla. Bre-B real (Dept. 04) emitirá el QR solo
-> tras la **notificación real** de la cuenta; nunca se confía en el comprobante del cliente.
+> **Seguridad (CLAUDE.md §4 / ADR-004):** la orden solo pasa a `paid` con base en la **notificación
+> real de la cuenta**; jamás con el comprobante que muestre el cliente. Idempotencia por `Message-ID`:
+> un mismo correo nunca emite dos QR ni descuenta stock dos veces (spec §7.2).
+
+### Conciliación de pagos por correo (`internal/concil`)
+
+El servidor puede correr un **poller** que lee el buzón de grabibot por IMAP, extrae cada abono con
+`internal/bankmail` (regex sobre el `text/plain`, decodificando quoted-printable) y lo casa con una
+orden. Estados de un abono: `matched` (casó → paga), `orphan` (no casó → soporte/reembolso),
+`parse_failed` (cambió el formato → alerta), `discarded` (remitente fuera de la allowlist → seguridad),
+`conflict` (>1 orden). Todo se persiste en la tabla `bank_movements` (auditoría, Dept. 07).
+
+```sh
+# arranca el servidor CON conciliación (requiere .env con GRABI_IMAP_* y llave privada)
+ADMIN_PASS=algo ./dispensadoras-web -concil -concil-interval 12s
+```
+
+**Credenciales** (App Password de Gmail, llaves Bre-B) salen SOLO de `software/.env` (git-ignored,
+ADR-013). Nunca del repo ni de argumentos en claro.
+
+### Atajo de pruebas (`simular-pago`)
+
+`POST /m/{id}/simular-pago` firma el QR **sin pago real** (orden marcada `paid_sim`, distinguible).
+Solo está disponible con el flag **`-allow-sim`**; **nunca** en la ruta pública de producción (spec §8).
+Requiere la **llave privada** cargada (`.keys/private-k1.key` o `DSP_PRIVATE_KEY`).
+
+### Herramientas CLI de conciliación
+
+```sh
+./dsp concil-parse -in correo.eml   # parsea un .eml y muestra los campos (offline, sin red)
+./dsp concil-login -list            # login IMAP a grabibot + lista los abonos no leídos (.env)
+```
 
 > **Nota sobre `exp` y el RTC:** el token se firma con `exp = ahora + 300s`. La máquina del piloto
 > aún usa un `NOW` fijo (sin RTC), que está en el pasado respecto a ese `exp`, así que el token
@@ -123,13 +164,17 @@ go test ./...
 
 ## Estado y pendientes
 
-Entregado: `dsp` (keygen/sign/verify/qr/vectors, contrato **v2**) + `server` con `GET /m/{id}`,
-**ciclo web→máquina con pago simulado** (`POST /m/{id}/simular-pago` → orden + token firmado + QR),
-panel admin mínimo + capa de datos SQLite + tests. Verificado de punta a punta: el token emitido
-por la web da `OK` en el simulador con el `NOW` fijo del firmware (mismos items del pedido).
-Siguiente (Dept. 02 §6): integración de **pago real Bre-B** con Dept. 04 (emitir el QR solo tras la
-notificación confirmada), descontar stock al confirmar, refinar estados de orden, y **deploy en VPS
-con dominio + TLS** (Caddy).
+Entregado: `dsp` (keygen/sign/verify/qr/vectors/concil-parse/concil-login, contrato **v2**) +
+`server` con `GET /m/{id}`, **flujo de pago real Bre-B** (`POST /pagar` → orden `pending` + monto
+único → pantalla de pago con auto-refresh → QR al conciliar), **conciliación por correo IMAP**
+(`internal/concil` + `bankmail` + `imapmail`) con matching por (máquina + monto único + ventana),
+**idempotencia por Message-ID**, descuento de stock (ADR-012), auditoría en `bank_movements`, y el
+atajo `simular-pago` tras `-allow-sim`. Panel admin + capa SQLite (con migración) + tests
+(`bankmail`, `concil`, `store`, `dsptoken`). **Verificado:** login IMAP a grabibot OK y parseo del
+correo real de Bancolombia (todos los campos), flujo web e2e (pago→QR) y match→paid→stock en tests.
+Siguiente (Dept. 02 §6): pantalla de "reintentar" al expirar, panel de movimientos/huérfanos, y
+**deploy en VPS con dominio + TLS** (Caddy). Evolución (spec §11): QR dinámico → webhook de agregador,
+manteniendo el mismo contrato `orden.pagada`.
 
 **Fix (2026-07-16):** `dsp vectors`/tests corrompían el ÚLTIMO carácter base64url de la firma para
 generar `token-firma-mala`; ese carácter solo lleva 2 bits significativos, así que a veces la firma

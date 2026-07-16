@@ -25,3 +25,7 @@ software/dsp.exe
 .DS_Store
 Thumbs.db
 
+*.eml
+# Excepción: fixture de test ANONIMIZADO (necesario para `go test ./...`).
+# El .eml real con datos personales sigue ignorado por la regla de arriba.
+!software/internal/bankmail/testdata/muestra.eml

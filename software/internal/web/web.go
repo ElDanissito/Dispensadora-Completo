@@ -5,6 +5,7 @@
 package web
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/subtle"
@@ -17,10 +18,15 @@ import (
 	"strconv"
 	"time"
 
+	"dispensadoras/software/internal/config"
 	"dispensadoras/software/internal/dsptoken"
 	"dispensadoras/software/internal/qr"
 	"dispensadoras/software/internal/store"
 )
+
+// DefaultPayWindow es la ventana de validez de pago por defecto (spec §3):
+// tiempo que el cliente tiene para transferir tras crear la orden.
+const DefaultPayWindow = 15 * time.Minute
 
 //go:embed templates/*.html
 var tmplFS embed.FS
@@ -58,13 +64,17 @@ type Server struct {
 	tmpl      *template.Template
 	adminUser string
 	adminPass string
-	priv      ed25519.PrivateKey // llave privada de firma; nil ⇒ "simular pago" deshabilitado
+	priv      ed25519.PrivateKey // llave privada de firma; nil ⇒ no se pueden emitir QR
+	allowSim  bool               // habilita el atajo de pruebas /simular-pago (nunca en prod pública)
+	payWindow time.Duration      // ventana de validez de pago de las órdenes
 }
 
 // New construye el servidor. adminUser/adminPass protegen /admin con Basic Auth.
-// priv es la llave privada Ed25519 con la que se firman los tokens; si es nil,
-// la ruta "simular pago" responde con un aviso (no se puede emitir el QR).
-func New(st *store.Store, adminUser, adminPass string, priv ed25519.PrivateKey) (*Server, error) {
+// priv es la llave privada Ed25519 con la que se firman los tokens; si es nil, la
+// emisión del QR (al conciliar el pago) responde con aviso. allowSim habilita el
+// atajo de pruebas POST /m/{id}/simular-pago (déjalo en false en producción, spec
+// §8). payWindow ≤ 0 usa DefaultPayWindow.
+func New(st *store.Store, adminUser, adminPass string, priv ed25519.PrivateKey, allowSim bool, payWindow time.Duration) (*Server, error) {
 	// Cada página se compone de base.html + su propia plantilla "content".
 	// Parseamos todo junto: base define "base"; cada archivo redefine "content",
 	// así que renderizamos clonando y parseando la página concreta bajo demanda.
@@ -72,7 +82,11 @@ func New(st *store.Store, adminUser, adminPass string, priv ed25519.PrivateKey) 
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{st: st, tmpl: base, adminUser: adminUser, adminPass: adminPass, priv: priv}
+	if payWindow <= 0 {
+		payWindow = DefaultPayWindow
+	}
+	s := &Server{st: st, tmpl: base, adminUser: adminUser, adminPass: adminPass,
+		priv: priv, allowSim: allowSim, payWindow: payWindow}
 	return s, nil
 }
 
@@ -80,8 +94,14 @@ func New(st *store.Store, adminUser, adminPass string, priv ed25519.PrivateKey) 
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 
-	// Pública.
+	// Pública. El flujo real: elegir productos → POST /pagar (crea orden PENDIENTE
+	// con monto único) → pantalla de pago que consulta el estado hasta que la
+	// conciliación por correo confirme el abono y emita el QR (spec §8).
 	mux.HandleFunc("GET /m/{id}", s.handleMachinePublic)
+	mux.HandleFunc("POST /m/{id}/pagar", s.handlePagar)
+	mux.HandleFunc("GET /m/{id}/orden/{jti}/estado", s.handleEstadoOrden)
+
+	// Atajo de pruebas (firma el QR sin pago real). Solo si allowSim (spec §8).
 	mux.HandleFunc("POST /m/{id}/simular-pago", s.handleSimularPago)
 
 	// Admin (protegido con Basic Auth).
@@ -166,17 +186,223 @@ func (s *Server) handleMachinePublic(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleSimularPago cierra el ciclo web→máquina SIN pago real (Bre-B queda para
-// después): lee la selección de productos, crea la orden, FIRMA el token v2 y
-// muestra su QR para escanear en la máquina.
-//
-// OJO seguridad (CLAUDE.md §4): esto NO confirma un pago real. Es un atajo de
-// pruebas; en producción el QR solo se emite tras la notificación real de la
-// cuenta. Por eso la orden se marca "paid_sim" (pago simulado), distinguible.
-func (s *Server) handleSimularPago(w http.ResponseWriter, r *http.Request) {
+// buildItems lee las cantidades del formulario (qty_<slot>), las valida contra el
+// catálogo (slots existentes y stock suficiente) y devuelve los items del token,
+// las líneas de la orden y el total base (suma de precios). Es compartida por el
+// flujo real (/pagar) y el atajo de pruebas (/simular-pago).
+func (s *Server) buildItems(r *http.Request, cat []store.CatalogRow) ([]dsptoken.Item, []store.OrderItem, int64, error) {
+	if err := r.ParseForm(); err != nil {
+		return nil, nil, 0, errors.New("formulario inválido")
+	}
+	var items []dsptoken.Item
+	var orderItems []store.OrderItem
+	var total int64
+	for _, row := range cat {
+		qty, _ := strconv.Atoi(r.FormValue(fmt.Sprintf("qty_%d", row.Slot)))
+		if qty <= 0 {
+			continue
+		}
+		if qty > row.Stock {
+			return nil, nil, 0, fmt.Errorf("slot %d (%s): pediste %d pero hay %d en stock",
+				row.Slot, row.ProductName, qty, row.Stock)
+		}
+		items = append(items, dsptoken.Item{S: row.Slot, Q: qty})
+		orderItems = append(orderItems, store.OrderItem{Slot: row.Slot, Qty: qty, PriceCOP: row.PriceCOP})
+		total += row.PriceCOP * int64(qty)
+	}
+	if len(items) == 0 {
+		return nil, nil, 0, errors.New("selecciona al menos un producto")
+	}
+	return items, orderItems, total, nil
+}
+
+// pickDesambiguador elige un desambiguador d ∈ [1,99] tal que (base+d) NO esté ya
+// reservado por otra orden PENDIENTE de la misma cuenta (spec §2). Devuelve
+// (d, true) o (0, false) si no hay ninguno libre (caso improbable en el piloto).
+func pickDesambiguador(base int64, reservados map[int64]bool) (int, bool) {
+	for d := 1; d <= 99; d++ {
+		if !reservados[base+int64(d)] {
+			return d, true
+		}
+	}
+	return 0, false
+}
+
+// handlePagar (flujo REAL, spec §8): valida la selección, crea la orden PENDIENTE
+// con un MONTO ÚNICO (base + desambiguador) y una ventana de pago, y redirige a la
+// pantalla de estado donde el cliente ve cuánto y a qué llave Bre-B transferir. El
+// QR NO se emite aquí: solo lo emite la conciliación al confirmar el abono real.
+func (s *Server) handlePagar(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	if _, err := s.st.GetMachine(r.Context(), id); err != nil {
+		s.notFound(w, "Máquina no encontrada")
+		return
+	}
+	cat, err := s.st.Catalog(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_, orderItems, total, err := s.buildItems(r, cat)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	reservados, err := s.st.PendingUniqueAmounts(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	d, ok := pickDesambiguador(total, reservados)
+	if !ok {
+		http.Error(w, "no hay un monto único disponible en este momento; intenta de nuevo en unos minutos", http.StatusServiceUnavailable)
+		return
+	}
+
+	now := time.Now().Unix()
+	jti := randomJTI()
+	order := store.Order{
+		Jti:                jti,
+		MachineID:          id,
+		TotalCOP:           total,
+		UniqueAmount:       total + int64(d),
+		Status:             "pending",
+		Iat:                now,
+		Exp:                0, // se fija al pagar (el reloj de exp arranca al pagar, spec §3)
+		PayWindowExpiresAt: now + int64(s.payWindow.Seconds()),
+		CreatedAt:          now,
+		Items:              orderItems,
+	}
+	if err := s.st.CreateOrder(r.Context(), order); err != nil {
+		http.Error(w, "no se pudo crear la orden: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/m/%s/orden/%s/estado", id, jti), http.StatusSeeOther)
+}
+
+// handleEstadoOrden muestra el estado de una orden. Es la pantalla que el cliente
+// consulta tras /pagar; se auto-refresca (meta refresh, sin JS pesado, ADR-011bis)
+// mientras esté PENDIENTE y cambia a QR cuando la conciliación la marca PAGADA.
+func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
+	id, jti := r.PathValue("id"), r.PathValue("jti")
 	m, err := s.st.GetMachine(r.Context(), id)
 	if err != nil {
+		s.notFound(w, "Máquina no encontrada")
+		return
+	}
+	o, err := s.st.GetOrder(r.Context(), jti)
+	if err != nil || o.MachineID != id {
+		s.notFound(w, "Orden no encontrada")
+		return
+	}
+
+	switch o.Status {
+	case "paid", "paid_sim", "dispensed":
+		s.renderQR(w, m, o)
+	case "expired", "canceled":
+		s.render(w, "machine_expirada.html", page{
+			Title: "Orden expirada · Máquina " + id,
+			Data: struct {
+				Machine *store.Machine
+			}{m},
+		})
+	default: // pending
+		secondsLeft := o.PayWindowExpiresAt - time.Now().Unix()
+		if secondsLeft < 0 {
+			secondsLeft = 0
+		}
+		s.render(w, "machine_pago.html", page{
+			Title: "Paga tu compra · Máquina " + id,
+			Data: struct {
+				Machine       *store.Machine
+				Order         *store.Order
+				BreBKey       string
+				PointOfSale   string
+				Desambiguador int64
+				SecondsLeft   int64
+				MinutesLeft   int64
+			}{
+				Machine:       m,
+				Order:         o,
+				BreBKey:       config.BreBKey(id),
+				PointOfSale:   "GRABI " + id, // punto de venta (ADR-014)
+				Desambiguador: o.UniqueAmount - o.TotalCOP,
+				SecondsLeft:   secondsLeft,
+				MinutesLeft:   (secondsLeft + 59) / 60,
+			},
+		})
+	}
+}
+
+// renderQR muestra el QR de una orden ya pagada (token firmado guardado en la
+// orden). Sim indica si fue un pago simulado (para el aviso de la plantilla).
+func (s *Server) renderQR(w http.ResponseWriter, m *store.Machine, o *store.Order) {
+	if o.Token == "" {
+		http.Error(w, "la orden está pagada pero no tiene token emitido (revisar servidor)", http.StatusInternalServerError)
+		return
+	}
+	dataURI, err := qr.DataURI(o.Token, 512)
+	if err != nil {
+		http.Error(w, "no se pudo generar el QR: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.render(w, "machine_qr.html", page{
+		Title: "Tu QR · Máquina " + m.ID,
+		Data: struct {
+			Machine   *store.Machine
+			Items     []store.OrderItem
+			TotalCOP  int64
+			Jti       string
+			Exp       int64
+			Token     string
+			TokenLen  int
+			QRDataURI template.URL
+			Sim       bool
+		}{
+			Machine: m, Items: o.Items, TotalCOP: o.TotalCOP, Jti: o.Jti, Exp: o.Exp,
+			Token: o.Token, TokenLen: len(o.Token), QRDataURI: template.URL(dataURI),
+			Sim: o.Status == "paid_sim",
+		},
+	})
+}
+
+// SignOrder implementa concil.Emitter: firma el token v2 de una orden ya conciliada
+// (contrato §4). Devuelve el JWS y su `exp`. NO toca la base; la transición
+// pending→paid + descuento de stock la aplica la conciliación (store.MarkOrderPaid),
+// para que sea atómica.
+func (s *Server) SignOrder(ctx context.Context, o store.Order) (string, int64, error) {
+	if s.priv == nil {
+		return "", 0, errors.New("el servidor no tiene llave de firma cargada")
+	}
+	kid := dsptoken.DefaultKID
+	if m, err := s.st.GetMachine(ctx, o.MachineID); err == nil {
+		kid = m.Kid
+	}
+	exp := time.Now().Unix() + dsptoken.DefaultTTL // el reloj de 5 min arranca al pagar
+	items := make([]dsptoken.Item, 0, len(o.Items))
+	for _, it := range o.Items {
+		items = append(items, dsptoken.Item{S: it.Slot, Q: it.Qty})
+	}
+	token, err := dsptoken.Sign(s.priv, dsptoken.DefaultHeader(kid), dsptoken.Payload{
+		Mid: o.MachineID, Jti: o.Jti, Exp: exp, Items: items,
+	})
+	if err != nil {
+		return "", 0, err
+	}
+	return token, exp, nil
+}
+
+// handleSimularPago (ATAJO DE PRUEBAS, spec §8): firma el QR sin pago real. Solo
+// disponible si allowSim (flag/entorno); nunca en la ruta pública de producción.
+// La orden queda marcada "paid_sim" (distinguible de un pago real).
+func (s *Server) handleSimularPago(w http.ResponseWriter, r *http.Request) {
+	if !s.allowSim {
+		http.Error(w, "pago simulado deshabilitado (solo pruebas; usa el flujo real /pagar)", http.StatusForbidden)
+		return
+	}
+	id := r.PathValue("id")
+	if _, err := s.st.GetMachine(r.Context(), id); err != nil {
 		s.notFound(w, "Máquina no encontrada")
 		return
 	}
@@ -189,91 +415,35 @@ func (s *Server) handleSimularPago(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "formulario inválido", http.StatusBadRequest)
+	_, orderItems, total, err := s.buildItems(r, cat)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Construir los items a partir de las cantidades enviadas (qty_<slot>).
-	// Se valida contra el catálogo: solo slots existentes y con stock suficiente.
-	var items []dsptoken.Item
-	var orderItems []store.OrderItem
-	var total int64
-	for _, row := range cat {
-		qty, _ := strconv.Atoi(r.FormValue(fmt.Sprintf("qty_%d", row.Slot)))
-		if qty <= 0 {
-			continue
-		}
-		if qty > row.Stock {
-			http.Error(w, fmt.Sprintf("slot %d (%s): pediste %d pero hay %d en stock",
-				row.Slot, row.ProductName, qty, row.Stock), http.StatusBadRequest)
-			return
-		}
-		items = append(items, dsptoken.Item{S: row.Slot, Q: qty})
-		orderItems = append(orderItems, store.OrderItem{Slot: row.Slot, Qty: qty, PriceCOP: row.PriceCOP})
-		total += row.PriceCOP * int64(qty)
-	}
-	if len(items) == 0 {
-		http.Error(w, "selecciona al menos un producto", http.StatusBadRequest)
-		return
-	}
-
-	// Emitir la orden y el token v2 (contrato §3/§4).
 	now := time.Now().Unix()
-	exp := now + dsptoken.DefaultTTL // ventana de 5 min (contrato §3)
 	jti := randomJTI()
-
+	// Se crea PENDIENTE y se marca paid_sim con MarkOrderPaidSim (misma transición
+	// atómica que un pago real: guarda el token y descuenta stock).
 	order := store.Order{
-		Jti:       jti,
-		MachineID: id,
-		TotalCOP:  total,
-		Status:    "paid_sim", // pago SIMULADO (no confiar como pago real)
-		Iat:       now,
-		Exp:       exp,
-		CreatedAt: now,
-		Items:     orderItems,
+		Jti: jti, MachineID: id, TotalCOP: total, UniqueAmount: total,
+		Status: "pending", Iat: now, Exp: 0, PayWindowExpiresAt: now + int64(s.payWindow.Seconds()),
+		CreatedAt: now, Items: orderItems,
 	}
 	if err := s.st.CreateOrder(r.Context(), order); err != nil {
 		http.Error(w, "no se pudo crear la orden: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	token, err := dsptoken.Sign(s.priv, dsptoken.DefaultHeader(m.Kid), dsptoken.Payload{
-		Mid:   id,
-		Jti:   jti,
-		Exp:   exp,
-		Items: items,
-	})
+	token, exp, err := s.SignOrder(r.Context(), order)
 	if err != nil {
 		http.Error(w, "no se pudo firmar el token: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	dataURI, err := qr.DataURI(token, 512)
-	if err != nil {
-		http.Error(w, "no se pudo generar el QR: "+err.Error(), http.StatusInternalServerError)
+	if _, err := s.st.MarkOrderPaidSim(r.Context(), jti, token, exp, now, "SIMULADO-"+jti); err != nil {
+		http.Error(w, "no se pudo marcar la orden: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	s.render(w, "machine_qr.html", page{
-		Title: "Tu QR · Máquina " + id,
-		Admin: false,
-		Data: struct {
-			Machine  *store.Machine
-			Items    []store.OrderItem
-			Catalog  []store.CatalogRow
-			TotalCOP int64
-			Jti      string
-			Exp      int64
-			Token    string
-			TokenLen int
-			QRDataURI template.URL
-		}{
-			Machine: m, Items: orderItems, Catalog: cat, TotalCOP: total,
-			Jti: jti, Exp: exp, Token: token, TokenLen: len(token),
-			QRDataURI: template.URL(dataURI),
-		},
-	})
+	http.Redirect(w, r, fmt.Sprintf("/m/%s/orden/%s/estado", id, jti), http.StatusSeeOther)
 }
 
 func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {

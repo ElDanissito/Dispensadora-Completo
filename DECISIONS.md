@@ -7,6 +7,78 @@
 
 ---
 
+## 🏁 HITO (2026-07-16) · Ciclo completo funcionando de punta a punta
+- **Compra real end-to-end validada:** web genera orden con monto único → cliente paga por **Bre-B** → el servicio de **conciliación por correo** (grabibot) detecta el pago solo → emite el **QR firmado (v2)** → la máquina (ESP32 + GM65) lo **verifica offline**, comprueba anti-reuso **persistente en NVS** y **dispensa**, confirmando la caída con el **sensor E18-D80NK**.
+- **Firmware de producción:** `firmware/paso5b-jti-nvs/` (anti-reuso sobrevive apagones, validado en placa). Pendientes menores atados al RTC (poda de `jti`, `NOW` real).
+- **Estado del proyecto:** Fase 1–2 (prototipo técnico) **COMPLETA**. Sigue Fase 2→3: **máquina física + unit economics + punto piloto**.
+
+## ADR-016 · Dominio de la web (opciones — pendiente de elegir)
+- **Fecha:** 2026-07-16 · **Estado:** PENDIENTE (decidir mañana).
+- **Contexto:** la marca es **GRABI** (ADR-013). El dominio se ve en la máquina y al pagar (`dominio/M001`), así que corto y confiable ayuda.
+- **Opciones evaluadas por Daniel:**
+  - `grabi.com.co` — ~$20/año. Máxima confianza local en Colombia (.com.co es el estándar de negocio).
+  - `grabi.net` — precio medio.
+  - `grabi.lat` — ~$2/año. Corto, barato, temática Latam (misma familia que `napi.lat`).
+  - `grabi.napi.lat` — **$0** (subdominio de `napi.lat`, que Daniel ya posee). Funciona ya, pero más largo y acopla la marca a NAPI.
+- **Recomendación:** para el **piloto**, usar **`grabi.napi.lat` (gratis)** y no gastar aún; **o** `grabi.lat` ($2) si se quiere algo más corto/limpio desde ya. Reservar **`grabi.com.co`** para cuando el piloto valide y se escale en Colombia (proteger marca + confianza). Decisión final mañana.
+
+## ADR-015 · Conciliación de pagos: implementación (IMAP, parser, matching, estados)
+- **Fecha:** 2026-07-16
+- **Autor:** Agente de Software (02).
+- **Decisión:** Se implementa el servicio de conciliación de la [spec de Negocio](./negocio/spec-conciliacion-correo.md) con estas elecciones técnicas:
+  - **Acceso al correo por IMAP** (no Gmail API) con la librería `github.com/emersion/go-imap/v2`. La spec §4 prefería Gmail API por OAuth/push, pero para el piloto grabibot ya usa **App Password** (ADR-013) y el canal es un **reenvío filtrado** al buzón; IMAP es más simple, sin flujo OAuth y sin dependencia de Google Cloud. El contrato de salida (`orden.pagada`) no cambia, así que migrar a Gmail API/webhook luego (spec §11) no afecta al resto.
+  - **Poller** cada ~12 s (configurable, `-concil-interval`) sobre `UNSEEN FROM <remitente oficial>`, con **BODY.PEEK** (no marca leído al traer) y marca `\Seen` **tras** persistir. Reconexión perezosa si Gmail cierra la sesión.
+  - **Parser** (`internal/bankmail`) sobre el **`text/plain`** decodificando **quoted-printable** y colapsando espacios; regex por campo de la [muestra](./negocio/muestra-correo-conciliacion.md). **Normalización del monto**: el correo real de Bancolombia usa formato **US** (`$2.00`, `$1,234.00` → coma=miles, punto=2 decimales `.00`); se descartan miles y decimales para casar por **entero de pesos**. Si el banco cambia el formato → `PARSE_FALLIDO` + alerta (el pago no se pierde).
+  - **Matching** por **(máquina + monto único + ventana)**, tolerancia 0. `machine_id` se saca del texto `GRABI M00X` del correo (ADR-013/014), así que **no** depende de una-llave-por-máquina y escala. **Desambiguador** `d` ∈ [1,99] elegido para no colisionar con otras órdenes `pending` de la máquina.
+  - **Idempotencia** por `Message-ID` en la tabla nueva `bank_movements` (auditoría de todos los abonos: `matched`/`orphan`/`parse_failed`/`discarded`/`conflict`). La transición `pending→paid` es **atómica** y descuenta stock en la misma transacción; solo dispara si la orden seguía `pending` (nunca dos QR por el mismo pago).
+  - **Estados de orden** alineados con la spec §3: `pending|paid|dispensed|expired|canceled` + `paid_sim` (pruebas). Columnas nuevas `unique_amount`, `pay_window_expires_at`, `token`, `paid_at`, `bank_message_id` (migración idempotente por `ALTER TABLE` para la base del piloto).
+  - **Reemplazo del pago simulado:** el flujo público pasa a `POST /m/{id}/pagar` (orden `pending` + monto único + pantalla de pago con auto-refresh `<meta refresh>`, sin JS, ADR-011bis). `simular-pago` queda **tras el flag `-allow-sim`** (nunca en producción, spec §8).
+- **Separación de responsabilidades (spec §0):** la conciliación **solo confirma el pago**; la **firma** del JWT vive en el servidor (llave privada) vía la interfaz `Emitter`. El QR se emite exactamente en el punto donde antes actuaba `simular-pago`.
+- **Seguridad:** allowlist estricta del remitente (`alertasynotificaciones@an.notificacionesbancolombia.com`); credenciales (App Password, llaves Bre-B) **solo desde `software/.env`** (git-ignored), jamás en el repo ni en argumentos. El `.eml` real con datos personales **no** se sube; el repo lleva un fixture **anonimizado** para los tests.
+- **Verificado:** login IMAP a grabibot OK; parseo del correo real de Bancolombia (todos los campos); tests de matching/idempotencia/huérfano/allowlist y flujo web pago→QR.
+- **Pendiente:** valor de la llave Bre-B por máquina en `.env` (`GRABI_BREB_KEY_M001`) para mostrarlo en la pantalla de pago (hoy cae al nombre del punto de venta "GRABI M001"); panel de movimientos/huérfanos; deploy con TLS.
+
+## ADR-014 · Bre-B: una llave por máquina en el piloto; atribución por referencia al escalar
+- **Fecha:** 2026-07-14
+- **Decisión:** En el piloto, **cada máquina tiene su propia llave Bre-B**. Nombre del punto de venta = **marca + machine_id** → formato **`GRABI M001`**. La llave de M001 ya fue registrada (Bancolombia).
+- **Razón:** con 1 llave por máquina, un pago que llega a esa llave es, sin ambigüedad, de esa máquina → conciliación/atribución trivial en el piloto.
+- **Límite conocido (no ignorar):** Bre-B **restringe el número de llaves por persona/cuenta**, así que una-llave-por-máquina **NO escala** a muchas máquinas. Confirmar con el banco el máximo de llaves permitidas.
+- **Estrategia al escalar:** cuando haya varias máquinas por llave, atribuir por **monto único por orden** y/o **referencia** en la transferencia; a futuro, **QR dinámico Bre-B con referencia** o **webhook de agregador** para atribución exacta. La conciliación (Dept. 04/02) debe casar por `(máquina + monto/referencia)`, no solo por "a qué llave llegó".
+- **Seguridad / dónde vive el valor:** los **valores de las llaves Bre-B NO van al repo** (es público). Se guardan en **configuración de la app** (mapa `machine_id → llave` en variables de entorno / secreto). Una llave de cobro no es secreta (solo sirve para *recibir*), pero es un identificador operativo y no se expone sin necesidad.
+- **Nota para Dept. 02/04:** el backend necesita un **mapa `machine_id → llave Bre-B`** (config) para saber a qué llave debe llegar el pago de cada máquina y conciliar. M001 ya tiene la suya asignada (valor fuera del repo).
+
+## ADR-013 · Marca: GRABI · correo de negocio: grabibot@gmail.com
+- **Fecha:** 2026-07-14
+- **Decisión:** La marca es **GRABI** (de "grab it" / *agárralo*). Backronym de respaldo: **G**et **R**eady **A**nd **B**uy **I**nstantly. Tagline: **"GRABI — escanea, paga, agárralo."**
+- **Correo del negocio:** **grabibot@gmail.com** (creado para esto). **Es el buzón que vigila la conciliación por correo.**
+- **Canal de conciliación del piloto (FUNCIONANDO 2026-07-14):** las alertas de Bancolombia llegan al **correo personal** de Daniel (no se cambia, para no desviar todo su banca al negocio). Un **filtro en Gmail personal reenvía a grabibot** SOLO los correos con asunto **"Alertas y Notificaciones"** que **contienen "GRABI"**. El servicio de conciliación lee **solo grabibot** (App Password, no la contraseña real).
+- **Atribución por máquina gratis:** como la llave se llama **"GRABI M00X"**, ese texto viaja en la alerta → el parser atribuye el pago a la máquina por el `GRABI M00X` que aparezca en el correo. Escala sin depender de una llave por máquina.
+- **Nota para Dept. 02/04:** el parser debe extraer de ese correo: **monto, remitente, hora y el `GRABI M00X`** (máquina). Casar con la orden por **máquina + monto único** dentro de una ventana de tiempo.
+- **Llave Bre-B (registro):** punto de venta = "GRABI"; categoría = **Tiendas y mercados**; subcategoría = **Tiendas de barrio y minimercados**.
+- **Pendiente:** verificar disponibilidad de dominio (`grabi.co` / `grabi.com.co` / alternativa) antes de fijar la web pública. La marca no cambia; solo el dominio exacto.
+- **Nota de seguridad:** las credenciales del correo NO van al repo; el servicio de conciliación las lee vía variable de entorno / secreto (App Password de Gmail, no la contraseña principal).
+
+## ADR-012 · Modelo de inventario: en el servidor, con recuento en el refill como verdad
+- **Fecha:** 2026-07-14
+- **Decisión:** El **inventario vive en la web/servidor** (stock por máquina). Se **descuenta con cada compra exitosa** (pago confirmado + QR emitido). En cada **reabastecimiento**, el admin **ingresa el conteo real** de cada producto desde el panel → eso resetea el estimado a la realidad. La máquina **NO** necesita conexión permanente ni cable a un PC para gestionar inventario.
+- **Razón:** Encaja con el diseño **offline-first** (la máquina vende sin internet), es simple y barato, y el recuento en refill es el mecanismo correcto para corregir la deriva.
+- **Matiz clave (asumido y aceptado):** la web sabe qué **cobró**, no qué **cayó físicamente**. El conteo del servidor es un **estimado que deriva** por: (a) QR pagados pero no escaneados/expirados, y (b) `DISPENSE_FAIL`. El **recuento en el refill es el ancla de verdad** que lo corrige periódicamente. Entre refills el estimado sirve para marcar agotados y evitar sobreventa en la web.
+- **Alternativa descartada:** máquina conectada a un PC "siempre sincronizada" → rompe la ventaja offline y añade fricción operativa.
+- **Mejora futura (opcional, NO bloquea):** **sync oportunista** — la máquina guarda un **log local** de dispensados y de cada `DISPENSE_FAIL`, y lo **sube cuando tenga wifi** (refill, hotspot del operario, wifi del punto). Da reconciliación exacta y visibilidad de fallos/reembolsos sin requerir conexión para vender. Resuelve la preocupación de "la máquina no puede reportar fallos".
+
+### Funcionalidades a implementar (panel admin — futuro, Dept. 02 + 05)
+- Gestión de inventario por máquina desde el panel: ver stock por slot/producto.
+- **Descuento automático** de stock ante compra exitosa (integrar con el flujo de orden/pago).
+- **Recarga de inventario en refill:** el admin escribe cuánto hay de cada producto → fija el conteo.
+- (Futuro) Ingesta del **log de dispensados/fallos** de la máquina vía sync oportunista para reconciliar.
+- (Futuro) Alertas de bajo stock y reporte de `DISPENSE_FAIL` para reembolsos.
+
+## ADR-011bis · Frontend web: mantener server-rendered (Go templates), no SPA por ahora
+- **Fecha:** 2026-07-14
+- **Decisión:** La **página del cliente** sigue en **Go html/template** (server-rendered) + CSS/HTMX ligero. **No** se reescribe a Vue/React/Next.
+- **Razón:** Es una página transaccional que el cliente abre en el celular frente a la máquina: prioridad = **carga rápida en 4G, despliegue simple (un binario + Caddy), bajo costo y bajo mantenimiento** para un fundador solo. Un SPA añade bundle de JS y complejidad de build/deploy justo donde no aporta.
+- **Cuándo sí un framework:** el **panel admin** (app-like, interactivo, no crítico en latencia) — ahí Vue/React es razonable a futuro, como app aparte contra la API en Go. Si se busca "verse más pro", es tema de **estilo (Tailwind/CSS)**, no de framework.
+
 ## ADR-001 · Firma del token: Ed25519 (asimétrica)
 - **Fecha:** 2026-07-14
 - **Decisión:** Firmar el token de dispensado con **Ed25519**. Servidor tiene la privada; la máquina solo la pública.
@@ -124,7 +196,8 @@
 - [x] **Figura jurídica** → persona natural (ADR-010).
 - [x] **Ventana de expiración** del token → 5 min (300 s), configurable en servidor (contrato v2).
 - [ ] **¿Refrigeración en la máquina piloto?** (derivado de vender bebidas — afecta costo/consumo). **Recomendación de Negocio: NO refrigerar en el piloto** y surtir bebidas estables a temperatura ambiente (gaseosa PET/lata, agua, jugo UHT, energizantes) → menor CAPEX y consumo, mecánica más simple. Análisis y fuentes en [`negocio/requisitos-sanitarios-piloto.md`](./negocio/requisitos-sanitarios-piloto.md) §4.
-- [ ] **Nombre/dominio** definitivo de la empresa/web. 3 propuestas listas (**Piqa**, **Antoja**, **Untoque**) con dominios y método de verificación en [`negocio/propuestas-nombre-dominio.md`](./negocio/propuestas-nombre-dominio.md) (disponibilidad por verificar).
-- [ ] **Entidad/llave Bre-B del piloto** — recomendación de Negocio: **Bancolombia** (persona natural, producto dedicado) por sus alertas de correo en tiempo real, que habilitan la conciliación del MVP. Ver [`negocio/bre-b-guia-negocio.md`](./negocio/bre-b-guia-negocio.md).
+- [x] **Nombre** de la marca → **GRABI** (ADR-013).
+- [ ] **Dominio** de la web → opciones en ADR-016; recomendación piloto: `grabi.napi.lat` (gratis) o `grabi.lat` ($2). Decidir mañana. 3 propuestas listas (**Piqa**, **Antoja**, **Untoque**) con dominios y método de verificación en [`negocio/propuestas-nombre-dominio.md`](./negocio/propuestas-nombre-dominio.md) (disponibilidad por verificar).
+- [x] **Entidad/llave Bre-B del piloto** → **Bancolombia**; llave de **M001** registrada como "GRABI M001" (una llave por máquina, ADR-014). Valor guardado en config, fuera del repo.
 - [ ] **Agregador Bre-B** para la fase 2 (tras comparar comisiones/onboarding). Estructura y cuestionario de cotización listos en [`negocio/agregadores-bre-b-comparativa.md`](./negocio/agregadores-bre-b-comparativa.md).
 - [ ] **Mecanismo de dispensado** definitivo (espiral vs. gravedad) según producto piloto.

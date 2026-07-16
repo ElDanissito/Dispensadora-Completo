@@ -33,14 +33,23 @@ CREATE TABLE IF NOT EXISTS machine_products (
 
 -- orders: una orden = un token que se emitirá tras confirmar el pago.
 -- v2: `iat` y el emisor se guardan AQUÍ (no viajan en el token) — ver ADR-006.
+-- Conciliación Bre-B (spec §3): la orden nace `pending`; pasa a `paid` cuando el
+-- pago real casa por (máquina + monto único + ventana). El reloj de 5 min del
+-- token (`exp`) ARRANCA al pagar, no al crear la orden.
+--   status: pending | paid | dispensed | expired | canceled | paid_sim(pruebas)
 CREATE TABLE IF NOT EXISTS orders (
-  jti         TEXT PRIMARY KEY,            -- id único de la orden (= jti del token)
-  machine_id  TEXT NOT NULL REFERENCES machines(id),
-  total_cop   INTEGER NOT NULL,
-  status      TEXT NOT NULL,               -- pending | paid | dispensed | expired
-  iat         INTEGER NOT NULL,            -- emitido en (auditoría, solo servidor)
-  exp         INTEGER NOT NULL,            -- expiración del token
-  created_at  INTEGER NOT NULL
+  jti                   TEXT PRIMARY KEY,      -- id único de la orden (= jti del token)
+  machine_id            TEXT NOT NULL REFERENCES machines(id),
+  total_cop             INTEGER NOT NULL,      -- precio base (suma de ítems)
+  unique_amount         INTEGER NOT NULL DEFAULT 0, -- total_cop + desambiguador d (ancla del matching)
+  status                TEXT NOT NULL,
+  iat                   INTEGER NOT NULL,      -- emitido en (auditoría, solo servidor)
+  exp                   INTEGER NOT NULL,      -- expiración del token (se fija al pagar)
+  pay_window_expires_at INTEGER NOT NULL DEFAULT 0, -- fin de la ventana de pago (epoch s)
+  token                 TEXT,                  -- JWS firmado (se rellena al pagar)
+  paid_at               INTEGER,               -- epoch s en que se concilió el pago
+  bank_message_id       TEXT,                  -- Message-ID del correo que la pagó (auditoría)
+  created_at            INTEGER NOT NULL
 );
 
 -- order_items: líneas de cada orden (congela precio y cantidad al momento de la compra).
@@ -59,5 +68,26 @@ CREATE TABLE IF NOT EXISTS used_jti (
   used_at    INTEGER NOT NULL
 );
 
+-- bank_movements: cada abono leído del correo (casado, huérfano, fallido o
+-- descartado). La PK por `message_id` garantiza IDEMPOTENCIA (spec §7.2): un
+-- mismo correo nunca se procesa dos veces. Es también el registro de auditoría
+-- contable (spec §7.5, Dept. 07).
+CREATE TABLE IF NOT EXISTS bank_movements (
+  message_id  TEXT PRIMARY KEY,            -- Message-ID del correo (idempotencia)
+  machine_id  TEXT,                        -- mid extraído ("GRABI M001" → "M001")
+  amount_cop  INTEGER,                     -- monto normalizado a entero COP
+  payer       TEXT,                        -- pagador (auditoría; no decide nada)
+  account     TEXT,                        -- cuenta enmascarada (auditoría)
+  breb_key    TEXT,                        -- llave Bre-B destino (auditoría)
+  occurred_at INTEGER,                     -- fecha/hora del cuerpo (epoch s)
+  processed_at INTEGER NOT NULL,           -- cuándo lo procesó la conciliación
+  result      TEXT NOT NULL,               -- matched|orphan|parse_failed|discarded|conflict
+  order_jti   TEXT,                        -- orden casada (si result=matched)
+  from_addr   TEXT                         -- remitente (allowlist / seguridad)
+);
+
 CREATE INDEX IF NOT EXISTS idx_orders_machine ON orders(machine_id);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
+-- Los índices que dependen de columnas NUEVAS (unique_amount) se crean en migrate()
+-- DESPUÉS del ALTER TABLE, porque en una base preexistente esa columna aún no
+-- existe cuando se ejecuta este script.

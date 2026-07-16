@@ -6,7 +6,7 @@
 </div>
 
 {{if .Catalog}}
-<form method="post" action="/m/{{.Machine.ID}}/simular-pago">
+<form method="post" action="/m/{{.Machine.ID}}/pagar">
   <div class="card">
     {{range .Catalog}}
     <div class="row">
@@ -31,17 +31,18 @@
 
   <div class="card">
     <button type="submit" style="width:100%;padding:.8rem;font-size:1rem;font-weight:600">
-      Simular pago y generar QR
+      Pagar con Bre-B
     </button>
     <div class="muted" style="margin-top:.5rem;text-align:center">
-      Pago Bre-B real en integración (Dept. 04). Por ahora esto emite el QR directamente para pruebas.
+      Verás el valor exacto a transferir y la llave Bre-B. El QR aparece al confirmarse el pago.
     </div>
   </div>
 </form>
 
 <div class="note">
-  <strong>¿Cómo compro?</strong> Elige cantidades y pulsa el botón. En la versión final pagarás por
-  <strong>Bre-B</strong> y solo entonces recibirás el <strong>QR</strong> para mostrar al lector de la máquina.
+  <strong>¿Cómo compro?</strong> Elige cantidades y pulsa <strong>Pagar con Bre-B</strong>. La página te mostrará
+  <strong>cuánto</strong> y a qué <strong>llave</strong> transferir desde tu app. En cuanto entre el pago,
+  recibirás el <strong>QR</strong> para mostrar al lector de la máquina.
 </div>
 {{else}}
 <div class="card muted">Esta máquina aún no tiene productos cargados.</div>

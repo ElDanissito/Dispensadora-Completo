@@ -1,0 +1,27 @@
+From: Alertas y Notificaciones
+ <alertasynotificaciones@an.notificacionesbancolombia.com>
+To: grabibot@gmail.com
+Subject: Alertas y Notificaciones
+Message-ID: <fixture-0001@an.notificacionesbancolombia.com>
+Date: Thu, 16 Jul 2026 07:47:25 +0000
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="BOUNDARY123"
+
+--BOUNDARY123
+Content-Type: text/plain; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+Logo Bancolombia=20
+=C2=A1Listo! Todo sali=C3=B3 bien con tus movimientos Bancolombia: GRABI =
+M001, recibiste
+un pago de Nombre Apellido por $2.00 en tu cuenta *5322 conectado a=
+ la
+llave 0092699654 el 16/07/2026 a las 02:47. Con llaves es desde una y gratis.
+=20
+--BOUNDARY123
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<html><body><p>=C2=A1Listo! GRABI M001 recibiste un pago de $2.00</p></body=
+></html>
+--BOUNDARY123--
