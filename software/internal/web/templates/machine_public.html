@@ -1,49 +1,120 @@
 {{define "content"}}
-<div class="card">
-  <div class="muted">Máquina {{.Machine.ID}}</div>
-  <h2 style="margin-top:4px">{{.Machine.Name}}</h2>
+<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+  <div>
+    <div class="muted">Máquina {{.Machine.ID}}</div>
+    <h2 style="margin:4px 0 0">{{.Machine.Name}}</h2>
+  </div>
   {{if not .Machine.Active}}<span class="badge out">fuera de servicio</span>{{end}}
 </div>
 
 {{if .Catalog}}
-<form method="post" action="/m/{{.Machine.ID}}/pagar">
-  <div class="card">
+<form method="post" action="/m/{{.Machine.ID}}/pagar" id="buyForm">
+  <div class="grid" style="margin-bottom:16px">
     {{range .Catalog}}
-    <div class="row">
-      <div>
-        <div>{{.ProductName}}</div>
-        <div class="muted">Slot {{.Slot}}
-          {{if gt .Stock 0}}<span class="badge ok">{{.Stock}} disp.</span>{{else}}<span class="badge out">agotado</span>{{end}}
-        </div>
-      </div>
-      <div class="price">{{cop .PriceCOP}}</div>
-      <div>
-        {{if gt .Stock 0}}
-        <input type="number" name="qty_{{.Slot}}" value="0" min="0" max="{{.Stock}}"
-               style="width:4rem" aria-label="Cantidad de {{.ProductName}}">
+    <div class="cell{{if le .Stock 0}} out{{end}}" data-slot="{{.Slot}}" data-price="{{.PriceCOP}}" data-name="{{.ProductName}}">
+      <div class="imgwrap">
+        <span class="slotchip">#{{.Slot}}</span>
+        {{if .ImagePath}}
+          <img src="{{.ImagePath}}" alt="{{.ProductName}}" loading="lazy">
         {{else}}
-        <input type="number" value="0" min="0" max="0" disabled style="width:4rem">
+          <span class="img-ph" aria-hidden="true">🍫</span>
         {{end}}
       </div>
+      <div class="pname">{{.ProductName}}</div>
+      <div class="pmeta">
+        <span class="price">{{cop .PriceCOP}}</span>
+        {{if gt .Stock 0}}<span class="badge ok">{{.Stock}} disp.</span>{{else}}<span class="badge out">agotado</span>{{end}}
+      </div>
+      {{if gt .Stock 0}}
+      <input type="hidden" name="qty_{{.Slot}}" value="0" data-qty="{{.Slot}}">
+      <div class="qty" data-max="{{.Stock}}">
+        <button type="button" class="minus" aria-label="Quitar uno de {{.ProductName}}">−</button>
+        <span class="val" data-val>0</span>
+        <button type="button" class="plus" aria-label="Añadir uno de {{.ProductName}}">+</button>
+      </div>
+      {{else}}
+      <div class="soldout">Agotado</div>
+      {{end}}
     </div>
     {{end}}
   </div>
 
+  {{if .PayerMode}}
   <div class="card">
-    <button type="submit" style="width:100%;padding:.8rem;font-size:1rem;font-weight:600">
-      Pagar con Bre-B
-    </button>
-    <div class="muted" style="margin-top:.5rem;text-align:center">
-      Verás el valor exacto a transferir y la llave Bre-B. El QR aparece al confirmarse el pago.
+    <label for="payer_name" style="font-size:.95rem;color:var(--fg);margin-bottom:6px">
+      Nombre de quien hace la transferencia
+    </label>
+    <input id="payer_name" name="payer_name" required autocomplete="name"
+           placeholder="Como aparece en tu banco" style="width:100%">
+    <div class="hint">Lo usamos para confirmar <strong>tu</strong> pago por Bre-B. Puede ser quien te presta el celular o paga por ti.</div>
+  </div>
+  {{end}}
+
+  <div style="height:96px" aria-hidden="true"></div>{{/* espacio para la barra fija */}}
+
+  <div class="cartbar">
+    <div class="cartbar-inner">
+      <div class="sum">
+        <div class="t" id="cartTotal">$0</div>
+        <div class="c"><span id="cartCount">0</span> producto(s)</div>
+      </div>
+      <button type="submit" id="payBtn" disabled>Pagar con Bre-B</button>
     </div>
   </div>
 </form>
 
 <div class="note">
-  <strong>¿Cómo compro?</strong> Elige cantidades y pulsa <strong>Pagar con Bre-B</strong>. La página te mostrará
-  <strong>cuánto</strong> y a qué <strong>llave</strong> transferir desde tu app. En cuanto entre el pago,
-  recibirás el <strong>QR</strong> para mostrar al lector de la máquina.
+  <strong>¿Cómo compro?</strong> Toca <strong>+</strong> en los productos que quieras y pulsa
+  <strong>Pagar con Bre-B</strong>. Verás <strong>cuánto</strong> y a qué <strong>llave</strong> transferir.
+  En cuanto entre el pago, aparece el <strong>QR</strong> para mostrarlo al lector de la máquina.
 </div>
+
+<script>
+(function(){
+  function copFmt(v){
+    var s=String(Math.abs(v)), out='';
+    for(var i=0;i<s.length;i++){ if(i>0 && (s.length-i)%3===0) out+='.'; out+=s[i]; }
+    return (v<0?'-':'')+'$'+out;
+  }
+  var form=document.getElementById('buyForm'),
+      totalEl=document.getElementById('cartTotal'),
+      countEl=document.getElementById('cartCount'),
+      payBtn=document.getElementById('payBtn');
+
+  function recalc(){
+    var total=0, count=0;
+    form.querySelectorAll('.cell').forEach(function(cell){
+      var hidden=cell.querySelector('[data-qty]');
+      if(!hidden) return;
+      var q=parseInt(hidden.value||'0',10);
+      total += q * parseInt(cell.dataset.price,10);
+      count += q;
+    });
+    totalEl.textContent=copFmt(total);
+    countEl.textContent=count;
+    payBtn.disabled = count===0;
+  }
+
+  form.querySelectorAll('.qty').forEach(function(ctrl){
+    var cell=ctrl.closest('.cell'),
+        hidden=cell.querySelector('[data-qty]'),
+        valEl=ctrl.querySelector('[data-val]'),
+        max=parseInt(ctrl.dataset.max,10),
+        minus=ctrl.querySelector('.minus'),
+        plus=ctrl.querySelector('.plus');
+    function set(q){
+      if(q<0)q=0; if(q>max)q=max;
+      hidden.value=q; valEl.textContent=q;
+      minus.disabled=q<=0; plus.disabled=q>=max;
+      recalc();
+    }
+    minus.addEventListener('click',function(){ set(parseInt(hidden.value,10)-1); });
+    plus.addEventListener('click',function(){ set(parseInt(hidden.value,10)+1); });
+    set(0);
+  });
+  recalc();
+})();
+</script>
 {{else}}
 <div class="card muted">Esta máquina aún no tiene productos cargados.</div>
 {{end}}

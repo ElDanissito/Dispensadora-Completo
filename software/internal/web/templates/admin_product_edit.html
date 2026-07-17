@@ -1,0 +1,56 @@
+{{define "content"}}
+<div class="card">
+  <div class="muted"><a class="link" href="/admin/m/{{.Machine.ID}}">← {{.Machine.ID}}</a></div>
+  <h2 style="margin-top:8px">Editar producto</h2>
+</div>
+
+<div class="card">
+  <form method="post" action="/admin/m/{{.Machine.ID}}/slot/{{.Row.Slot}}" enctype="multipart/form-data"
+        data-warn="product" data-orig-slot="{{.Row.Slot}}" data-has-image="{{if .Row.ImagePath}}true{{else}}false{{end}}">
+    <div style="display:grid;gap:12px;grid-template-columns:1fr 1fr">
+      <div style="grid-column:1/-1;display:flex;align-items:center;gap:12px">
+        {{if .Row.ImagePath}}<img class="thumb" style="width:64px;height:64px" src="{{.Row.ImagePath}}" alt="{{.Row.ProductName}}">{{else}}<span class="thumb-ph" style="width:64px;height:64px">🍫</span>{{end}}
+        <div class="muted">Foto actual. Sube una nueva para reemplazarla; si no, se conserva.</div>
+      </div>
+      <div style="grid-column:1/-1">
+        <label for="ep-name">Nombre</label>
+        <input id="ep-name" name="name" value="{{.Row.ProductName}}" required style="width:100%">
+      </div>
+      <div style="grid-column:1/-1">
+        <label for="ep-desc">Descripción (opcional)</label>
+        <input id="ep-desc" name="description" value="{{.Row.Description}}" style="width:100%">
+      </div>
+      <div>
+        <label for="ep-slot">Slot</label>
+        <input id="ep-slot" name="slot" type="number" min="1" value="{{.Row.Slot}}" required style="width:100%">
+        <div class="hint">Cambiarlo mueve el producto de canal físico.</div>
+      </div>
+      <div>
+        <label for="ep-price">Precio (COP)</label>
+        <input id="ep-price" name="price" type="number" min="0" step="50" value="{{.Row.PriceCOP}}" required style="width:100%">
+        <div class="hint">ℹ️ Evita precios idénticos entre productos (conciliación por monto único).</div>
+      </div>
+      <div>
+        <label for="ep-stock">Stock (refill)</label>
+        <input id="ep-stock" name="stock" type="number" min="0" value="{{.Row.Stock}}" required style="width:100%">
+        <div class="hint">ℹ️ Debe coincidir con lo cargado físicamente (ADR-012).</div>
+      </div>
+      <div>
+        <label for="ep-img">Reemplazar foto</label>
+        <input id="ep-img" name="image" type="file" accept="image/*" style="width:100%">
+        <div class="hint">JPG, PNG, WEBP o GIF · máx. 5 MB.</div>
+      </div>
+      <div style="grid-column:1/-1">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" name="wired" value="1" style="width:auto" {{if .Row.Wired}}checked{{end}}>
+          Motor de este slot conectado (dispensa)
+        </label>
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px">
+      <button type="submit">Guardar cambios</button>
+      <a class="link" href="/admin/m/{{.Machine.ID}}" style="align-self:center">Cancelar</a>
+    </div>
+  </form>
+</div>
+{{end}}

@@ -1,0 +1,19 @@
+{{define "content"}}
+<div class="card">
+  <div class="muted">Máquina {{.Machine.ID}} — {{.Machine.Name}}</div>
+  <h2 style="margin-top:4px">Tu pago está en revisión</h2>
+  <p class="muted">
+    Recibimos un pago que <strong>coincide con más de una compra</strong> al mismo tiempo, así que por
+    seguridad <strong>no entregamos el producto automáticamente</strong> (para no dispensar de más).
+    Nuestro equipo lo revisa y resuelve manualmente.
+  </p>
+  <div class="note">
+    <strong>¿Qué hago?</strong> Guarda tu comprobante de la transferencia y contáctanos por soporte con
+    la hora y el monto. Si no se puede entregar, te <strong>reembolsamos</strong>. Tu dinero está seguro.
+  </div>
+</div>
+
+<div class="card" style="text-align:center">
+  <a class="link" href="/m/{{.Machine.ID}}">← Volver a la máquina</a>
+</div>
+{{end}}

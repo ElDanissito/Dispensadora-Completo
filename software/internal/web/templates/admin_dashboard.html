@@ -22,15 +22,8 @@
   </form>
 </div>
 
-<div class="card">
-  <h2>Catálogo global de productos</h2>
-  {{if .Products}}
-  <div class="muted">{{range .Products}}{{.Name}} · {{end}}</div>
-  {{else}}<div class="muted">Sin productos todavía.</div>{{end}}
-  <h2 style="margin-top:16px">Nuevo producto</h2>
-  <form class="inline" method="post" action="/admin/products">
-    <div><label>Nombre</label><input name="name" placeholder="Papas Margarita" required></div>
-    <button type="submit">Agregar</button>
-  </form>
+<div class="note">
+  Los <strong>productos</strong> se gestionan dentro de cada máquina (foto, precio, slot y stock).
+  Abre una máquina para crear, editar o eliminar productos.
 </div>
 {{end}}

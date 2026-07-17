@@ -55,8 +55,8 @@ type Movement struct {
 	MachineRaw string    // texto crudo del punto de venta, ej. "GRABI M001"
 	Payer      string    // nombre del pagador (solo auditoría; no se muestra al cliente)
 	AmountCOP  int64     // monto normalizado a entero de pesos (ancla del matching)
-	Account    string    // cuenta enmascarada, ej. "*5322" (auditoría)
-	BreBKey    string    // llave Bre-B destino, ej. "0092699654" (auditoría)
+	Account    string    // cuenta enmascarada, ej. "*0000" (auditoría)
+	BreBKey    string    // llave Bre-B destino, ej. "1234567890" (auditoría)
 	OccurredAt time.Time // fecha/hora del cuerpo, en zona Bogotá (para la ventana)
 	DateRaw    string    // "16/07/2026"
 	TimeRaw    string    // "02:47"
@@ -92,7 +92,7 @@ type Meta struct {
 	ReceivedAt time.Time
 }
 
-// ParseEmail parsea un correo crudo (RFC 5322): devuelve las cabeceras (Meta,
+// ParseEmail parsea un correo crudo (RFC 0000): devuelve las cabeceras (Meta,
 // siempre que el correo sea legible) y el movimiento extraído del cuerpo
 // text/plain (decodificando quoted-printable). No valida la allowlist (eso es
 // política de la conciliación); solo rellena FromAddr para que el llamador decida.
@@ -239,6 +239,67 @@ func ParseText(text string) (*Movement, error) {
 // saltos de línea) por un solo espacio y recorta los extremos.
 func collapseSpaces(s string) string {
 	return strings.TrimSpace(strings.Join(strings.Fields(s), " "))
+}
+
+// --- Matching por nombre del pagador (ADR-018) ---
+
+// minNameToken es el largo mínimo de un token del nombre para considerarlo (los
+// tokens más cortos —"de", "la", iniciales— se ignoran, ADR-018).
+const minNameToken = 3
+
+// NormalizeName pasa un nombre a minúsculas, le quita tildes/diéresis/ñ y colapsa
+// espacios, para comparar de forma tolerante (ADR-018). Ej. "José Peña" → "jose pena".
+func NormalizeName(s string) string {
+	s = strings.ToLower(collapseSpaces(s))
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch r {
+		case 'á', 'à', 'ä', 'â', 'ã':
+			b.WriteRune('a')
+		case 'é', 'è', 'ë', 'ê':
+			b.WriteRune('e')
+		case 'í', 'ì', 'ï', 'î':
+			b.WriteRune('i')
+		case 'ó', 'ò', 'ö', 'ô', 'õ':
+			b.WriteRune('o')
+		case 'ú', 'ù', 'ü', 'û':
+			b.WriteRune('u')
+		case 'ñ':
+			b.WriteRune('n')
+		case 'ç':
+			b.WriteRune('c')
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// PayerMatches indica si el nombre que escribió el cliente (clientInput) casa con
+// el nombre del pagador del correo (emailPayer), según la regla de ADR-018:
+// normalizar ambos (minúsculas, sin tildes); exigir que **todos** los tokens del
+// cliente de ≥ minNameToken caracteres estén **contenidos** en el nombre del
+// pagador. Los tokens cortos del cliente se ignoran. Si el cliente no aportó
+// ningún token usable (nombre vacío o solo tokens cortos), NO casa (seguridad: un
+// nombre en blanco jamás debe casar contra cualquiera).
+func PayerMatches(clientInput, emailPayer string) bool {
+	client := NormalizeName(clientInput)
+	payer := NormalizeName(emailPayer)
+	if payer == "" {
+		return false
+	}
+	usable := 0
+	for _, tok := range strings.Fields(client) {
+		if len([]rune(tok)) < minNameToken {
+			continue
+		}
+		usable++
+		if !strings.Contains(payer, tok) {
+			return false
+		}
+	}
+	return usable > 0
 }
 
 // NormalizeAmount convierte el monto del correo a un entero de pesos colombianos.

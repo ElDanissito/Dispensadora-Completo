@@ -11,8 +11,8 @@ import (
 // tal como queda tras decodificar quoted-printable — con saltos de línea que el
 // parser debe colapsar. Ver negocio/muestra-correo-conciliacion.md.
 const textoMuestra = `¡Listo! Todo salió bien con tus movimientos Bancolombia: GRABI M001, recibiste
-un pago de Nombre Apellido por $2.00 en tu cuenta *5322 conectado a la
-llave 0092699654 el 16/07/2026 a las 02:47.`
+un pago de Nombre Apellido por $2.00 en tu cuenta *0000 conectado a la
+llave 1234567890 el 16/07/2026 a las 02:47.`
 
 func TestParseText_Muestra(t *testing.T) {
 	mv, err := ParseText(textoMuestra)
@@ -31,11 +31,11 @@ func TestParseText_Muestra(t *testing.T) {
 	if mv.AmountCOP != 2 {
 		t.Errorf("AmountCOP = %d, quería 2", mv.AmountCOP)
 	}
-	if mv.Account != "*5322" {
-		t.Errorf("Account = %q, quería %q", mv.Account, "*5322")
+	if mv.Account != "*0000" {
+		t.Errorf("Account = %q, quería %q", mv.Account, "*0000")
 	}
-	if mv.BreBKey != "0092699654" {
-		t.Errorf("BreBKey = %q, quería %q", mv.BreBKey, "0092699654")
+	if mv.BreBKey != "1234567890" {
+		t.Errorf("BreBKey = %q, quería %q", mv.BreBKey, "1234567890")
 	}
 	want := time.Date(2026, 7, 16, 2, 47, 0, 0, Bogota)
 	if !mv.OccurredAt.Equal(want) {
@@ -109,5 +109,28 @@ func TestInAllowlist(t *testing.T) {
 func TestParseText_SinPatron(t *testing.T) {
 	if _, err := ParseText("Un correo cualquiera sin datos de pago."); err != ErrNoMatch {
 		t.Errorf("esperaba ErrNoMatch, obtuve %v", err)
+	}
+}
+
+func TestPayerMatches(t *testing.T) {
+	cases := []struct {
+		client, payer string
+		want          bool
+		nota          string
+	}{
+		{"Nombre Apellido", "Nombre Apellido", true, "match exacto"},
+		{"nombre", "Nombre Apellido", true, "subconjunto de un token"},
+		{"  JOSÉ   PEÑA ", "Jose Pena Ramirez", true, "tildes/ñ y espacios ignorados"},
+		{"Ramirez", "Jose Pena Ramirez", true, "token final contenido"},
+		{"Nombre Apellido", "Nombre", false, "cliente pide un token que el pagador no tiene"},
+		{"Carlos", "Nombre Apellido", false, "no coincide"},
+		{"", "Nombre Apellido", false, "cliente vacío nunca casa"},
+		{"Jo", "Jose Pena", false, "solo tokens < 3 no aporta match usable"},
+		{"de la", "Jose de la Cruz", false, "solo tokens cortos → sin tokens usables"},
+	}
+	for _, c := range cases {
+		if got := PayerMatches(c.client, c.payer); got != c.want {
+			t.Errorf("PayerMatches(%q,%q)=%v, quería %v (%s)", c.client, c.payer, got, c.want, c.nota)
+		}
 	}
 }

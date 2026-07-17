@@ -14,8 +14,8 @@
 
 ```
 ¡Listo! Todo salió bien con tus movimientos Bancolombia: GRABI M001, recibiste
-un pago de NOMBRE PAGADOR por $2.00 en tu cuenta *5322 conectado a la
-llave 0092699654 el 16/07/2026 a las 02:47.
+un pago de NOMBRE PAGADOR por $2.00 en tu cuenta *0000 conectado a la
+llave 1234567890 el 16/07/2026 a las 02:47.
 ```
 
 ## Campos a extraer (regex sugeridas, sobre el text/plain con saltos de línea normalizados a espacios)
@@ -25,8 +25,8 @@ llave 0092699654 el 16/07/2026 a las 02:47.
 | **Máquina** (`mid`) | `movimientos Bancolombia:\s*(GRABI\s+M\d+)` | `GRABI M001` |
 | **Pagador** | `recibiste\s+un\s+pago\s+de\s+(.+?)\s+por\s+\$` | `Nombre Apellido` |
 | **Monto** | `por\s+\$\s*([\d.,]+)` | `2.00` |
-| **Cuenta** (enmascarada) | `en\s+tu\s+cuenta\s+(\*\d+)` | `*5322` |
-| **Llave** | `conectado\s+a\s+la\s+llave\s+(\d+)` | `0092699654` |
+| **Cuenta** (enmascarada) | `en\s+tu\s+cuenta\s+(\*\d+)` | `*0000` |
+| **Llave** | `conectado\s+a\s+la\s+llave\s+(\d+)` | `1234567890` |
 | **Fecha** | `el\s+(\d{2}/\d{2}/\d{4})` | `16/07/2026` |
 | **Hora** | `a\s+las\s+(\d{2}:\d{2})` | `02:47` |
 

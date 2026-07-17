@@ -14,34 +14,47 @@ CREATE TABLE IF NOT EXISTS machines (
 );
 
 -- products: catálogo global de productos (nombre reutilizable entre máquinas).
+-- description/image_path son de PRESENTACIÓN (ui-web-v1 §3.1): la foto se sirve
+-- estáticamente desde /uploads y aquí solo se guarda su ruta pública.
 CREATE TABLE IF NOT EXISTS products (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  name       TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  image_path  TEXT NOT NULL DEFAULT '',    -- ruta pública de la foto (ej. /uploads/xxx.jpg); '' = sin imagen
+  created_at  INTEGER NOT NULL
 );
 
 -- machine_products: qué producto ocupa cada slot de cada máquina, con precio y stock.
 -- `slot` es el `s` que viaja en el token; la máquina dispensa ese slot.
+-- `wired` = el canal/motor de ese slot está físicamente conectado y SÍ dispensa
+-- (ui-web-v1 §4: avisar si se publica un producto en un slot sin motor).
 CREATE TABLE IF NOT EXISTS machine_products (
   machine_id TEXT    NOT NULL REFERENCES machines(id) ON DELETE CASCADE,
   slot       INTEGER NOT NULL,             -- slot físico (el `s` del token)
   product_id INTEGER NOT NULL REFERENCES products(id),
   price_cop  INTEGER NOT NULL,             -- precio en pesos colombianos (entero)
   stock      INTEGER NOT NULL DEFAULT 0,
+  wired      INTEGER NOT NULL DEFAULT 0,   -- 1 = motor conectado (dispensa); 0 = aún sin cablear
   PRIMARY KEY (machine_id, slot)
 );
 
 -- orders: una orden = un token que se emitirá tras confirmar el pago.
 -- v2: `iat` y el emisor se guardan AQUÍ (no viajan en el token) — ver ADR-006.
 -- Conciliación Bre-B (spec §3): la orden nace `pending`; pasa a `paid` cuando el
--- pago real casa por (máquina + monto único + ventana). El reloj de 5 min del
--- token (`exp`) ARRANCA al pagar, no al crear la orden.
---   status: pending | paid | dispensed | expired | canceled | paid_sim(pruebas)
+-- pago real casa. Match por (máquina + monto exacto + ventana + nombre del
+-- pagador) en modo `payer` (ADR-018), o por (máquina + monto único + ventana) en
+-- el fallback `unique_amount`. El reloj de 5 min del token (`exp`) ARRANCA al
+-- pagar, no al crear la orden.
+--   status: pending | paid | dispensed | expired | canceled | ambiguous | paid_sim(pruebas)
+--   `ambiguous`: ≥2 órdenes casaron un mismo pago (ADR-018) → NO se dispensa; revisión/soporte.
+--   `unique_amount`: en modo payer = total_cop (monto redondo exacto); en fallback = total_cop + d.
+--   `payer_name`: nombre que el cliente declaró como quien hará la transferencia (ADR-018; PII mínima).
 CREATE TABLE IF NOT EXISTS orders (
   jti                   TEXT PRIMARY KEY,      -- id único de la orden (= jti del token)
   machine_id            TEXT NOT NULL REFERENCES machines(id),
   total_cop             INTEGER NOT NULL,      -- precio base (suma de ítems)
-  unique_amount         INTEGER NOT NULL DEFAULT 0, -- total_cop + desambiguador d (ancla del matching)
+  unique_amount         INTEGER NOT NULL DEFAULT 0, -- monto exacto a cobrar (ancla del matching)
+  payer_name            TEXT NOT NULL DEFAULT '',   -- nombre declarado de quien paga (ADR-018)
   status                TEXT NOT NULL,
   iat                   INTEGER NOT NULL,      -- emitido en (auditoría, solo servidor)
   exp                   INTEGER NOT NULL,      -- expiración del token (se fija al pagar)

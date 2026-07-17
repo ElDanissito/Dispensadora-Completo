@@ -66,6 +66,7 @@ func main() {
 	enableConcil := flag.Bool("concil", false, "arranca la conciliación de pagos por correo (requiere GRABI_IMAP_* en .env)")
 	concilInterval := flag.Duration("concil-interval", 12*time.Second, "cada cuánto revisa el correo la conciliación")
 	payWindow := flag.Duration("pay-window", web.DefaultPayWindow, "ventana de validez de pago de las órdenes")
+	uploadDir := flag.String("uploads", "data/uploads", "carpeta donde se guardan las fotos de producto subidas por el panel")
 	flag.Parse()
 
 	// Cargar secretos locales (.env, git-ignored). Las variables reales del
@@ -93,8 +94,17 @@ func main() {
 		log.Printf("AVISO: ADMIN_PASS no está definido; usando 'changeme'. Defínelo antes de exponer el panel.")
 	}
 
+	// Modo de conciliación (ADR-018): por defecto match por monto exacto + nombre
+	// del pagador; GRABI_MATCH_MODE=unique_amount activa el fallback legado.
+	uniqueAmt := config.UniqueAmountFallback()
+	if uniqueAmt {
+		log.Printf("conciliación: modo MONTO ÚNICO (fallback legado, GRABI_MATCH_MODE=unique_amount)")
+	} else {
+		log.Printf("conciliación: modo MONTO EXACTO + NOMBRE del pagador (ADR-018)")
+	}
+
 	priv := loadPrivate()
-	srv, err := web.New(st, adminUser, adminPass, priv, *allowSim, *payWindow)
+	srv, err := web.New(st, adminUser, adminPass, priv, *allowSim, *payWindow, *uploadDir, uniqueAmt)
 	if err != nil {
 		log.Fatalf("construyendo servidor: %v", err)
 	}
@@ -105,7 +115,7 @@ func main() {
 
 	var mailer *reconnMailer
 	if *enableConcil {
-		mailer = startConciliacion(ctx, st, srv, priv, *concilInterval)
+		mailer = startConciliacion(ctx, st, srv, priv, *concilInterval, uniqueAmt)
 		if mailer != nil {
 			defer mailer.Close()
 		}
@@ -125,9 +135,9 @@ func main() {
 		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
 
-	log.Printf("dispensadoras web escuchando en %s (db=%s)", *addr, *db)
+	log.Printf("dispensadoras web escuchando en %s (db=%s, uploads=%s)", *addr, *db, *uploadDir)
 	log.Printf("  público: http://localhost%s/m/M001", *addr)
-	log.Printf("  panel:   http://localhost%s/admin (usuario %q)", *addr, adminUser)
+	log.Printf("  panel:   http://localhost%s/admin/login (usuario %q)", *addr, adminUser)
 	if *allowSim {
 		log.Printf("  AVISO: -allow-sim activo (simular-pago habilitado; solo para pruebas)")
 	}
@@ -139,7 +149,7 @@ func main() {
 // startConciliacion arranca el poller de conciliación en una goroutine. Devuelve
 // el mailer para poder cerrarlo al apagar. Si faltan credenciales o llave de
 // firma, avisa y devuelve nil (el servidor web sigue funcionando).
-func startConciliacion(ctx context.Context, st *store.Store, srv *web.Server, priv ed25519.PrivateKey, interval time.Duration) *reconnMailer {
+func startConciliacion(ctx context.Context, st *store.Store, srv *web.Server, priv ed25519.PrivateKey, interval time.Duration, uniqueAmt bool) *reconnMailer {
 	imapCfg, err := config.LoadIMAP()
 	if err != nil {
 		log.Printf("AVISO: conciliación NO arranca: %v", err)
@@ -150,7 +160,7 @@ func startConciliacion(ctx context.Context, st *store.Store, srv *web.Server, pr
 		return nil
 	}
 	mailer := &reconnMailer{cfg: imapCfg, log: log.Default()}
-	svc := concil.New(st, mailer, srv, log.Default())
+	svc := concil.New(st, mailer, srv, log.Default(), uniqueAmt)
 	go svc.Run(ctx, interval)
 	return mailer
 }

@@ -45,27 +45,31 @@ type Emitter interface {
 // Service concilia pagos. Se construye con New y se corre con Run (bucle) o
 // PollOnce (un ciclo, útil en pruebas y CLI).
 type Service struct {
-	st      *store.Store
-	mailer  Mailer
-	emitter Emitter
-	sender  string
-	log     *log.Logger
-	now     func() time.Time
+	st           *store.Store
+	mailer       Mailer
+	emitter      Emitter
+	sender       string
+	log          *log.Logger
+	now          func() time.Time
+	uniqueAmount bool // true = fallback legado por monto único; false = match por nombre (ADR-018)
 }
 
 // New construye el servicio. `sender` es el remitente oficial a buscar (allowlist,
-// spec §7.1). Si logger es nil se usa el estándar.
-func New(st *store.Store, mailer Mailer, emitter Emitter, logger *log.Logger) *Service {
+// spec §7.1). uniqueAmount elige el mecanismo: false (por defecto, ADR-018) casa
+// por (máquina + monto exacto + ventana + nombre del pagador); true usa el fallback
+// legado por monto único. Si logger es nil se usa el estándar.
+func New(st *store.Store, mailer Mailer, emitter Emitter, logger *log.Logger, uniqueAmount bool) *Service {
 	if logger == nil {
 		logger = log.Default()
 	}
 	return &Service{
-		st:      st,
-		mailer:  mailer,
-		emitter: emitter,
-		sender:  bankmail.Allowlist[0],
-		log:     logger,
-		now:     time.Now,
+		st:           st,
+		mailer:       mailer,
+		emitter:      emitter,
+		sender:       bankmail.Allowlist[0],
+		log:          logger,
+		now:          time.Now,
+		uniqueAmount: uniqueAmount,
 	}
 }
 
@@ -77,6 +81,7 @@ type Stats struct {
 	ParseFailed int
 	Discarded   int
 	Conflict    int
+	Ambiguous   int // ≥2 órdenes casaron un mismo pago (ADR-018): NO se dispensa
 	Skipped     int // ya procesados (idempotencia)
 	Expired     int64
 }
@@ -92,8 +97,8 @@ func (s *Service) Run(ctx context.Context, interval time.Duration) {
 		if st, err := s.PollOnce(ctx); err != nil {
 			s.log.Printf("conciliación: error en ciclo: %v", err)
 		} else if st.Fetched > 0 || st.Matched > 0 || st.Expired > 0 {
-			s.log.Printf("conciliación: %d correos (casados=%d huérfanos=%d parse_fallido=%d descartados=%d conflicto=%d) expiradas=%d",
-				st.Fetched, st.Matched, st.Orphan, st.ParseFailed, st.Discarded, st.Conflict, st.Expired)
+			s.log.Printf("conciliación: %d correos (casados=%d huérfanos=%d ambiguos=%d parse_fallido=%d descartados=%d conflicto=%d) expiradas=%d",
+				st.Fetched, st.Matched, st.Orphan, st.Ambiguous, st.ParseFailed, st.Discarded, st.Conflict, st.Expired)
 		}
 		select {
 		case <-ctx.Done():
@@ -188,7 +193,7 @@ func (s *Service) processOne(ctx context.Context, m imapmail.RawMessage, st *Sta
 	rec.BreBKey = mv.BreBKey
 	rec.OccurredAt = mv.OccurredAt.Unix()
 
-	// Matching por (máquina + monto único + ventana), spec §5.
+	// Matching por (máquina + monto exacto + ventana), spec §5 / ADR-018.
 	// Ancla temporal: la hora de RECEPCIÓN del correo (cabecera Date, RFC, fiable)
 	// en vez de la del cuerpo ("a las 02:47"), que es frágil de parsear (formato
 	// 12h/24h del banco). Si no hubiera Date, se cae a la del cuerpo.
@@ -201,8 +206,22 @@ func (s *Service) processOne(ctx context.Context, m imapmail.RawMessage, st *Sta
 		return fmt.Errorf("buscando orden candidata: %w", err)
 	}
 
-	switch len(candidatas) {
-	case 1:
+	// Modo por nombre (ADR-018, por defecto): entre las órdenes que casan por
+	// (máquina + monto exacto + ventana), quedarse con aquellas cuyo nombre
+	// declarado por el cliente sea subconjunto del nombre del pagador del correo.
+	// En el fallback por monto único, la lista NO se filtra por nombre.
+	if !s.uniqueAmount {
+		filtradas := candidatas[:0:0]
+		for _, o := range candidatas {
+			if bankmail.PayerMatches(o.PayerName, mv.Payer) {
+				filtradas = append(filtradas, o)
+			}
+		}
+		candidatas = filtradas
+	}
+
+	switch {
+	case len(candidatas) == 1:
 		o := candidatas[0]
 		token, exp, err := s.emitter.SignOrder(ctx, o)
 		if err != nil {
@@ -223,19 +242,31 @@ func (s *Service) processOne(ctx context.Context, m imapmail.RawMessage, st *Sta
 		rec.Result = store.MovMatched
 		rec.OrderJti = o.Jti
 		st.Matched++
-		s.log.Printf("conciliación: PAGADA orden %s (máquina %s, $%d) por correo %s", o.Jti, mv.MachineID, mv.AmountCOP, msgID)
+		s.log.Printf("conciliación: PAGADA orden %s (máquina %s, $%d, pagador %q) por correo %s", o.Jti, mv.MachineID, mv.AmountCOP, mv.Payer, msgID)
 		return s.st.RecordMovement(ctx, rec)
 
-	case 0:
+	case len(candidatas) == 0:
+		// 0 candidatas → nadie casa este pago (o el nombre no coincidió con
+		// ninguna orden): huérfano. Las órdenes pendientes siguen esperando.
 		rec.Result = store.MovOrphan
 		st.Orphan++
-		s.log.Printf("conciliación: PAGO_HUERFANO máquina=%s monto=%d hora=%s (revisión/soporte)", mv.MachineID, mv.AmountCOP, mv.OccurredAt.Format(time.RFC3339))
+		s.log.Printf("conciliación: PAGO_HUERFANO máquina=%s monto=%d pagador=%q hora=%s (revisión/soporte)", mv.MachineID, mv.AmountCOP, mv.Payer, mv.OccurredAt.Format(time.RFC3339))
 		return s.st.RecordMovement(ctx, rec)
 
 	default:
+		// ≥2 candidatas → AMBIGUO (ADR-018): regla de seguridad crítica, NO se
+		// dispensa ninguna. Se marcan para revisión/soporte y el pago queda como
+		// conflicto en la auditoría. Un solo movimiento nunca dispensa dos veces.
+		jtis := make([]string, 0, len(candidatas))
+		for _, o := range candidatas {
+			jtis = append(jtis, o.Jti)
+		}
+		if _, err := s.st.MarkOrdersAmbiguous(ctx, jtis); err != nil {
+			return fmt.Errorf("marcando órdenes ambiguas: %w", err)
+		}
 		rec.Result = store.MovConflict
-		st.Conflict++
-		s.log.Printf("conciliación: CONFLICTO %d órdenes casan máquina=%s monto=%d (revisión manual)", len(candidatas), mv.MachineID, mv.AmountCOP)
+		st.Ambiguous++
+		s.log.Printf("conciliación: AMBIGUO %d órdenes casan máquina=%s monto=%d pagador=%q → NO se dispensa; revisión manual (jtis=%v)", len(candidatas), mv.MachineID, mv.AmountCOP, mv.Payer, jtis)
 		return s.st.RecordMovement(ctx, rec)
 	}
 }

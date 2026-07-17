@@ -1,45 +1,80 @@
 {{define "content"}}
+{{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
+
 <div class="card">
-  <div class="muted"><a class="link" href="/admin">← Panel</a></div>
+  <div class="muted"><a class="link" href="/admin">← Máquinas</a></div>
   <h2 style="margin-top:8px">{{.Machine.ID}} — {{.Machine.Name}}</h2>
-  <div class="muted">kid {{.Machine.Kid}} · <a class="link" href="/m/{{.Machine.ID}}">página pública</a></div>
+  <div class="muted">kid {{.Machine.Kid}} · <a class="link" href="/m/{{.Machine.ID}}">ver página pública</a></div>
 </div>
 
 <div class="card">
-  <h2>Slots y stock</h2>
+  <h2>Productos y stock</h2>
   {{if .Catalog}}
-  <table>
-    <thead><tr><th>Slot</th><th>Producto</th><th>Precio</th><th>Stock</th></tr></thead>
-    <tbody>
-    {{range .Catalog}}
-      <tr>
-        <td>{{.Slot}}</td>
-        <td>{{.ProductName}}</td>
-        <td class="price">{{cop .PriceCOP}}</td>
-        <td>{{if gt .Stock 0}}{{.Stock}}{{else}}<span class="badge out">0</span>{{end}}</td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table>
-  {{else}}<div class="muted">Sin slots configurados.</div>{{end}}
+  {{range .Catalog}}
+  <div class="row">
+    <div style="display:flex;align-items:center;gap:12px;min-width:0">
+      {{if .ImagePath}}<img class="thumb" src="{{.ImagePath}}" alt="{{.ProductName}}">{{else}}<span class="thumb-ph">🍫</span>{{end}}
+      <div style="min-width:0">
+        <div style="font-weight:600">{{.ProductName}}</div>
+        <div class="muted">
+          Slot {{.Slot}} · {{cop .PriceCOP}} ·
+          {{if gt .Stock 0}}{{.Stock}} en stock{{else}}<span class="badge out">sin stock</span>{{end}}
+          {{if .Wired}}<span class="badge ok">motor OK</span>{{else}}<span class="badge warn">⚠ sin motor</span>{{end}}
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;white-space:nowrap">
+      <a class="link" href="/admin/m/{{$.Machine.ID}}/slot/{{.Slot}}/edit">Editar</a>
+      <form method="post" action="/admin/m/{{$.Machine.ID}}/slot/{{.Slot}}/delete"
+            data-warn="delete" data-stock="{{.Stock}}" style="display:inline">
+        <button type="submit" class="danger secondary" style="padding:6px 12px">Eliminar</button>
+      </form>
+    </div>
+  </div>
+  {{end}}
+  {{else}}<div class="muted">Sin productos configurados. Crea el primero abajo.</div>{{end}}
 </div>
 
 <div class="card">
-  <h2>Asignar / actualizar slot</h2>
-  {{if .Products}}
-  <form class="inline" method="post" action="/admin/m/{{.Machine.ID}}/slot">
-    <div><label>Slot</label><input name="slot" type="number" min="1" required size="4"></div>
-    <div><label>Producto</label>
-      <select name="product_id" required>
-        {{range .Products}}<option value="{{.ID}}">{{.Name}}</option>{{end}}
-      </select>
+  <h2>Nuevo producto</h2>
+  <form method="post" action="/admin/m/{{.Machine.ID}}/products" enctype="multipart/form-data"
+        data-warn="product" data-orig-slot="" data-has-image="false">
+    <div style="display:grid;gap:12px;grid-template-columns:1fr 1fr">
+      <div style="grid-column:1/-1">
+        <label for="np-name">Nombre</label>
+        <input id="np-name" name="name" placeholder="Papas Margarita" required style="width:100%">
+      </div>
+      <div style="grid-column:1/-1">
+        <label for="np-desc">Descripción (opcional)</label>
+        <input id="np-desc" name="description" placeholder="Paquete 25g" style="width:100%">
+      </div>
+      <div>
+        <label for="np-slot">Slot</label>
+        <input id="np-slot" name="slot" type="number" min="1" required style="width:100%">
+      </div>
+      <div>
+        <label for="np-price">Precio (COP)</label>
+        <input id="np-price" name="price" type="number" min="0" step="50" required style="width:100%">
+        <div class="hint">ℹ️ Evita precios idénticos entre productos: dificulta la conciliación por monto único.</div>
+      </div>
+      <div>
+        <label for="np-stock">Stock (refill)</label>
+        <input id="np-stock" name="stock" type="number" min="0" value="0" required style="width:100%">
+        <div class="hint">ℹ️ Debe coincidir con las unidades cargadas físicamente (se corrige en cada recarga, ADR-012).</div>
+      </div>
+      <div>
+        <label for="np-img">Foto</label>
+        <input id="np-img" name="image" type="file" accept="image/*" style="width:100%">
+        <div class="hint">JPG, PNG, WEBP o GIF · máx. 5 MB.</div>
+      </div>
+      <div style="grid-column:1/-1">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" name="wired" value="1" style="width:auto">
+          Motor de este slot conectado (dispensa)
+        </label>
+      </div>
     </div>
-    <div><label>Precio (COP)</label><input name="price" type="number" min="0" step="50" required></div>
-    <div><label>Stock</label><input name="stock" type="number" min="0" value="0" required size="5"></div>
-    <button type="submit">Guardar slot</button>
+    <div style="margin-top:14px"><button type="submit">Crear producto</button></div>
   </form>
-  {{else}}
-  <div class="muted">Primero crea productos en el <a class="link" href="/admin">panel</a>.</div>
-  {{end}}
 </div>
 {{end}}

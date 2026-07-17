@@ -97,3 +97,11 @@ func LoadIMAP() (IMAPConfig, error) {
 func BreBKey(machineID string) string {
 	return os.Getenv("GRABI_BREB_KEY_" + strings.ToUpper(machineID))
 }
+
+// UniqueAmountFallback indica si la conciliación debe usar el mecanismo LEGADO de
+// "monto único" (desambiguador de pesos) en vez del nuevo match por monto exacto
+// + nombre del pagador (ADR-018). Se activa con GRABI_MATCH_MODE=unique_amount;
+// por defecto (vacío o "payer") se usa el modo por nombre.
+func UniqueAmountFallback() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("GRABI_MATCH_MODE")), "unique_amount")
+}

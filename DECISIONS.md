@@ -7,6 +7,41 @@
 
 ---
 
+## ADR-018 · Conciliación: matching por monto exacto + nombre del pagador (en vez de monto único)
+- **Fecha:** 2026-07-16
+- **Decisión:** El cliente paga el **monto exacto (redondo)** y la conciliación desambigua con el **nombre de quien transfiere**. Match = **máquina + monto exacto + ventana de tiempo + nombre**. Se retira el "monto único" como mecanismo primario (mala UX: no dejaba pagar redondo); queda como **fallback configurable**.
+- **Razón:** mejor experiencia (pagar el valor exacto) usando un dato que **ya viene en el correo** (nombre del pagador).
+- **Reglas de seguridad (obligatorias):**
+  1. **Campo "nombre de quien paga"** obligatorio en el formulario de compra (nombre de quien hará la transferencia, que puede no ser el comprador).
+  2. **Matching de nombre por tokens tolerante:** normalizar (minúsculas, sin tildes, espacios colapsados); exigir que **todos** los tokens escritos por el cliente estén contenidos en el nombre del pagador del correo (subconjunto). Ignorar tokens < 3 caracteres.
+  3. Candidatas = órdenes pendientes con misma máquina + **monto exacto** + dentro de la ventana + nombre-subconjunto.
+  4. **1 candidata** → concilia y emite QR. **0** → sigue esperando. **≥2 (ambiguo)** → **NO dispensar**; marcar para revisión/soporte.
+  5. **Idempotencia:** cada movimiento bancario se concilia una sola vez (no casar dos órdenes con el mismo pago).
+- **Privacidad:** el nombre escrito y el del pagador se guardan en la DB (PII mínima); no exponer públicamente.
+- **No afecta** el contrato del token ni el firmware; es solo lógica de conciliación (Dept. 02/04) + un campo en el formulario. Actualizar `negocio/spec-conciliacion-correo.md` y `especificaciones/ui-web-v1.md` (la zona de pago ahora muestra monto exacto + campo nombre).
+- **Estado Software (02) — 2026-07-16: HECHO.**
+  - **Datos:** `orders.payer_name` (columna nueva, migración idempotente por `ALTER TABLE`) + estado `ambiguous`; `store.MarkOrdersAmbiguous`.
+  - **Nombre:** `bankmail.PayerMatches` normaliza (minúsculas, sin tildes/ñ, espacios colapsados) y exige que **todos** los tokens del cliente de ≥3 caracteres estén **contenidos** en el nombre del pagador; nombre vacío nunca casa.
+  - **Conciliación (`concil`):** candidatas por (máquina + monto exacto + ventana); en modo por nombre se filtran por `PayerMatches`; **1→paga y emite QR, 0→huérfano (las pendientes siguen esperando), ≥2→`ambiguous`** (marca las órdenes, NO dispensa, registra el pago como conflicto). Idempotencia por `Message-ID` intacta.
+  - **Web:** `POST /m/{id}/pagar` exige `payer_name` y cobra el **monto redondo exacto** (sin desambiguador); la pantalla de pago muestra monto exacto + nombre + instrucciones; nueva pantalla `machine_revision.html` para `ambiguous`.
+  - **Fallback:** `GRABI_MATCH_MODE=unique_amount` restaura el monto único (sin nombre, con desambiguador) en web y conciliación.
+  - **Verificado:** `go build ./... && go test ./...` verde (tests nuevos: match por nombre, ambigüedad no dispensa, nombre que no casa → huérfano, fallback por monto único, `PayerMatches`); smoke test web de ambos modos (campo nombre obligatorio, monto exacto, pantalla de revisión). Contrato del token y firmware **sin cambios**.
+  - **✅ VALIDADO CON PAGO REAL (2026-07-16, Daniel):** prueba end-to-end con Bre-B real (montos bajados a propósito para gastar poco). Orden creada a nombre de **Santiago** (hermano), monto exacto y dentro de ventana. (1) Pagó **Daniel** → el nombre del pagador NO es subconjunto del declarado → **0 candidatas → huérfano → NO dispensó** (correcto: no entrega a un nombre que no coincide). (2) Pagó **Santiago** → nombre casa → **1 candidata → conciliada + QR emitido**. La regla de seguridad por nombre funciona en producción real. **Nota operativa:** el abono de Daniel quedó como `orphan` en `bank_movements` (dinero recibido sin orden casada → soporte/reembolso en operación).
+
+## ADR-017 · UI Web v1: presentación + CRUD admin (sin tocar contrato ni conciliación)
+- **Fecha:** 2026-07-16 · **Autor:** Agente de Software (02). Implementa [`especificaciones/ui-web-v1.md`](./especificaciones/ui-web-v1.md).
+- **Alcance:** capa de **presentación + CRUD**. **NO** cambia el contrato del token ni la conciliación (ADR-015): el flujo orden→pago→QR y `SignOrder`/`MarkOrderPaid` quedan intactos. Server-rendered Go templates + JS vanilla, sin SPA (ADR-011bis).
+- **Página pública `/m/{id}`:** cuadrícula tipo máquina (grid responsive: 2 col. móvil → 3–4 en pantalla grande), celdas ordenadas por slot con foto/placeholder, nombre, chip de slot, stock, precio y control **"– N +"** (JS vanilla, respeta stock, no baja de 0). Carrito con total en **barra inferior fija** móvil; botón Pagar deshabilitado sin ítems. El form sigue enviando `qty_<slot>` a `POST /pagar` (handler sin cambios).
+- **Zona de pago:** llave Bre-B en **caja verde destacada** (nueva var `--accent-soft`/`--accent-2`) + botón **Copiar** (Clipboard API con fallback `execCommand` y feedback "¡Copiado!"), monto único también copiable, y 3 pasos numerados. Se mantiene el auto-refresh (`<meta refresh>`) que espera el QR.
+- **Login del admin (reemplaza Basic Auth):** página propia `/admin/login` + **sesión por cookie** (`grabi_session`, HttpOnly, SameSite=Lax, Secure bajo TLS) con store **en memoria** (proceso único del piloto; TTL 12 h). Credenciales por **variable de entorno** `ADMIN_USER`/`ADMIN_PASS` (nunca en el repo, CLAUDE.md §4). Logout en `POST /admin/logout`.
+- **CRUD de productos por máquina:** crear/editar/eliminar con **subida de imagen**. Decisiones de datos (solo columnas nuevas, migración idempotente por `ALTER TABLE`, sin tocar el modelo de conciliación):
+  - `products += description, image_path`; `machine_products += wired` (motor conectado).
+  - Fotos en carpeta de datos **`software/data/uploads/`** servida en `/uploads/` y **git-ignored** (no ensucia el repo). Validación por tipo real (`DetectContentType`) y tamaño (≤5 MB); nombre aleatorio.
+  - Un "producto" del panel = producto global + su asignación de slot; al **mover de slot** se asigna el nuevo **antes** de liberar el viejo (si no, el GC de productos huérfanos dispara un fallo de FK). Eliminar un slot borra el producto global solo si queda sin referencias.
+- **Avisos al admin (ui-web-v1 §4):** modal reutilizable en `base.html`. ⚠️ (canal físico al asignar/mover slot, slot **sin motor**, eliminar con **stock > 0**) exigen confirmación explícita "Entendido"; 💡 (crear **sin foto**) permite continuar. ℹ️ (stock=refill ADR-012, precio=monto único) van **inline** bajo cada campo (guía permanente, no bloquean). Degradación elegante: sin JS los formularios envían igual.
+- **Verificado (2026-07-16):** `go build ./... && go test ./...` verde; smoke test end-to-end con Edge headless a **390 px** (viewport real medido, sin scroll horizontal): grid, login (303/401/cookie), CRUD con imagen (subida + servido estático + rechazo de no-imagen), mover de slot, eliminar, y pago (llave verde + monto único + copiar). Capturas en [`especificaciones/ui-web-v1-capturas/`](./especificaciones/ui-web-v1-capturas/).
+- **Pendiente (no bloquea el piloto):** si se despliega multi-proceso, mover las sesiones a un store persistente/firmado; miniaturas con recorte/optimización; hoy la publicación en slot sin motor solo avisa (no oculta el producto en la web).
+
 ## 🏁 HITO (2026-07-16) · Ciclo completo funcionando de punta a punta
 - **Compra real end-to-end validada:** web genera orden con monto único → cliente paga por **Bre-B** → el servicio de **conciliación por correo** (grabibot) detecta el pago solo → emite el **QR firmado (v2)** → la máquina (ESP32 + GM65) lo **verifica offline**, comprueba anti-reuso **persistente en NVS** y **dispensa**, confirmando la caída con el **sensor E18-D80NK**.
 - **Firmware de producción:** `firmware/paso5b-jti-nvs/` (anti-reuso sobrevive apagones, validado en placa). Pendientes menores atados al RTC (poda de `jti`, `NOW` real).

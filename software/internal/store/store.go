@@ -56,6 +56,13 @@ func migrate(db *sql.DB) error {
 		`ALTER TABLE orders ADD COLUMN token TEXT`,
 		`ALTER TABLE orders ADD COLUMN paid_at INTEGER`,
 		`ALTER TABLE orders ADD COLUMN bank_message_id TEXT`,
+		// UI v1 (ui-web-v1 §3): foto y descripción del producto, y estado de
+		// cableado del slot. Idempotentes por el filtro "duplicate column name".
+		`ALTER TABLE products ADD COLUMN description TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE products ADD COLUMN image_path TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE machine_products ADD COLUMN wired INTEGER NOT NULL DEFAULT 0`,
+		// ADR-018: nombre del pagador declarado por el cliente (matching por nombre).
+		`ALTER TABLE orders ADD COLUMN payer_name TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, a := range alters {
 		if _, err := db.Exec(a); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
@@ -92,17 +99,23 @@ type Machine struct {
 
 // Product es un producto del catálogo global.
 type Product struct {
-	ID   int64
-	Name string
+	ID          int64
+	Name        string
+	Description string
+	ImagePath   string // ruta pública de la foto (ej. /uploads/xxx.jpg); "" = sin imagen
 }
 
-// CatalogRow es una fila del catálogo de una máquina: slot + producto + precio + stock.
+// CatalogRow es una fila del catálogo de una máquina: slot + producto + precio +
+// stock (+ datos de presentación y estado de cableado del slot para la UI/CRUD).
 type CatalogRow struct {
 	Slot        int
 	ProductID   int64
 	ProductName string
+	Description string
+	ImagePath   string
 	PriceCOP    int64
 	Stock       int
+	Wired       bool // motor del slot conectado (dispensa)
 }
 
 // OrderItem es una línea de una orden.
@@ -117,8 +130,9 @@ type Order struct {
 	Jti                string
 	MachineID          string
 	TotalCOP           int64
-	UniqueAmount       int64  // total_cop + desambiguador (ancla del matching)
-	Status             string // pending|paid|dispensed|expired|canceled|paid_sim
+	UniqueAmount       int64  // monto exacto a cobrar (ancla del matching)
+	PayerName          string // nombre declarado de quien paga (ADR-018)
+	Status             string // pending|paid|dispensed|expired|canceled|ambiguous|paid_sim
 	Iat                int64
 	Exp                int64
 	PayWindowExpiresAt int64  // fin de la ventana de pago (epoch s)
@@ -202,19 +216,56 @@ func (s *Store) ListMachines(ctx context.Context) ([]Machine, error) {
 
 // --- Productos ---
 
-// CreateProduct inserta un producto y devuelve su id.
+// CreateProduct inserta un producto (solo nombre) y devuelve su id. Atajo usado
+// por el seed y los tests; el panel usa CreateProductDetailed (nombre + foto +
+// descripción).
 func (s *Store) CreateProduct(ctx context.Context, name string) (int64, error) {
+	return s.CreateProductDetailed(ctx, name, "", "")
+}
+
+// CreateProductDetailed inserta un producto con descripción e imagen (ui-web-v1
+// §3) y devuelve su id. imagePath es la ruta pública (ej. /uploads/xxx.jpg) o ""
+// si el admin no subió foto.
+func (s *Store) CreateProductDetailed(ctx context.Context, name, description, imagePath string) (int64, error) {
 	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO products (name, created_at) VALUES (?, ?)`, name, time.Now().Unix())
+		`INSERT INTO products (name, description, image_path, created_at) VALUES (?, ?, ?, ?)`,
+		name, description, imagePath, time.Now().Unix())
 	if err != nil {
 		return 0, err
 	}
 	return res.LastInsertId()
 }
 
+// GetProduct devuelve un producto del catálogo global por id.
+func (s *Store) GetProduct(ctx context.Context, id int64) (*Product, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT id, name, description, image_path FROM products WHERE id = ?`, id)
+	var p Product
+	if err := row.Scan(&p.ID, &p.Name, &p.Description, &p.ImagePath); err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+// UpdateProduct actualiza nombre, descripción e imagen de un producto. Si
+// imagePath == "" se CONSERVA la imagen actual (para no borrar la foto cuando el
+// admin edita sin subir una nueva).
+func (s *Store) UpdateProduct(ctx context.Context, id int64, name, description, imagePath string) error {
+	if imagePath == "" {
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE products SET name = ?, description = ? WHERE id = ?`, name, description, id)
+		return err
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE products SET name = ?, description = ?, image_path = ? WHERE id = ?`,
+		name, description, imagePath, id)
+	return err
+}
+
 // ListProducts devuelve el catálogo global de productos.
 func (s *Store) ListProducts(ctx context.Context) ([]Product, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM products ORDER BY name`)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, name, description, image_path FROM products ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +273,7 @@ func (s *Store) ListProducts(ctx context.Context) ([]Product, error) {
 	var out []Product
 	for rows.Next() {
 		var p Product
-		if err := rows.Scan(&p.ID, &p.Name); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Description, &p.ImagePath); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -245,13 +296,28 @@ func (s *Store) SetSlot(ctx context.Context, machineID string, slot int, product
 	return err
 }
 
-// Catalog devuelve las filas del catálogo de una máquina (solo con stock ≥ 0),
-// ordenadas por slot. Incluye el nombre del producto.
+// catalogSelectCols es la lista de columnas del catálogo por máquina en orden
+// fijo, compartida por Catalog y GetSlot (para que scanCatalogRow sea consistente).
+const catalogSelectCols = `SELECT mp.slot, mp.product_id, p.name, p.description, p.image_path,
+	mp.price_cop, mp.stock, mp.wired
+	FROM machine_products mp
+	JOIN products p ON p.id = mp.product_id`
+
+func scanCatalogRow(r scanRow) (CatalogRow, error) {
+	var row CatalogRow
+	var wired int
+	if err := r.Scan(&row.Slot, &row.ProductID, &row.ProductName, &row.Description,
+		&row.ImagePath, &row.PriceCOP, &row.Stock, &wired); err != nil {
+		return row, err
+	}
+	row.Wired = wired == 1
+	return row, nil
+}
+
+// Catalog devuelve las filas del catálogo de una máquina, ordenadas por slot
+// (para que la cuadrícula se parezca a la disposición física, ui-web-v1 §1.1).
 func (s *Store) Catalog(ctx context.Context, machineID string) ([]CatalogRow, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT mp.slot, mp.product_id, p.name, mp.price_cop, mp.stock
-		FROM machine_products mp
-		JOIN products p ON p.id = mp.product_id
+	rows, err := s.db.QueryContext(ctx, catalogSelectCols+`
 		WHERE mp.machine_id = ?
 		ORDER BY mp.slot`, machineID)
 	if err != nil {
@@ -260,13 +326,75 @@ func (s *Store) Catalog(ctx context.Context, machineID string) ([]CatalogRow, er
 	defer rows.Close()
 	var out []CatalogRow
 	for rows.Next() {
-		var r CatalogRow
-		if err := rows.Scan(&r.Slot, &r.ProductID, &r.ProductName, &r.PriceCOP, &r.Stock); err != nil {
+		r, err := scanCatalogRow(rows)
+		if err != nil {
 			return nil, err
 		}
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// GetSlot devuelve la fila de catálogo de un slot concreto (para la edición en el
+// panel). Devuelve sql.ErrNoRows si el slot no está asignado.
+func (s *Store) GetSlot(ctx context.Context, machineID string, slot int) (*CatalogRow, error) {
+	r, err := scanCatalogRow(s.db.QueryRowContext(ctx, catalogSelectCols+`
+		WHERE mp.machine_id = ? AND mp.slot = ?`, machineID, slot))
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+// SetWired fija el estado de cableado (motor conectado) de un slot ya asignado.
+func (s *Store) SetWired(ctx context.Context, machineID string, slot int, wired bool) error {
+	w := 0
+	if wired {
+		w = 1
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE machine_products SET wired = ? WHERE machine_id = ? AND slot = ?`,
+		w, machineID, slot)
+	return err
+}
+
+// DeleteSlot elimina la asignación de un slot de una máquina. Si el producto que
+// ocupaba ese slot no queda asignado a ningún otro slot (de ninguna máquina) ni
+// referenciado por órdenes, también se borra del catálogo global para no dejar
+// productos huérfanos. La operación es transaccional.
+func (s *Store) DeleteSlot(ctx context.Context, machineID string, slot int) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var productID int64
+	err = tx.QueryRowContext(ctx,
+		`SELECT product_id FROM machine_products WHERE machine_id = ? AND slot = ?`,
+		machineID, slot).Scan(&productID)
+	if err == sql.ErrNoRows {
+		return tx.Commit() // nada que borrar
+	}
+	if err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM machine_products WHERE machine_id = ? AND slot = ?`, machineID, slot); err != nil {
+		return err
+	}
+	// ¿El producto quedó sin uso? (ningún otro slot lo referencia).
+	var refs int
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM machine_products WHERE product_id = ?`, productID).Scan(&refs); err != nil {
+		return err
+	}
+	if refs == 0 {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM products WHERE id = ?`, productID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // --- Órdenes ---
@@ -280,10 +408,10 @@ func (s *Store) CreateOrder(ctx context.Context, o Order) error {
 	defer tx.Rollback()
 
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO orders (jti, machine_id, total_cop, unique_amount, status, iat, exp,
+		INSERT INTO orders (jti, machine_id, total_cop, unique_amount, payer_name, status, iat, exp,
 			pay_window_expires_at, token, paid_at, bank_message_id, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		o.Jti, o.MachineID, o.TotalCOP, o.UniqueAmount, o.Status, o.Iat, o.Exp,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		o.Jti, o.MachineID, o.TotalCOP, o.UniqueAmount, o.PayerName, o.Status, o.Iat, o.Exp,
 		o.PayWindowExpiresAt, nullStr(o.Token), nullInt(o.PaidAt), nullStr(o.BankMessageID),
 		o.CreatedAt); err != nil {
 		return err
@@ -321,7 +449,7 @@ func (s *Store) ListOrders(ctx context.Context, limit int) ([]Order, error) {
 
 // orderSelectCols es la lista de columnas de orders en orden fijo, compartida por
 // todas las consultas de órdenes (para que scanOrder sea consistente).
-const orderSelectCols = `SELECT jti, machine_id, total_cop, unique_amount, status, iat, exp,
+const orderSelectCols = `SELECT jti, machine_id, total_cop, unique_amount, payer_name, status, iat, exp,
 	pay_window_expires_at, token, paid_at, bank_message_id, created_at`
 
 // scanRow abstrae *sql.Row y *sql.Rows (ambos tienen Scan).
@@ -332,7 +460,7 @@ func scanOrder(r scanRow) (*Order, error) {
 	var o Order
 	var token, bankMsg sql.NullString
 	var paidAt sql.NullInt64
-	if err := r.Scan(&o.Jti, &o.MachineID, &o.TotalCOP, &o.UniqueAmount, &o.Status, &o.Iat,
+	if err := r.Scan(&o.Jti, &o.MachineID, &o.TotalCOP, &o.UniqueAmount, &o.PayerName, &o.Status, &o.Iat,
 		&o.Exp, &o.PayWindowExpiresAt, &token, &paidAt, &bankMsg, &o.CreatedAt); err != nil {
 		return nil, err
 	}
@@ -520,6 +648,29 @@ func (s *Store) markPaid(ctx context.Context, jti, status, token string, exp, pa
 		return false, err
 	}
 	return true, nil
+}
+
+// MarkOrdersAmbiguous marca como 'ambiguous' (revisión/soporte) las órdenes cuyos
+// jti se pasan, siempre que sigan en 'pending' o 'expired'. Se usa cuando UN pago
+// casó con ≥2 órdenes (ADR-018): NO se dispensa ninguna y quedan para revisión
+// manual. Devuelve cuántas cambió. Idempotente: nunca toca una ya 'paid'.
+func (s *Store) MarkOrdersAmbiguous(ctx context.Context, jtis []string) (int64, error) {
+	if len(jtis) == 0 {
+		return 0, nil
+	}
+	ph := make([]string, len(jtis))
+	args := make([]any, len(jtis))
+	for i, j := range jtis {
+		ph[i] = "?"
+		args[i] = j
+	}
+	q := `UPDATE orders SET status = 'ambiguous'
+		WHERE status IN ('pending','expired') AND jti IN (` + strings.Join(ph, ",") + `)`
+	res, err := s.db.ExecContext(ctx, q, args...)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // ExpireOrders marca EXPIRADA toda orden PENDIENTE cuya ventana de pago ya venció

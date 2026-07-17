@@ -14,8 +14,13 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 
 	"dispensadoras/software/internal/config"
@@ -27,6 +32,23 @@ import (
 // DefaultPayWindow es la ventana de validez de pago por defecto (spec §3):
 // tiempo que el cliente tiene para transferir tras crear la orden.
 const DefaultPayWindow = 15 * time.Minute
+
+// Configuración de sesión del panel (ui-web-v1 §5): cookie propia, no Basic Auth.
+const (
+	sessionCookie = "grabi_session"
+	sessionTTL    = 12 * time.Hour
+)
+
+// Configuración de subida de imágenes (ui-web-v1 §3.1).
+const maxImageBytes = 5 << 20 // 5 MiB
+
+// extPorTipo son los tipos de imagen aceptados (Content-Type detectado → extensión).
+var extPorTipo = map[string]string{
+	"image/jpeg": ".jpg",
+	"image/png":  ".png",
+	"image/webp": ".webp",
+	"image/gif":  ".gif",
+}
 
 //go:embed templates/*.html
 var tmplFS embed.FS
@@ -67,14 +89,21 @@ type Server struct {
 	priv      ed25519.PrivateKey // llave privada de firma; nil ⇒ no se pueden emitir QR
 	allowSim  bool               // habilita el atajo de pruebas /simular-pago (nunca en prod pública)
 	payWindow time.Duration      // ventana de validez de pago de las órdenes
+	uploadDir string             // carpeta de datos donde se guardan las fotos subidas (git-ignored)
+	uniqueAmt bool               // true = fallback por monto único; false = monto exacto + nombre (ADR-018)
+
+	mu       sync.Mutex           // protege sessions
+	sessions map[string]time.Time // token de sesión → expiración (ui-web-v1 §5)
 }
 
-// New construye el servidor. adminUser/adminPass protegen /admin con Basic Auth.
+// New construye el servidor. adminUser/adminPass son las credenciales del panel
+// (ui-web-v1 §5: página de login propia + sesión por cookie, no Basic Auth).
 // priv es la llave privada Ed25519 con la que se firman los tokens; si es nil, la
 // emisión del QR (al conciliar el pago) responde con aviso. allowSim habilita el
 // atajo de pruebas POST /m/{id}/simular-pago (déjalo en false en producción, spec
-// §8). payWindow ≤ 0 usa DefaultPayWindow.
-func New(st *store.Store, adminUser, adminPass string, priv ed25519.PrivateKey, allowSim bool, payWindow time.Duration) (*Server, error) {
+// §8). payWindow ≤ 0 usa DefaultPayWindow. uploadDir es la carpeta donde se
+// guardan las fotos de producto (se crea si no existe; git-ignored).
+func New(st *store.Store, adminUser, adminPass string, priv ed25519.PrivateKey, allowSim bool, payWindow time.Duration, uploadDir string, uniqueAmt bool) (*Server, error) {
 	// Cada página se compone de base.html + su propia plantilla "content".
 	// Parseamos todo junto: base define "base"; cada archivo redefine "content",
 	// así que renderizamos clonando y parseando la página concreta bajo demanda.
@@ -85,9 +114,53 @@ func New(st *store.Store, adminUser, adminPass string, priv ed25519.PrivateKey, 
 	if payWindow <= 0 {
 		payWindow = DefaultPayWindow
 	}
+	if uploadDir == "" {
+		uploadDir = "data/uploads"
+	}
+	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+		return nil, fmt.Errorf("creando carpeta de subidas %s: %w", uploadDir, err)
+	}
 	s := &Server{st: st, tmpl: base, adminUser: adminUser, adminPass: adminPass,
-		priv: priv, allowSim: allowSim, payWindow: payWindow}
+		priv: priv, allowSim: allowSim, payWindow: payWindow, uploadDir: uploadDir,
+		uniqueAmt: uniqueAmt, sessions: make(map[string]time.Time)}
 	return s, nil
+}
+
+// --- Sesiones del panel (ui-web-v1 §5) ---
+
+// newSession crea un token de sesión aleatorio y lo registra con su expiración.
+func (s *Server) newSession() string {
+	var b [24]byte
+	_, _ = rand.Read(b[:])
+	tok := hex.EncodeToString(b[:])
+	s.mu.Lock()
+	s.sessions[tok] = time.Now().Add(sessionTTL)
+	s.mu.Unlock()
+	return tok
+}
+
+// validSession indica si el token existe y no ha expirado (limpia los vencidos).
+func (s *Server) validSession(tok string) bool {
+	if tok == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	exp, ok := s.sessions[tok]
+	if !ok {
+		return false
+	}
+	if time.Now().After(exp) {
+		delete(s.sessions, tok)
+		return false
+	}
+	return true
+}
+
+func (s *Server) dropSession(tok string) {
+	s.mu.Lock()
+	delete(s.sessions, tok)
+	s.mu.Unlock()
 }
 
 // Routes registra todas las rutas y devuelve el handler raíz.
@@ -104,12 +177,24 @@ func (s *Server) Routes() http.Handler {
 	// Atajo de pruebas (firma el QR sin pago real). Solo si allowSim (spec §8).
 	mux.HandleFunc("POST /m/{id}/simular-pago", s.handleSimularPago)
 
-	// Admin (protegido con Basic Auth).
+	// Fotos de producto subidas por el admin (ui-web-v1 §3.1). Servidas estáticas.
+	fs := http.StripPrefix("/uploads/", http.FileServer(http.Dir(s.uploadDir)))
+	mux.Handle("GET /uploads/", fs)
+
+	// Login del panel (ui-web-v1 §5): página propia + sesión por cookie.
+	mux.HandleFunc("GET /admin/login", s.handleLoginForm)
+	mux.HandleFunc("POST /admin/login", s.handleLoginSubmit)
+	mux.HandleFunc("POST /admin/logout", s.handleLogout)
+
+	// Admin (protegido por sesión; sin sesión → redirige al login).
 	mux.Handle("GET /admin", s.auth(http.HandlerFunc(s.handleAdminDashboard)))
 	mux.Handle("POST /admin/machines", s.auth(http.HandlerFunc(s.handleCreateMachine)))
-	mux.Handle("POST /admin/products", s.auth(http.HandlerFunc(s.handleCreateProduct)))
 	mux.Handle("GET /admin/m/{id}", s.auth(http.HandlerFunc(s.handleAdminMachine)))
-	mux.Handle("POST /admin/m/{id}/slot", s.auth(http.HandlerFunc(s.handleSetSlot)))
+	// CRUD de productos por máquina (ui-web-v1 §3): crear / editar / eliminar.
+	mux.Handle("POST /admin/m/{id}/products", s.auth(http.HandlerFunc(s.handleCreateProduct)))
+	mux.Handle("GET /admin/m/{id}/slot/{slot}/edit", s.auth(http.HandlerFunc(s.handleEditSlotForm)))
+	mux.Handle("POST /admin/m/{id}/slot/{slot}", s.auth(http.HandlerFunc(s.handleUpdateSlot)))
+	mux.Handle("POST /admin/m/{id}/slot/{slot}/delete", s.auth(http.HandlerFunc(s.handleDeleteSlot)))
 	mux.Handle("GET /admin/orders", s.auth(http.HandlerFunc(s.handleAdminOrders)))
 
 	// Raíz → panel.
@@ -146,19 +231,74 @@ func (s *Server) render(w http.ResponseWriter, name string, p page) {
 	}
 }
 
-// --- Basic Auth para /admin ---
+// --- Sesión de admin (ui-web-v1 §5) ---
 
+// auth protege las rutas del panel: si no hay una sesión válida por cookie,
+// redirige a la página de login (no Basic Auth del navegador).
 func (s *Server) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, pass, ok := r.BasicAuth()
-		if !ok ||
-			subtle.ConstantTimeCompare([]byte(user), []byte(s.adminUser)) != 1 ||
-			subtle.ConstantTimeCompare([]byte(pass), []byte(s.adminPass)) != 1 {
-			w.Header().Set("WWW-Authenticate", `Basic realm="panel dispensadoras"`)
-			http.Error(w, "no autorizado", http.StatusUnauthorized)
+		c, err := r.Cookie(sessionCookie)
+		if err != nil || !s.validSession(c.Value) {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 			return
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+// handleLoginForm muestra la página de login (o redirige al panel si ya hay sesión).
+func (s *Server) handleLoginForm(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie(sessionCookie); err == nil && s.validSession(c.Value) {
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
+		return
+	}
+	s.renderLogin(w, false)
+}
+
+// handleLoginSubmit valida credenciales (comparación en tiempo constante) y, si
+// son correctas, crea la sesión y fija la cookie. Credenciales por variable de
+// entorno (ADMIN_USER/ADMIN_PASS), nunca hardcodeadas (ui-web-v1 §5, CLAUDE.md §4).
+func (s *Server) handleLoginSubmit(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "formulario inválido", http.StatusBadRequest)
+		return
+	}
+	user, pass := r.FormValue("user"), r.FormValue("pass")
+	userOK := subtle.ConstantTimeCompare([]byte(user), []byte(s.adminUser)) == 1
+	passOK := subtle.ConstantTimeCompare([]byte(pass), []byte(s.adminPass)) == 1
+	if !userOK || !passOK {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.renderLogin(w, true)
+		return
+	}
+	tok := s.newSession()
+	http.SetCookie(w, &http.Cookie{
+		Name:     sessionCookie,
+		Value:    tok,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   r.TLS != nil, // en producción (TLS) la cookie solo viaja por HTTPS
+		Expires:  time.Now().Add(sessionTTL),
+	})
+	http.Redirect(w, r, "/admin", http.StatusSeeOther)
+}
+
+// handleLogout cierra la sesión (borra el token y expira la cookie).
+func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie(sessionCookie); err == nil {
+		s.dropSession(c.Value)
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: sessionCookie, Value: "", Path: "/", HttpOnly: true, MaxAge: -1,
+	})
+	http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+}
+
+func (s *Server) renderLogin(w http.ResponseWriter, failed bool) {
+	s.render(w, "admin_login.html", page{
+		Title: "Ingresar · GRABI",
+		Data:  struct{ Failed bool }{failed},
 	})
 }
 
@@ -180,9 +320,10 @@ func (s *Server) handleMachinePublic(w http.ResponseWriter, r *http.Request) {
 		Title: "Máquina " + m.ID,
 		Admin: false,
 		Data: struct {
-			Machine *store.Machine
-			Catalog []store.CatalogRow
-		}{m, cat},
+			Machine   *store.Machine
+			Catalog   []store.CatalogRow
+			PayerMode bool // pide el nombre de quien paga (ADR-018)
+		}{m, cat, !s.uniqueAmt},
 	})
 }
 
@@ -249,24 +390,39 @@ func (s *Server) handlePagar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reservados, err := s.st.PendingUniqueAmounts(r.Context(), id)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	d, ok := pickDesambiguador(total, reservados)
-	if !ok {
-		http.Error(w, "no hay un monto único disponible en este momento; intenta de nuevo en unos minutos", http.StatusServiceUnavailable)
+	// Nombre de quien hará la transferencia (ADR-018): obligatorio en modo por
+	// nombre; es lo que desambigua el pago en la conciliación.
+	payerName := strings.TrimSpace(r.FormValue("payer_name"))
+	if !s.uniqueAmt && payerName == "" {
+		http.Error(w, "escribe el nombre de quien hará la transferencia (obligatorio para confirmar tu pago)", http.StatusBadRequest)
 		return
 	}
 
 	now := time.Now().Unix()
+	// Monto a cobrar: en modo por nombre es el TOTAL EXACTO (redondo); en el
+	// fallback legado se le suma un desambiguador de pesos único entre pendientes.
+	amount := total
+	if s.uniqueAmt {
+		reservados, err := s.st.PendingUniqueAmounts(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		d, ok := pickDesambiguador(total, reservados)
+		if !ok {
+			http.Error(w, "no hay un monto único disponible en este momento; intenta de nuevo en unos minutos", http.StatusServiceUnavailable)
+			return
+		}
+		amount = total + int64(d)
+	}
+
 	jti := randomJTI()
 	order := store.Order{
 		Jti:                jti,
 		MachineID:          id,
 		TotalCOP:           total,
-		UniqueAmount:       total + int64(d),
+		UniqueAmount:       amount,
+		PayerName:          payerName,
 		Status:             "pending",
 		Iat:                now,
 		Exp:                0, // se fija al pagar (el reloj de exp arranca al pagar, spec §3)
@@ -300,6 +456,15 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 	switch o.Status {
 	case "paid", "paid_sim", "dispensed":
 		s.renderQR(w, m, o)
+	case "ambiguous":
+		// Regla de seguridad ADR-018: un pago casó con ≥2 órdenes; no se dispensa.
+		// El cliente ve un mensaje de soporte (no un QR ni un error técnico).
+		s.render(w, "machine_revision.html", page{
+			Title: "Pago en revisión · Máquina " + id,
+			Data: struct {
+				Machine *store.Machine
+			}{m},
+		})
 	case "expired", "canceled":
 		s.render(w, "machine_expirada.html", page{
 			Title: "Orden expirada · Máquina " + id,
@@ -319,6 +484,7 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 				Order         *store.Order
 				BreBKey       string
 				PointOfSale   string
+				PayerMode     bool // true = monto exacto + nombre (ADR-018); false = monto único
 				Desambiguador int64
 				SecondsLeft   int64
 				MinutesLeft   int64
@@ -327,6 +493,7 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 				Order:         o,
 				BreBKey:       config.BreBKey(id),
 				PointOfSale:   "GRABI " + id, // punto de venta (ADR-014)
+				PayerMode:     !s.uniqueAmt,
 				Desambiguador: o.UniqueAmount - o.TotalCOP,
 				SecondsLeft:   secondsLeft,
 				MinutesLeft:   (secondsLeft + 59) / 60,
@@ -452,18 +619,12 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	products, err := s.st.ListProducts(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	s.render(w, "admin_dashboard.html", page{
-		Title: "Panel · Dispensadoras",
+		Title: "Panel · GRABI",
 		Admin: true,
 		Data: struct {
 			Machines []store.Machine
-			Products []store.Product
-		}{machines, products},
+		}{machines},
 	})
 }
 
@@ -480,19 +641,9 @@ func (s *Server) handleCreateMachine(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/m/"+id, http.StatusSeeOther)
 }
 
-func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
-	name := r.FormValue("name")
-	if name == "" {
-		http.Error(w, "el nombre es obligatorio", http.StatusBadRequest)
-		return
-	}
-	if _, err := s.st.CreateProduct(r.Context(), name); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/admin", http.StatusSeeOther)
-}
-
+// handleAdminMachine renderiza la máquina en el panel: cuadrícula de productos por
+// slot (imagen, nombre, precio, stock, cableado) + formulario de "nuevo producto".
+// `flash` (query ?ok=) muestra un banner de confirmación tras una acción.
 func (s *Server) handleAdminMachine(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	m, err := s.st.GetMachine(r.Context(), id)
@@ -505,41 +656,249 @@ func (s *Server) handleAdminMachine(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	products, err := s.st.ListProducts(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	s.render(w, "admin_machine.html", page{
-		Title: "Máquina " + m.ID,
+		Title: "Máquina " + m.ID + " · GRABI",
 		Admin: true,
 		Data: struct {
-			Machine  *store.Machine
-			Catalog  []store.CatalogRow
-			Products []store.Product
-		}{m, cat, products},
+			Machine *store.Machine
+			Catalog []store.CatalogRow
+			Flash   string
+		}{m, cat, flashText(r.URL.Query().Get("ok"))},
 	})
 }
 
-func (s *Server) handleSetSlot(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
+// slotForm son los campos comunes de crear/editar un producto en un slot.
+type slotForm struct {
+	Slot        int
+	Name        string
+	Description string
+	PriceCOP    int64
+	Stock       int
+	Wired       bool
+}
+
+// parseSlotForm lee y valida el formulario multipart de producto (crear/editar).
+func parseSlotForm(r *http.Request) (slotForm, error) {
+	var f slotForm
+	if err := r.ParseMultipartForm(maxImageBytes); err != nil {
+		return f, errors.New("formulario inválido (¿imagen demasiado grande?)")
+	}
+	f.Name = strings.TrimSpace(r.FormValue("name"))
+	f.Description = strings.TrimSpace(r.FormValue("description"))
 	slot, err1 := strconv.Atoi(r.FormValue("slot"))
-	productID, err2 := strconv.ParseInt(r.FormValue("product_id"), 10, 64)
-	price, err3 := strconv.ParseInt(r.FormValue("price"), 10, 64)
-	stock, err4 := strconv.Atoi(r.FormValue("stock"))
-	if err := errors.Join(err1, err2, err3, err4); err != nil {
-		http.Error(w, "datos de slot inválidos: "+err.Error(), http.StatusBadRequest)
-		return
+	price, err2 := strconv.ParseInt(r.FormValue("price"), 10, 64)
+	stock, err3 := strconv.Atoi(r.FormValue("stock"))
+	if err := errors.Join(err1, err2, err3); err != nil {
+		return f, errors.New("slot, precio y stock deben ser números")
+	}
+	f.Slot, f.PriceCOP, f.Stock = slot, price, stock
+	f.Wired = r.FormValue("wired") != ""
+	if f.Name == "" {
+		return f, errors.New("el nombre es obligatorio")
 	}
 	if slot < 1 || price < 0 || stock < 0 {
-		http.Error(w, "slot ≥1, precio y stock ≥0", http.StatusBadRequest)
+		return f, errors.New("slot ≥1, precio y stock ≥0")
+	}
+	return f, nil
+}
+
+// handleCreateProduct crea un producto (con foto opcional) y lo asigna a un slot
+// de la máquina, en un solo paso (ui-web-v1 §3).
+func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.st.GetMachine(r.Context(), id); err != nil {
+		s.notFound(w, "Máquina no encontrada")
 		return
 	}
-	if err := s.st.SetSlot(r.Context(), id, slot, productID, price, stock); err != nil {
-		http.Error(w, "no se pudo guardar el slot: "+err.Error(), http.StatusBadRequest)
+	f, err := parseSlotForm(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/admin/m/"+id, http.StatusSeeOther)
+	// Rechazar si el slot ya está ocupado (evita pisar otro producto sin querer).
+	if _, err := s.st.GetSlot(r.Context(), id, f.Slot); err == nil {
+		http.Error(w, fmt.Sprintf("el slot %d ya tiene un producto; edítalo o elige otro slot", f.Slot), http.StatusConflict)
+		return
+	}
+	imagePath, err := s.saveImage(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	pid, err := s.st.CreateProductDetailed(r.Context(), f.Name, f.Description, imagePath)
+	if err != nil {
+		http.Error(w, "no se pudo crear el producto: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.st.SetSlot(r.Context(), id, f.Slot, pid, f.PriceCOP, f.Stock); err != nil {
+		http.Error(w, "no se pudo asignar el slot: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.st.SetWired(r.Context(), id, f.Slot, f.Wired); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/admin/m/"+id+"?ok=created", http.StatusSeeOther)
+}
+
+// handleEditSlotForm muestra el formulario de edición de un producto/slot.
+func (s *Server) handleEditSlotForm(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	m, err := s.st.GetMachine(r.Context(), id)
+	if err != nil {
+		s.notFound(w, "Máquina no encontrada")
+		return
+	}
+	slot, err := strconv.Atoi(r.PathValue("slot"))
+	if err != nil {
+		http.Error(w, "slot inválido", http.StatusBadRequest)
+		return
+	}
+	row, err := s.st.GetSlot(r.Context(), id, slot)
+	if err != nil {
+		s.notFound(w, "Slot no encontrado")
+		return
+	}
+	s.render(w, "admin_product_edit.html", page{
+		Title: "Editar producto · " + m.ID,
+		Admin: true,
+		Data: struct {
+			Machine *store.Machine
+			Row     *store.CatalogRow
+		}{m, row},
+	})
+}
+
+// handleUpdateSlot actualiza el producto (nombre/desc/foto) y su asignación al
+// slot (precio/stock/cableado). Permite MOVER el producto a otro slot: si el slot
+// nuevo difiere del original, se libera el viejo (ui-web-v1 §4, aviso de slot).
+func (s *Server) handleUpdateSlot(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.st.GetMachine(r.Context(), id); err != nil {
+		s.notFound(w, "Máquina no encontrada")
+		return
+	}
+	origSlot, err := strconv.Atoi(r.PathValue("slot"))
+	if err != nil {
+		http.Error(w, "slot inválido", http.StatusBadRequest)
+		return
+	}
+	current, err := s.st.GetSlot(r.Context(), id, origSlot)
+	if err != nil {
+		s.notFound(w, "Slot no encontrado")
+		return
+	}
+	f, err := parseSlotForm(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// Si cambia de slot, el destino no puede estar ocupado por OTRO producto.
+	if f.Slot != origSlot {
+		if _, err := s.st.GetSlot(r.Context(), id, f.Slot); err == nil {
+			http.Error(w, fmt.Sprintf("el slot %d ya está ocupado; elige otro", f.Slot), http.StatusConflict)
+			return
+		}
+	}
+	imagePath, err := s.saveImage(r) // "" si no subió nueva (UpdateProduct conserva la actual)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := s.st.UpdateProduct(r.Context(), current.ProductID, f.Name, f.Description, imagePath); err != nil {
+		http.Error(w, "no se pudo actualizar el producto: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	// Asignar el slot destino ANTES de liberar el viejo: así el producto nunca
+	// queda con 0 referencias entre pasos (DeleteSlot recolecta productos huérfanos
+	// y borrar primero dispararía un fallo de FK al reinsertar).
+	if err := s.st.SetSlot(r.Context(), id, f.Slot, current.ProductID, f.PriceCOP, f.Stock); err != nil {
+		http.Error(w, "no se pudo guardar el slot: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := s.st.SetWired(r.Context(), id, f.Slot, f.Wired); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if f.Slot != origSlot {
+		if err := s.st.DeleteSlot(r.Context(), id, origSlot); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	http.Redirect(w, r, "/admin/m/"+id+"?ok=updated", http.StatusSeeOther)
+}
+
+// handleDeleteSlot elimina un producto de un slot (ui-web-v1 §3). El aviso de
+// "aún hay stock físico" lo muestra el front antes de enviar (ui-web-v1 §4).
+func (s *Server) handleDeleteSlot(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	slot, err := strconv.Atoi(r.PathValue("slot"))
+	if err != nil {
+		http.Error(w, "slot inválido", http.StatusBadRequest)
+		return
+	}
+	if err := s.st.DeleteSlot(r.Context(), id, slot); err != nil {
+		http.Error(w, "no se pudo eliminar: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/admin/m/"+id+"?ok=deleted", http.StatusSeeOther)
+}
+
+// saveImage guarda la foto subida (campo "image") en uploadDir y devuelve su ruta
+// pública (/uploads/<archivo>). Devuelve "" (sin error) si no se subió archivo, o
+// error si el tipo no es una imagen soportada o supera el límite de tamaño.
+func (s *Server) saveImage(r *http.Request) (string, error) {
+	file, hdr, err := r.FormFile("image")
+	if err == http.ErrMissingFile || hdr == nil {
+		return "", nil // el admin no subió foto (permitido; el front sugiere hacerlo)
+	}
+	if err != nil {
+		return "", errors.New("no se pudo leer la imagen subida")
+	}
+	defer file.Close()
+	if hdr.Size > maxImageBytes {
+		return "", fmt.Errorf("la imagen supera el máximo de %d MB", maxImageBytes>>20)
+	}
+
+	// Detectar el tipo real por los primeros bytes (no confiar en la extensión).
+	head := make([]byte, 512)
+	n, _ := io.ReadFull(file, head)
+	ctype := http.DetectContentType(head[:n])
+	ext, ok := extPorTipo[ctype]
+	if !ok {
+		return "", fmt.Errorf("tipo de imagen no soportado (%s); usa JPG, PNG, WEBP o GIF", ctype)
+	}
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return "", errors.New("no se pudo procesar la imagen")
+	}
+
+	var rnd [8]byte
+	_, _ = rand.Read(rnd[:])
+	fname := hex.EncodeToString(rnd[:]) + ext
+	dst, err := os.Create(filepath.Join(s.uploadDir, fname))
+	if err != nil {
+		return "", fmt.Errorf("no se pudo guardar la imagen: %w", err)
+	}
+	defer dst.Close()
+	if _, err := io.Copy(dst, io.LimitReader(file, maxImageBytes)); err != nil {
+		return "", fmt.Errorf("no se pudo guardar la imagen: %w", err)
+	}
+	return "/uploads/" + fname, nil
+}
+
+// flashText traduce el código de ?ok= a un texto de confirmación para el banner.
+func flashText(code string) string {
+	switch code {
+	case "created":
+		return "Producto creado y asignado al slot."
+	case "updated":
+		return "Cambios guardados."
+	case "deleted":
+		return "Producto eliminado del slot."
+	default:
+		return ""
+	}
 }
 
 func (s *Server) handleAdminOrders(w http.ResponseWriter, r *http.Request) {

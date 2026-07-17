@@ -17,15 +17,21 @@ software/dsp.exe
 *.sqlite
 *.sqlite3
 
-# QR generados en pruebas locales (los vectores versionados van aparte)
+# Fotos de producto subidas por el panel admin (datos de operación, no del repo)
+software/data/
+
+# QR / imágenes generadas en pruebas locales (los vectores versionados van aparte)
 *.png
 !especificaciones/**/*.png
+
+# Capturas de UI: pueden mostrar datos reales (llave/nombre) → no al repo público
+especificaciones/ui-web-v1-capturas/
+
+# Correos de alerta reales (contienen datos personales) — NUNCA al repo público
+*.eml
+# Excepción: fixture de test ANONIMIZADO (necesario para go test)
+!software/internal/bankmail/testdata/muestra.eml
 
 # Sistema / editor
 .DS_Store
 Thumbs.db
-
-*.eml
-# Excepción: fixture de test ANONIMIZADO (necesario para `go test ./...`).
-# El .eml real con datos personales sigue ignorado por la regla de arriba.
-!software/internal/bankmail/testdata/muestra.eml
