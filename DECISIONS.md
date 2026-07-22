@@ -7,6 +7,16 @@
 
 ---
 
+## ADR-019 · Alcance del piloto (máquina física, dominio, diferidos)
+- **Fecha:** 2026-07-16 · **Autor:** Daniel.
+- **Construcción física:** la hace un amigo mecatrónico (estudiante avanzado). La **electrónica ya se le entregó armada** (ESP32 + GM65 + sensor E18 + circuito de 4 motores + fuente 12V), así que no necesita specs de conexión. Las **ubicaciones** (lector, boca de salida, etc.) se definen luego con **prototipos virtuales**; no es prioridad ahora.
+- **Canales / slots del piloto:** **4** (hay 4 motores). Elegir 4 productos "ganadores" (mezcla snack + bebida).
+- **Mecanismo de dispensado:** **espiral tradicional** — un motor gira un resorte/espiral que empuja el producto de ese carril hasta la bandeja de salida. (Cierra el pendiente "espiral vs. gravedad".)
+- **Refrigeración:** **NO** en el piloto → bebidas estables a temperatura ambiente (gaseosa, agua, jugo UHT, energizante). Menor costo/consumo/complejidad.
+- **Dominio de la web:** **`grabi.napi.lat`** (gratis, subdominio de `napi.lat` que Daniel ya posee). Cierra ADR-016; `grabi.lat`/`grabi.com.co` quedan para cuando se escale.
+- **Agregador Bre-B:** **diferido**. Para el MVP la **conciliación por correo** es suficiente; no se necesita agregador con API/webhook todavía.
+- **Legal / trámites:** **diferidos** para el piloto de **1 máquina** (RUT/DIAN/facturación/sanidad). Bajo riesgo para validar unas semanas. **No eliminado:** formalizar **antes de escalar** o si el piloto opera de forma prolongada / con volumen. (Nota: no es asesoría legal; validar con profesional al formalizar.)
+
 ## ADR-018 · Conciliación: matching por monto exacto + nombre del pagador (en vez de monto único)
 - **Fecha:** 2026-07-16
 - **Decisión:** El cliente paga el **monto exacto (redondo)** y la conciliación desambigua con el **nombre de quien transfiere**. Match = **máquina + monto exacto + ventana de tiempo + nombre**. Se retira el "monto único" como mecanismo primario (mala UX: no dejaba pagar redondo); queda como **fallback configurable**.
@@ -230,9 +240,12 @@
 - [x] **Producto piloto** → mixto snacks + bebidas (ADR-009).
 - [x] **Figura jurídica** → persona natural (ADR-010).
 - [x] **Ventana de expiración** del token → 5 min (300 s), configurable en servidor (contrato v2).
-- [ ] **¿Refrigeración en la máquina piloto?** (derivado de vender bebidas — afecta costo/consumo). **Recomendación de Negocio: NO refrigerar en el piloto** y surtir bebidas estables a temperatura ambiente (gaseosa PET/lata, agua, jugo UHT, energizantes) → menor CAPEX y consumo, mecánica más simple. Análisis y fuentes en [`negocio/requisitos-sanitarios-piloto.md`](./negocio/requisitos-sanitarios-piloto.md) §4.
+- [x] **¿Refrigeración en la máquina piloto?** → **NO** (ADR-019). Bebidas estables a temperatura ambiente.
+- [x] **Canales del piloto** → **4** (ADR-019). **Mecanismo** → espiral tradicional (ADR-019).
 - [x] **Nombre** de la marca → **GRABI** (ADR-013).
-- [ ] **Dominio** de la web → opciones en ADR-016; recomendación piloto: `grabi.napi.lat` (gratis) o `grabi.lat` ($2). Decidir mañana. 3 propuestas listas (**Piqa**, **Antoja**, **Untoque**) con dominios y método de verificación en [`negocio/propuestas-nombre-dominio.md`](./negocio/propuestas-nombre-dominio.md) (disponibilidad por verificar).
+- [x] **Dominio** de la web → **`grabi.napi.lat`** (ADR-019). `grabi.lat`/`grabi.com.co` para cuando se escale.
 - [x] **Entidad/llave Bre-B del piloto** → **Bancolombia**; llave de **M001** registrada como "GRABI M001" (una llave por máquina, ADR-014). Valor guardado en config, fuera del repo.
-- [ ] **Agregador Bre-B** para la fase 2 (tras comparar comisiones/onboarding). Estructura y cuestionario de cotización listos en [`negocio/agregadores-bre-b-comparativa.md`](./negocio/agregadores-bre-b-comparativa.md).
-- [ ] **Mecanismo de dispensado** definitivo (espiral vs. gravedad) según producto piloto.
+- [~] **Agregador Bre-B** → **diferido** (ADR-019): la conciliación por correo basta para el MVP. Comparativa lista para cuando se retome: [`negocio/agregadores-bre-b-comparativa.md`](./negocio/agregadores-bre-b-comparativa.md).
+- [~] **Legal / trámites** (RUT/DIAN/facturación/sanidad) → **diferidos** para 1 máquina (ADR-019); formalizar antes de escalar.
+- [ ] **Producto piloto concreto** (4 productos: qué snacks + bebidas) → define precios y surtido.
+- [ ] **Precios** por producto (salen del unit economics).
