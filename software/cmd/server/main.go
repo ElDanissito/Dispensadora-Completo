@@ -59,7 +59,7 @@ func loadPrivate() ed25519.PrivateKey {
 }
 
 func main() {
-	db := flag.String("db", "dispensadoras.db", "ruta del archivo SQLite")
+	dsn := flag.String("database-url", os.Getenv("DATABASE_URL"), "cadena de conexión Postgres (o env DATABASE_URL), ej. postgres://user:pass@host:5432/grabi?sslmode=require")
 	addr := flag.String("addr", ":8080", "dirección de escucha")
 	seed := flag.Bool("seed", false, "cargar datos de demostración si la base está vacía")
 	allowSim := flag.Bool("allow-sim", false, "habilita POST /m/{id}/simular-pago (atajo de pruebas; NO en producción)")
@@ -75,9 +75,12 @@ func main() {
 		log.Printf("AVISO: no se pudo leer %s: %v", defaultEnvPath, err)
 	}
 
-	st, err := store.Open(*db)
+	if *dsn == "" {
+		log.Fatalf("falta la cadena de conexión: define DATABASE_URL o pasa -database-url (ej. postgres://user:pass@host:5432/grabi?sslmode=require)")
+	}
+	st, err := store.Open(*dsn)
 	if err != nil {
-		log.Fatalf("abriendo base %s: %v", *db, err)
+		log.Fatalf("abriendo base Postgres: %v", err)
 	}
 	defer st.Close()
 
@@ -135,7 +138,7 @@ func main() {
 		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
 
-	log.Printf("dispensadoras web escuchando en %s (db=%s, uploads=%s)", *addr, *db, *uploadDir)
+	log.Printf("dispensadoras web escuchando en %s (Postgres, uploads=%s)", *addr, *uploadDir)
 	log.Printf("  público: http://localhost%s/m/M001", *addr)
 	log.Printf("  panel:   http://localhost%s/admin/login (usuario %q)", *addr, adminUser)
 	if *allowSim {

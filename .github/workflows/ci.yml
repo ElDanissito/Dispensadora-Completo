@@ -1,0 +1,66 @@
+name: CI
+
+# Compila y prueba el backend Go contra un Postgres real (servicio del runner).
+# Aquí se VERIFICA la migración SQLite→Postgres del store (los tests de store y
+# conciliación corren contra Postgres vía TEST_DATABASE_URL).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: grabi
+          POSTGRES_PASSWORD: grabi
+          POSTGRES_DB: grabi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U grabi -d grabi_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: software
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: software/go.sum
+
+      - name: Tidy y descarga de dependencias
+        run: go mod tidy
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (contra Postgres)
+        env:
+          TEST_DATABASE_URL: "postgres://grabi:grabi@localhost:5432/grabi_test?sslmode=disable"
+        # -p 1: los paquetes 'store' y 'concil' comparten la misma base de pruebas;
+        # correrlos en serie evita que el TRUNCATE de uno pise los datos del otro.
+        run: go test -p 1 -count=1 ./...
+
+      - name: Build estático (igual que la imagen)
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /tmp/server ./cmd/server
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build de la imagen Docker (verificación; sin push)
+        run: docker build -t grabi-web:ci ./software

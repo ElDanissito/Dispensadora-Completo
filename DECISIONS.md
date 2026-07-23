@@ -7,6 +7,83 @@
 
 ---
 
+## ADR-021 · Arranque robusto contra Postgres + servicio AWS (EC2 + Docker Compose) + secretos
+- **Fecha:** 2026-07-22 · **Autor:** Agente de Software (02).
+- **Contexto:** al migrar el desarrollo local a Postgres en Docker (rumbo a AWS, ADR-020), el
+  servidor moría al primer arranque con volumen vacío: `web` no conectaba y salía con exit 1.
+
+### Parte A — Arranque robusto (DECIDIDO, implementado)
+- **Causa raíz:** en el **primer arranque** (volumen vacío), la imagen oficial de Postgres corre
+  un servidor **temporal** que solo escucha en el **socket Unix**, no en TCP. El healthcheck
+  `pg_isready -U grabi -d grabi` (por socket) marcaba el contenedor **Healthy** antes de tiempo →
+  `web` arrancaba, intentaba conectar por **TCP** a `db:5432` → `connection refused` → `log.Fatalf`.
+  Un segundo después Postgres abría el puerto TCP real, ya demasiado tarde. (Por eso un segundo
+  `up`, con el volumen ya inicializado, funcionaba.)
+- **Decisión (dos capas que se refuerzan):**
+  1. **Reintento con backoff en `store.Open`** (`internal/store/store.go`): reintenta el `Ping`
+     hasta ~30s (0.5s→3s) en vez de morir al primer fallo. Cubre el arranque local **y** el caso
+     de producción: **RDS** puede estar transitoriamente inalcanzable (failover/reinicio) y así la
+     app espera en lugar de entrar en crash-loop.
+  2. **Healthcheck por TCP** en `docker-compose.yml`: `pg_isready -h 127.0.0.1 ...`. El `-h` fuerza
+     TCP, así que el check NO pasa durante la fase de init (socket-only) y `service_healthy` por fin
+     significa "el puerto TCP acepta conexiones". Cierra la carrera de raíz.
+- **Verificado (2026-07-22):** `docker compose down -v` + `up --build` con volumen limpio → `web`
+  arranca sin `connection refused` ni exit 1, esperando a que la DB abra TCP.
+
+### Parte B — Servicio AWS: EC2 pequeña con Docker Compose (DECIDIDO 2026-07-22)
+- **Contexto que forzó la decisión:** el código asumía **App Runner + RDS**, pero **AWS App Runner
+  cerró a clientes nuevos el 30 de abril de 2026** (verificado en docs de AWS). Como GRABI aún no es
+  cliente, App Runner queda **descartado**. AWS recomienda ECS Express Mode como sucesor.
+- **Alternativas evaluadas (costo aprox./mes, us-east-1):**
+  - **Lightsail Containers** ~$7 fijo (HTTPS + 500 GB incluidos) — lo más simple/managed para 1 servicio.
+  - **ECS Fargate + ALB** ~$25–28 — el **ALB (~$16–19)** mata el costo con un solo servicio.
+  - **ECS Express Mode** (recomendado por AWS) ~$27–29 — solo competitivo con **5+ servicios** (ALB compartido).
+  - **EC2 pequeña (t3/t4g.micro) + Docker Compose** ~**$0 el 1er año** (free tier), luego ~$6–8.
+- **Decisión (Daniel):** **EC2 pequeña corriendo el `docker-compose` que ya tenemos** (contenedor
+  web + Postgres en la misma caja), por **control total** de todo el stack y **costo casi nulo** en
+  el piloto (free tier). Encaja con ADR-020 (pay-on-demand; Daniel acepta más setup a cambio de menos costo).
+- **Implicaciones vs. el plan "contenedor + RDS":**
+  - **Postgres deja de ser RDS:** corre como contenedor en la misma EC2 (el `docker-compose` actual).
+    **Backups los gestionamos nosotros** (`pg_dump` por cron → S3, trivial y barato). Migrar a RDS
+    queda como opción de crecimiento cuando el piloto valide.
+  - **Uploads de fotos persisten** en un **volumen/bind-mount** de la EC2 (ya NO son efímeros como en
+    App Runner) → se **elimina la urgencia de mover fotos a S3**; S3 pasa a "opcional al escalar".
+  - **TLS/HTTPS:** lo pone un reverse-proxy en la misma caja (Caddy/nginx con Let's Encrypt) para
+    `grabi.napi.lat`, o Cloudflare delante. (Antes lo daba App Runner.)
+- **Ruta de crecimiento:** cuando haya varias máquinas → **ECS Fargate + RDS** (ahí el ALB ya se
+  justifica y se gana autoescalado + DB managed).
+
+### Parte C — Estrategia de secretos (deploy-time vs runtime)
+- **Principio:** cada secreto vive donde se **usa**. Dos momentos distintos:
+  - **Deploy-time (GitHub Actions secrets):** solo lo que el pipeline necesita para desplegar. Ideal
+    **OIDC** (rol IAM temporal) en vez de claves AWS de larga vida; a lo sumo `AWS_ACCOUNT_ID`/región,
+    host/usuario SSH de la EC2.
+  - **Runtime (en la EC2):** `DATABASE_URL`, `ADMIN_PASS`, `DSP_PRIVATE_KEY`, IMAP (`GRABI_IMAP_*`),
+    llaves Bre-B (`GRABI_BREB_KEY_M00X`) → **NO** en GitHub ni horneados en la imagen; viven en un
+    **`.env` git-ignored en la EC2** (permisos `600`), que el `docker-compose` inyecta como env al
+    contenedor. Respeta CLAUDE.md §4 (la llave privada Ed25519 nunca en repo/imagen).
+- **Opción de endurecer (no urgente):** si se quiere sacar los secretos del disco de la EC2, usar
+  **SSM Parameter Store (SecureString)** — **gratis** en tier estándar — y cargarlos al arranque.
+  Para el piloto el `.env` en la caja (con permisos estrictos) es suficiente.
+
+## ADR-020 · Despliegue en AWS (pay-on-demand) + CI/CD con GitHub Actions
+- **Fecha:** 2026-07-22 · **Autor:** Daniel.
+- **Decisión:** desplegar la web/servidor de GRABI en **AWS**, vinculando el servidor directamente
+  (no un VPS gestionado). Modelo **pay-on-demand** para **minimizar costo** en fase piloto.
+- **Razón (costos):** los VPS de precio fijo salen más caros para 1 máquina con tráfico bajo:
+  **Hostinger ≈ $70.000/mes**, **HostGator ≈ $35.000/mes**. AWS por demanda permite pagar solo por
+  lo que se consume (posible free tier / instancia mínima), aunque implique **más complejidad técnica**.
+  Daniel acepta ese trade-off (más setup a cambio de costo variable y escalabilidad).
+- **CI/CD:** **integración y despliegue continuos con GitHub Actions → AWS**. Al hacer push a `main`
+  (o al taggear release), el pipeline construye el binario Go y despliega automáticamente en AWS.
+- **Alternativas descartadas:** VPS de precio fijo (Hostinger, HostGator) por costo fijo mensual
+  mayor; despliegue manual (sin CI/CD) por fragilidad y esfuerzo repetido.
+- **Pendiente (mañana 2026-07-23):** elegir el servicio AWS concreto (EC2 mínima vs. contenedor/Lightsail
+  vs. serverless), configurar el pipeline de GitHub Actions, secretos (`.env` fuera del repo → AWS
+  Secrets Manager / SSM), dominio `grabi.napi.lat` apuntando a AWS, y verificar el free tier / costo real.
+- **Nota de seguridad:** la **llave privada Ed25519** y los secretos (`.env`, App Password, llave Bre-B)
+  **nunca** al repo ni a la imagen; se inyectan vía gestor de secretos de AWS (mantiene la regla del token).
+
 ## ADR-019 · Alcance del piloto (máquina física, dominio, diferidos)
 - **Fecha:** 2026-07-16 · **Autor:** Daniel.
 - **Construcción física:** la hace un amigo mecatrónico (estudiante avanzado). La **electrónica ya se le entregó armada** (ESP32 + GM65 + sensor E18 + circuito de 4 motores + fuente 12V), así que no necesita specs de conexión. Las **ubicaciones** (lector, boca de salida, etc.) se definen luego con **prototipos virtuales**; no es prioridad ahora.
@@ -245,6 +322,7 @@
 - [x] **Nombre** de la marca → **GRABI** (ADR-013).
 - [x] **Dominio** de la web → **`grabi.napi.lat`** (ADR-019). `grabi.lat`/`grabi.com.co` para cuando se escale.
 - [x] **Entidad/llave Bre-B del piloto** → **Bancolombia**; llave de **M001** registrada como "GRABI M001" (una llave por máquina, ADR-014). Valor guardado en config, fuera del repo.
+- [x] **Hosting / despliegue** → **AWS pay-on-demand** con **CI/CD (GitHub Actions → AWS)** (ADR-020). Descartados VPS fijos (Hostinger ~$70k, HostGator ~$35k/mes). **Servicio AWS concreto → EC2 pequeña + Docker Compose (ADR-021)**, tras descartar App Runner (cerrado a clientes nuevos el 2026-04-30) por control total y costo casi nulo en el piloto. Pipeline: pendiente de montar.
 - [~] **Agregador Bre-B** → **diferido** (ADR-019): la conciliación por correo basta para el MVP. Comparativa lista para cuando se retome: [`negocio/agregadores-bre-b-comparativa.md`](./negocio/agregadores-bre-b-comparativa.md).
 - [~] **Legal / trámites** (RUT/DIAN/facturación/sanidad) → **diferidos** para 1 máquina (ADR-019); formalizar antes de escalar.
 - [ ] **Producto piloto concreto** (4 productos: qué snacks + bebidas) → define precios y surtido.

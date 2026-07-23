@@ -2,16 +2,24 @@ package store
 
 import (
 	"context"
-	"path/filepath"
+	"os"
 	"testing"
 )
 
-// openTemp abre una base en un archivo temporal del test.
+// openTemp abre la base Postgres de pruebas (TEST_DATABASE_URL) y la limpia. Si
+// la variable no está definida, se omite el test (no hay Postgres disponible).
 func openTemp(t *testing.T) *Store {
 	t.Helper()
-	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL no definido; se omite (requiere Postgres de pruebas)")
+	}
+	st, err := Open(dsn)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
+	}
+	if err := st.ResetForTest(context.Background()); err != nil {
+		t.Fatalf("reset: %v", err)
 	}
 	t.Cleanup(func() { st.Close() })
 	return st

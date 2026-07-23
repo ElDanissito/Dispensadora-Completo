@@ -13,7 +13,7 @@ software/
   cmd/server/         servidor web (página pública /m/{id} + panel admin + poller de conciliación)
   internal/dsptoken/  firma + verificación (referencia canónica del contrato)
   internal/qr/        generación de QR PNG
-  internal/store/     capa de datos SQLite (máquinas, productos, órdenes, movimientos bancarios)
+  internal/store/     capa de datos PostgreSQL vía pgx (máquinas, productos, órdenes, movimientos bancarios)
   internal/web/       handlers HTTP + plantillas html/template
   internal/bankmail/  parser de las alertas de correo Bancolombia (GRABI)
   internal/imapmail/  cliente IMAP mínimo (lee el buzón de conciliación grabibot)
@@ -184,3 +184,57 @@ el PRIMER carácter (6 bits significativos). Los vectores commiteados ya eran ge
 
 Migración a **v2** del token registrada en [`DECISIONS.md`](../DECISIONS.md) (ADR-006):
 2 items = 258 chars, holgado bajo el objetivo de ~300 del §6.
+
+---
+
+## Despliegue (Docker + Postgres + AWS) — ADR-020 / ADR-021
+
+El backend corre en **contenedor** con **PostgreSQL** (antes SQLite). Config por
+**variables de entorno** (los secretos NO van al repo; en producción viven en un
+`.env` git-ignored de la EC2 con permisos 600, ver ADR-021). Variables:
+
+| Variable | Uso | Ejemplo |
+|----------|-----|---------|
+| `DATABASE_URL` | Conexión Postgres (obligatoria) | `postgres://user:pass@host:5432/grabi?sslmode=require` |
+| `DSP_PRIVATE_KEY` | Llave privada Ed25519 (firma del QR) | *(base64; alternativa a `.keys/private-k1.key`)* |
+| `ADMIN_PASS` / `ADMIN_USER` | Panel admin | `...` / `admin` |
+| `GRABI_IMAP_HOST/PORT/USER/PASS` | Conciliación por correo | `imap.gmail.com` / `993` / `grabibot@gmail.com` / *(App Password)* |
+| `GRABI_BREB_KEY_M001` | Llave Bre-B de cobro de la máquina | `009...` |
+| `GRABI_MATCH_MODE` | `unique_amount` = fallback legado (opcional) | *(vacío = modo nombre, ADR-018)* |
+
+### Correr local (Docker)
+
+```bash
+cd software
+docker compose up --build          # levanta Postgres + web (con -seed -allow-sim)
+# → http://localhost:8080/m/M001   |  panel: /admin/login
+```
+
+### Probar la migración (tests contra Postgres)
+
+```bash
+cd software
+go mod tidy                         # 1a vez: resuelve pgx y limpia deps de SQLite
+TEST_DATABASE_URL="postgres://grabi:grabi@localhost:5432/grabi_test?sslmode=disable" go test -p 1 ./...
+```
+
+**Importante:** los tests apuntan a **`grabi_test`** (base aparte), NO a `grabi`
+(la de la app). Los tests hacen `TRUNCATE`, así que si se corren contra `grabi`
+**borran el seed/los datos** de la app. La base `grabi_test` la crea el contenedor
+en el primer arranque (`software/initdb/`). Usar **`-p 1`**: los paquetes `store` y
+`concil` comparten la base de pruebas y hacen `TRUNCATE` al iniciar, así que deben
+correr en serie (si no, el reset de uno pisa los datos del otro). En **CI** (`.github/workflows/ci.yml`) ya
+va con `-p 1` contra un servicio `postgres:16` — ahí se valida la migración en cada push.
+
+### Producción (AWS, ADR-020 / ADR-021)
+
+**EC2 pequeña** (`t3`/`t4g.micro`, free tier) corriendo **este mismo `docker-compose`**
+(contenedor web + Postgres), por **control total** y costo casi nulo en el piloto. Se
+descartó **App Runner** (cerrado a clientes nuevos el 2026-04-30). **TLS/HTTPS** con un
+reverse-proxy en la caja (Caddy/nginx + Let's Encrypt) para `grabi.napi.lat`. **Postgres**
+va como contenedor (no RDS aún); **backups** con `pg_dump`→S3 por cron. **Fotos** en un
+volumen persistente de la EC2 (sobreviven al redeploy → S3 opcional al escalar). Los
+secretos (`DATABASE_URL`, `GRABI_IMAP_*`, `DSP_PRIVATE_KEY`, `ADMIN_PASS`, `GRABI_BREB_KEY_*`)
+viven en un `.env` git-ignored de la EC2 (permisos 600), nunca en la imagen. CI/CD por
+**GitHub Actions + OIDC** (sin llaves de larga vida). **Crecimiento:** ECS Fargate + RDS
+cuando haya varias máquinas.

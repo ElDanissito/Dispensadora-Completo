@@ -1,0 +1,52 @@
+# Desarrollo local: Postgres + servidor GRABI en contenedores.
+# Uso:
+#   docker compose up --build        # levanta db + web con datos de demo
+#   abrir http://localhost:8080/m/M001
+#
+# Para probar los tests contra este Postgres (sin -concil):
+#   TEST_DATABASE_URL="postgres://grabi:grabi@localhost:5432/grabi?sslmode=disable" go test ./...
+#
+# La conciliación por correo (-concil) NO se activa aquí por defecto (requiere las
+# credenciales IMAP reales). Para ejercitar la compra localmente se usa -allow-sim
+# (botón "simular pago"). En producción (EC2, ADR-021) sí corre con -concil.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: grabi
+      POSTGRES_PASSWORD: grabi
+      POSTGRES_DB: grabi
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - grabi_pgdata:/var/lib/postgresql/data
+      # Crea la base `grabi_test` (solo en volumen nuevo) para que los tests no
+      # toquen los datos de la app en `grabi`.
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # -h 127.0.0.1 fuerza TCP: durante el PRIMER arranque, el servidor
+      # temporal de init solo escucha en el socket Unix, así que este check NO
+      # pasa hasta que el Postgres real abre el puerto TCP. Sin el -h, pg_isready
+      # usa el socket y marca "healthy" antes de tiempo (web arranca y rebota).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U grabi -d grabi"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgres://grabi:grabi@db:5432/grabi?sslmode=disable"
+      ADMIN_PASS: "prueba1"
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    # Override del CMD del Dockerfile para desarrollo local: con seed de demo y
+    # simulación de pago, SIN conciliación por correo.
+    command: ["-addr=:8080", "-seed", "-allow-sim", "-uploads=/tmp/uploads"]
+
+volumes:
+  grabi_pgdata:

@@ -1,0 +1,28 @@
+# No meter secretos, binarios ni bases locales en la imagen.
+.env
+.env.*
+.keys/
+*.key
+*.pem
+
+# Binarios y bases locales
+*.exe
+*.out
+dsp
+server
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Datos de operación (fotos subidas localmente)
+data/
+
+# Correos de prueba (menos el fixture anónimo que necesita go test)
+*.eml
+!internal/bankmail/testdata/muestra.eml
+
+# Varios
+.git
+.DS_Store
+Thumbs.db

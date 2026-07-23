@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"path/filepath"
+	"os"
 	"testing"
 	"time"
 
@@ -58,12 +58,19 @@ func discardLogger() *log.Logger { return log.New(io.Discard, "", 0) }
 
 func setupStore(t *testing.T) (*store.Store, int64) {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL no definido; se omite (requiere Postgres de pruebas)")
+	}
+	st, err := store.Open(dsn)
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() { st.Close() })
 	ctx := context.Background()
+	if err := st.ResetForTest(ctx); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
 	if err := st.CreateMachine(ctx, "M001", "Prueba", "k1"); err != nil {
 		t.Fatal(err)
 	}

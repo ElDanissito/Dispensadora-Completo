@@ -22,7 +22,7 @@
 | **Base de datos** | **PostgreSQL** (o SQLite para arrancar) | SQLite basta para el piloto (1 archivo, cero costo). Migrar a Postgres al escalar. |
 | **Frontend** | HTML server-rendered (Go templates) + un poco de JS, o **HTMX** | Mantén el front ultraligero: la página de venta debe cargar rápido en el celular del cliente. Evita SPA pesada al inicio. |
 | **QR** | Librería Go de QR (`skip2/go-qrcode`) | Genera el QR desde el JWT en el servidor. |
-| **Hosting** | VPS barato (Hetzner/DigitalOcean/Contabo) o Fly.io | Un binario Go + SQLite corre en la instancia más pequeña. |
+| **Hosting** | **AWS pay-on-demand** (ADR-020) | Se eligió AWS por costo variable (vs. VPS fijo: Hostinger ~$70k, HostGator ~$35k/mes). Un binario Go + SQLite corre en una instancia mínima. **CI/CD con GitHub Actions → AWS** (build + deploy en push a `main`). Servicio concreto (EC2/Lightsail/serverless) y pipeline: por montar. Secretos vía AWS Secrets Manager/SSM, nunca al repo. |
 | **Dominio + TLS** | Dominio `.co` + Caddy (TLS automático) | Caddy simplifica HTTPS. |
 
 ## 3. Arquitectura del flujo (crítico)

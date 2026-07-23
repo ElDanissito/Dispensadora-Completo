@@ -1,9 +1,10 @@
-// Package store es la capa de datos (SQLite) del backend de dispensadoras.
+// Package store es la capa de datos (PostgreSQL) del backend de dispensadoras.
 //
 // Modela el esquema de schema.sql: máquinas, catálogo por máquina (slot →
-// producto/precio/stock), órdenes y registro de jti usados. Usa el driver
-// puro-Go modernc.org/sqlite para no depender de cgo (compila igual en Windows,
-// Linux y en el VPS del piloto). Ver ADR-002 (SQLite en piloto → Postgres al escalar).
+// producto/precio/stock), órdenes y registro de jti usados. Usa el driver pgx
+// (github.com/jackc/pgx/v5/stdlib, database/sql) sin cgo. Ver ADR-002/ADR-020/
+// ADR-021: SQLite fue el piloto inicial → Postgres, hoy como contenedor en la
+// misma EC2 (Docker Compose); RDS queda como opción de crecimiento al escalar.
 package store
 
 import (
@@ -11,10 +12,12 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"log"
+	"strconv"
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 //go:embed schema.sql
@@ -25,59 +28,86 @@ type Store struct {
 	db *sql.DB
 }
 
-// Open abre (o crea) la base SQLite en path y aplica el esquema (idempotente).
-func Open(path string) (*Store, error) {
-	// _pragma activa foreign_keys por conexión (el PRAGMA del script solo aplica
-	// a la conexión que lo ejecuta; con un pool hay que fijarlo por DSN).
-	db, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
+// Open abre una conexión Postgres con el DSN dado (ej.
+// "postgres://user:pass@host:5432/grabi?sslmode=require") y aplica el esquema
+// (idempotente). Verifica la conexión con Ping antes de continuar.
+//
+// Reintenta el Ping con backoff hasta ~30s. Esto cubre dos casos reales:
+//   - Arranque local: en el PRIMER arranque (volumen vacío), la imagen de
+//     Postgres corre un servidor temporal que solo escucha en el socket Unix;
+//     el healthcheck (pg_isready por socket) pasa, pero el TCP aún no acepta
+//     conexiones, así que el primer Ping rebota con "connection refused".
+//   - Producción (EC2 + Docker Compose): al reiniciar la caja o hacer redeploy,
+//     el contenedor `web` puede arrancar antes de que Postgres acepte conexiones;
+//     mejor esperar que entrar en crash-loop.
+func Open(dsn string) (*Store, error) {
+	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := db.Exec(schemaSQL); err != nil {
+	// Pool conservador: el piloto es una sola instancia con poco tráfico.
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(30 * time.Minute)
+
+	if err := pingWithRetry(db, 30*time.Second); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("conectando a Postgres: %w", err)
+	}
+	if err := applySchema(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("aplicando esquema: %w", err)
-	}
-	if err := migrate(db); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("migrando esquema: %w", err)
 	}
 	return &Store{db: db}, nil
 }
 
-// migrate añade columnas nuevas a bases ya existentes (schema.sql usa CREATE IF
-// NOT EXISTS, que NO altera una tabla ya creada). Cada ALTER es idempotente: si la
-// columna ya existe, SQLite devuelve "duplicate column name" y lo ignoramos. Las
-// bases nuevas ya traen las columnas por el CREATE TABLE, así que estos ALTER solo
-// aplican al piloto en curso (dispensadoras.db). Ver spec §3 (cambio de esquema).
-func migrate(db *sql.DB) error {
-	alters := []string{
-		`ALTER TABLE orders ADD COLUMN unique_amount INTEGER NOT NULL DEFAULT 0`,
-		`ALTER TABLE orders ADD COLUMN pay_window_expires_at INTEGER NOT NULL DEFAULT 0`,
-		`ALTER TABLE orders ADD COLUMN token TEXT`,
-		`ALTER TABLE orders ADD COLUMN paid_at INTEGER`,
-		`ALTER TABLE orders ADD COLUMN bank_message_id TEXT`,
-		// UI v1 (ui-web-v1 §3): foto y descripción del producto, y estado de
-		// cableado del slot. Idempotentes por el filtro "duplicate column name".
-		`ALTER TABLE products ADD COLUMN description TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE products ADD COLUMN image_path TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE machine_products ADD COLUMN wired INTEGER NOT NULL DEFAULT 0`,
-		// ADR-018: nombre del pagador declarado por el cliente (matching por nombre).
-		`ALTER TABLE orders ADD COLUMN payer_name TEXT NOT NULL DEFAULT ''`,
-	}
-	for _, a := range alters {
-		if _, err := db.Exec(a); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
-			return fmt.Errorf("%q: %w", a, err)
+// pingWithRetry intenta el Ping repetidamente con backoff hasta agotar maxWait.
+func pingWithRetry(db *sql.DB, maxWait time.Duration) error {
+	deadline := time.Now().Add(maxWait)
+	delay := 500 * time.Millisecond
+	var lastErr error
+	for attempt := 1; ; attempt++ {
+		pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := db.PingContext(pingCtx)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if time.Now().Add(delay).After(deadline) {
+			return lastErr
+		}
+		log.Printf("Postgres aún no disponible (intento %d): %v; reintentando en %s", attempt, err, delay)
+		time.Sleep(delay)
+		if delay < 3*time.Second {
+			delay *= 2
 		}
 	}
-	// Índices que dependen de columnas nuevas: se crean AQUÍ, ya con los ALTER
-	// aplicados (idempotentes por IF NOT EXISTS).
-	postIndexes := []string{
-		`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`,
-		`CREATE INDEX IF NOT EXISTS idx_orders_match ON orders(machine_id, status, unique_amount)`,
+}
+
+// applySchema ejecuta schema.sql. El driver pgx usa el protocolo extendido, que
+// NO admite varias sentencias en un solo Exec; por eso partimos el script en
+// sentencias individuales (quitando líneas de comentario) y las ejecutamos una a
+// una. Todas usan IF NOT EXISTS, así que es idempotente.
+func applySchema(db *sql.DB) error {
+	var clean strings.Builder
+	for _, line := range strings.Split(schemaSQL, "\n") {
+		// Quitar comentarios (de línea completa o inline): algunos comentarios del
+		// esquema contienen ';', que rompería el split por sentencia si se dejaran.
+		// Ningún literal SQL del esquema contiene "--", así que cortar ahí es seguro.
+		if i := strings.Index(line, "--"); i >= 0 {
+			line = line[:i]
+		}
+		clean.WriteString(line)
+		clean.WriteString("\n")
 	}
-	for _, ix := range postIndexes {
-		if _, err := db.Exec(ix); err != nil {
-			return fmt.Errorf("%q: %w", ix, err)
+	for _, stmt := range strings.Split(clean.String(), ";") {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+		if _, err := db.Exec(stmt); err != nil {
+			return fmt.Errorf("sentencia %q: %w", stmt, err)
 		}
 	}
 	return nil
@@ -85,6 +115,16 @@ func migrate(db *sql.DB) error {
 
 // Close cierra la base.
 func (s *Store) Close() error { return s.db.Close() }
+
+// ResetForTest borra TODOS los datos (TRUNCATE ... CASCADE) y reinicia las
+// secuencias. SOLO para pruebas: como en Postgres los tests comparten una misma
+// base (a diferencia del archivo SQLite por test), cada test la limpia al iniciar.
+// No usar en producción.
+func (s *Store) ResetForTest(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx,
+		`TRUNCATE bank_movements, order_items, orders, machine_products, products, used_jti, machines RESTART IDENTITY CASCADE`)
+	return err
+}
 
 // --- Tipos de dominio ---
 
@@ -175,7 +215,7 @@ func (s *Store) CreateMachine(ctx context.Context, id, name, kid string) error {
 		kid = "k1"
 	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO machines (id, name, kid, active, created_at) VALUES (?, ?, ?, 1, ?)`,
+		`INSERT INTO machines (id, name, kid, active, created_at) VALUES ($1, $2, $3, 1, $4)`,
 		id, name, kid, time.Now().Unix())
 	return err
 }
@@ -183,7 +223,7 @@ func (s *Store) CreateMachine(ctx context.Context, id, name, kid string) error {
 // GetMachine devuelve una máquina por id.
 func (s *Store) GetMachine(ctx context.Context, id string) (*Machine, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, name, kid, active, created_at FROM machines WHERE id = ?`, id)
+		`SELECT id, name, kid, active, created_at FROM machines WHERE id = $1`, id)
 	var m Machine
 	var active int
 	if err := row.Scan(&m.ID, &m.Name, &m.Kid, &active, &m.CreatedAt); err != nil {
@@ -225,21 +265,23 @@ func (s *Store) CreateProduct(ctx context.Context, name string) (int64, error) {
 
 // CreateProductDetailed inserta un producto con descripción e imagen (ui-web-v1
 // §3) y devuelve su id. imagePath es la ruta pública (ej. /uploads/xxx.jpg) o ""
-// si el admin no subió foto.
+// si el admin no subió foto. Usa RETURNING (Postgres no tiene LastInsertId).
 func (s *Store) CreateProductDetailed(ctx context.Context, name, description, imagePath string) (int64, error) {
-	res, err := s.db.ExecContext(ctx,
-		`INSERT INTO products (name, description, image_path, created_at) VALUES (?, ?, ?, ?)`,
-		name, description, imagePath, time.Now().Unix())
+	var id int64
+	err := s.db.QueryRowContext(ctx,
+		`INSERT INTO products (name, description, image_path, created_at)
+		 VALUES ($1, $2, $3, $4) RETURNING id`,
+		name, description, imagePath, time.Now().Unix()).Scan(&id)
 	if err != nil {
 		return 0, err
 	}
-	return res.LastInsertId()
+	return id, nil
 }
 
 // GetProduct devuelve un producto del catálogo global por id.
 func (s *Store) GetProduct(ctx context.Context, id int64) (*Product, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, name, description, image_path FROM products WHERE id = ?`, id)
+		`SELECT id, name, description, image_path FROM products WHERE id = $1`, id)
 	var p Product
 	if err := row.Scan(&p.ID, &p.Name, &p.Description, &p.ImagePath); err != nil {
 		return nil, err
@@ -253,11 +295,11 @@ func (s *Store) GetProduct(ctx context.Context, id int64) (*Product, error) {
 func (s *Store) UpdateProduct(ctx context.Context, id int64, name, description, imagePath string) error {
 	if imagePath == "" {
 		_, err := s.db.ExecContext(ctx,
-			`UPDATE products SET name = ?, description = ? WHERE id = ?`, name, description, id)
+			`UPDATE products SET name = $1, description = $2 WHERE id = $3`, name, description, id)
 		return err
 	}
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE products SET name = ?, description = ?, image_path = ? WHERE id = ?`,
+		`UPDATE products SET name = $1, description = $2, image_path = $3 WHERE id = $4`,
 		name, description, imagePath, id)
 	return err
 }
@@ -287,7 +329,7 @@ func (s *Store) ListProducts(ctx context.Context) ([]Product, error) {
 func (s *Store) SetSlot(ctx context.Context, machineID string, slot int, productID int64, priceCOP int64, stock int) error {
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO machine_products (machine_id, slot, product_id, price_cop, stock)
-		VALUES (?, ?, ?, ?, ?)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT(machine_id, slot) DO UPDATE SET
 			product_id = excluded.product_id,
 			price_cop  = excluded.price_cop,
@@ -318,7 +360,7 @@ func scanCatalogRow(r scanRow) (CatalogRow, error) {
 // (para que la cuadrícula se parezca a la disposición física, ui-web-v1 §1.1).
 func (s *Store) Catalog(ctx context.Context, machineID string) ([]CatalogRow, error) {
 	rows, err := s.db.QueryContext(ctx, catalogSelectCols+`
-		WHERE mp.machine_id = ?
+		WHERE mp.machine_id = $1
 		ORDER BY mp.slot`, machineID)
 	if err != nil {
 		return nil, err
@@ -339,7 +381,7 @@ func (s *Store) Catalog(ctx context.Context, machineID string) ([]CatalogRow, er
 // panel). Devuelve sql.ErrNoRows si el slot no está asignado.
 func (s *Store) GetSlot(ctx context.Context, machineID string, slot int) (*CatalogRow, error) {
 	r, err := scanCatalogRow(s.db.QueryRowContext(ctx, catalogSelectCols+`
-		WHERE mp.machine_id = ? AND mp.slot = ?`, machineID, slot))
+		WHERE mp.machine_id = $1 AND mp.slot = $2`, machineID, slot))
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +395,7 @@ func (s *Store) SetWired(ctx context.Context, machineID string, slot int, wired 
 		w = 1
 	}
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE machine_products SET wired = ? WHERE machine_id = ? AND slot = ?`,
+		`UPDATE machine_products SET wired = $1 WHERE machine_id = $2 AND slot = $3`,
 		w, machineID, slot)
 	return err
 }
@@ -371,7 +413,7 @@ func (s *Store) DeleteSlot(ctx context.Context, machineID string, slot int) erro
 
 	var productID int64
 	err = tx.QueryRowContext(ctx,
-		`SELECT product_id FROM machine_products WHERE machine_id = ? AND slot = ?`,
+		`SELECT product_id FROM machine_products WHERE machine_id = $1 AND slot = $2`,
 		machineID, slot).Scan(&productID)
 	if err == sql.ErrNoRows {
 		return tx.Commit() // nada que borrar
@@ -380,17 +422,17 @@ func (s *Store) DeleteSlot(ctx context.Context, machineID string, slot int) erro
 		return err
 	}
 	if _, err := tx.ExecContext(ctx,
-		`DELETE FROM machine_products WHERE machine_id = ? AND slot = ?`, machineID, slot); err != nil {
+		`DELETE FROM machine_products WHERE machine_id = $1 AND slot = $2`, machineID, slot); err != nil {
 		return err
 	}
 	// ¿El producto quedó sin uso? (ningún otro slot lo referencia).
 	var refs int
 	if err := tx.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM machine_products WHERE product_id = ?`, productID).Scan(&refs); err != nil {
+		`SELECT COUNT(*) FROM machine_products WHERE product_id = $1`, productID).Scan(&refs); err != nil {
 		return err
 	}
 	if refs == 0 {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM products WHERE id = ?`, productID); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM products WHERE id = $1`, productID); err != nil {
 			return err
 		}
 	}
@@ -410,7 +452,7 @@ func (s *Store) CreateOrder(ctx context.Context, o Order) error {
 	if _, err := tx.ExecContext(ctx, `
 		INSERT INTO orders (jti, machine_id, total_cop, unique_amount, payer_name, status, iat, exp,
 			pay_window_expires_at, token, paid_at, bank_message_id, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
 		o.Jti, o.MachineID, o.TotalCOP, o.UniqueAmount, o.PayerName, o.Status, o.Iat, o.Exp,
 		o.PayWindowExpiresAt, nullStr(o.Token), nullInt(o.PaidAt), nullStr(o.BankMessageID),
 		o.CreatedAt); err != nil {
@@ -418,7 +460,7 @@ func (s *Store) CreateOrder(ctx context.Context, o Order) error {
 	}
 	for _, it := range o.Items {
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO order_items (order_jti, slot, qty, price_cop) VALUES (?, ?, ?, ?)`,
+			INSERT INTO order_items (order_jti, slot, qty, price_cop) VALUES ($1, $2, $3, $4)`,
 			o.Jti, it.Slot, it.Qty, it.PriceCOP); err != nil {
 			return err
 		}
@@ -431,7 +473,7 @@ func (s *Store) ListOrders(ctx context.Context, limit int) ([]Order, error) {
 	if limit <= 0 {
 		limit = 100
 	}
-	rows, err := s.db.QueryContext(ctx, orderSelectCols+` FROM orders ORDER BY created_at DESC LIMIT ?`, limit)
+	rows, err := s.db.QueryContext(ctx, orderSelectCols+` FROM orders ORDER BY created_at DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -472,12 +514,12 @@ func scanOrder(r scanRow) (*Order, error) {
 
 // GetOrder devuelve una orden por jti, con sus líneas.
 func (s *Store) GetOrder(ctx context.Context, jti string) (*Order, error) {
-	o, err := scanOrder(s.db.QueryRowContext(ctx, orderSelectCols+` FROM orders WHERE jti = ?`, jti))
+	o, err := scanOrder(s.db.QueryRowContext(ctx, orderSelectCols+` FROM orders WHERE jti = $1`, jti))
 	if err != nil {
 		return nil, err
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT slot, qty, price_cop FROM order_items WHERE order_jti = ? ORDER BY slot`, jti)
+		`SELECT slot, qty, price_cop FROM order_items WHERE order_jti = $1 ORDER BY slot`, jti)
 	if err != nil {
 		return nil, err
 	}
@@ -499,7 +541,7 @@ func (s *Store) GetOrder(ctx context.Context, jti string) (*Order, error) {
 // que el monto a cobrar sea único entre órdenes vivas (spec §2).
 func (s *Store) PendingUniqueAmounts(ctx context.Context, machineID string) (map[int64]bool, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT unique_amount FROM orders WHERE machine_id = ? AND status = 'pending'`, machineID)
+		`SELECT unique_amount FROM orders WHERE machine_id = $1 AND status = 'pending'`, machineID)
 	if err != nil {
 		return nil, err
 	}
@@ -527,8 +569,8 @@ func (s *Store) PendingUniqueAmounts(ctx context.Context, machineID string) (map
 func (s *Store) FindMatchingPending(ctx context.Context, machineID string, amount, at int64) ([]Order, error) {
 	rows, err := s.db.QueryContext(ctx, orderSelectCols+`
 		FROM orders
-		WHERE machine_id = ? AND status IN ('pending','expired') AND unique_amount = ?
-		  AND created_at <= ? AND ? <= pay_window_expires_at
+		WHERE machine_id = $1 AND status IN ('pending','expired') AND unique_amount = $2
+		  AND created_at <= $3 AND $4 <= pay_window_expires_at
 		ORDER BY created_at`, machineID, amount, at, at)
 	if err != nil {
 		return nil, err
@@ -558,7 +600,7 @@ func (s *Store) FindMatchingPending(ctx context.Context, machineID string, amoun
 
 func (s *Store) orderItems(ctx context.Context, jti string) ([]OrderItem, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT slot, qty, price_cop FROM order_items WHERE order_jti = ? ORDER BY slot`, jti)
+		`SELECT slot, qty, price_cop FROM order_items WHERE order_jti = $1 ORDER BY slot`, jti)
 	if err != nil {
 		return nil, err
 	}
@@ -602,8 +644,8 @@ func (s *Store) markPaid(ctx context.Context, jti, status, token string, exp, pa
 	// el pago entró en ventana (ver FindMatchingPending). Nunca re-transiciona una ya
 	// 'paid'/'dispensed'/'canceled' → idempotencia (no emite dos QR ni descuenta 2x).
 	res, err := tx.ExecContext(ctx, `
-		UPDATE orders SET status = ?, token = ?, exp = ?, paid_at = ?, bank_message_id = ?
-		WHERE jti = ? AND status IN ('pending','expired')`,
+		UPDATE orders SET status = $1, token = $2, exp = $3, paid_at = $4, bank_message_id = $5
+		WHERE jti = $6 AND status IN ('pending','expired')`,
 		status, token, exp, paidAt, messageID, jti)
 	if err != nil {
 		return false, err
@@ -616,9 +658,10 @@ func (s *Store) markPaid(ctx context.Context, jti, status, token string, exp, pa
 		return false, nil // no estaba pendiente: idempotencia (no descuenta stock)
 	}
 
-	// Descontar stock de cada slot (clamp a 0 por seguridad).
+	// Descontar stock de cada slot (clamp a 0 por seguridad). GREATEST es el máximo
+	// escalar en Postgres (el MAX de SQLite con 2 args no existe como agregado aquí).
 	rows, err := tx.QueryContext(ctx,
-		`SELECT slot, qty FROM order_items WHERE order_jti = ?`, jti)
+		`SELECT slot, qty FROM order_items WHERE order_jti = $1`, jti)
 	if err != nil {
 		return false, err
 	}
@@ -638,8 +681,8 @@ func (s *Store) markPaid(ctx context.Context, jti, status, token string, exp, pa
 	}
 	for _, l := range lines {
 		if _, err := tx.ExecContext(ctx, `
-			UPDATE machine_products SET stock = MAX(0, stock - ?)
-			WHERE slot = ? AND machine_id = (SELECT machine_id FROM orders WHERE jti = ?)`,
+			UPDATE machine_products SET stock = GREATEST(0, stock - $1)
+			WHERE slot = $2 AND machine_id = (SELECT machine_id FROM orders WHERE jti = $3)`,
 			l.qty, l.slot, jti); err != nil {
 			return false, err
 		}
@@ -661,7 +704,7 @@ func (s *Store) MarkOrdersAmbiguous(ctx context.Context, jtis []string) (int64, 
 	ph := make([]string, len(jtis))
 	args := make([]any, len(jtis))
 	for i, j := range jtis {
-		ph[i] = "?"
+		ph[i] = "$" + strconv.Itoa(i+1)
 		args[i] = j
 	}
 	q := `UPDATE orders SET status = 'ambiguous'
@@ -678,7 +721,7 @@ func (s *Store) MarkOrdersAmbiguous(ctx context.Context, jtis []string) (int64, 
 func (s *Store) ExpireOrders(ctx context.Context, now int64) (int64, error) {
 	res, err := s.db.ExecContext(ctx, `
 		UPDATE orders SET status = 'expired'
-		WHERE status = 'pending' AND pay_window_expires_at > 0 AND ? > pay_window_expires_at`, now)
+		WHERE status = 'pending' AND pay_window_expires_at > 0 AND $1 > pay_window_expires_at`, now)
 	if err != nil {
 		return 0, err
 	}
@@ -693,21 +736,23 @@ func (s *Store) MovementProcessed(ctx context.Context, messageID string) (bool, 
 	}
 	var one int
 	err := s.db.QueryRowContext(ctx,
-		`SELECT 1 FROM bank_movements WHERE message_id = ?`, messageID).Scan(&one)
+		`SELECT 1 FROM bank_movements WHERE message_id = $1`, messageID).Scan(&one)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
 	return err == nil, err
 }
 
-// RecordMovement persiste el registro de auditoría de un abono. Usa INSERT OR
-// IGNORE sobre la PK message_id: si el correo ya estaba registrado, no lo duplica.
+// RecordMovement persiste el registro de auditoría de un abono. Usa ON CONFLICT
+// DO NOTHING sobre la PK message_id: si el correo ya estaba registrado, no lo
+// duplica (equivalente al INSERT OR IGNORE de SQLite).
 func (s *Store) RecordMovement(ctx context.Context, m BankMovement) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO bank_movements
+		INSERT INTO bank_movements
 			(message_id, machine_id, amount_cop, payer, account, breb_key, occurred_at,
 			 processed_at, result, order_jti, from_addr)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		ON CONFLICT (message_id) DO NOTHING`,
 		m.MessageID, m.MachineID, m.AmountCOP, m.Payer, m.Account, m.BreBKey, m.OccurredAt,
 		m.ProcessedAt, m.Result, nullStr(m.OrderJti), m.FromAddr)
 	return err
