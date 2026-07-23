@@ -1,0 +1,74 @@
+# Despliegue de PRODUCCIÓN — EC2 + Docker Compose (ADR-021).
+#
+# Diferencias vs. docker-compose.yml (desarrollo local):
+#   - Caddy delante como reverse-proxy con HTTPS automático (Let's Encrypt).
+#   - web corre con -concil (conciliación real por correo), SIN -seed ni -allow-sim.
+#   - Volúmenes PERSISTENTES para la base (pgdata) y las fotos (uploads): sobreviven
+#     a redeploys y reinicios de la EC2.
+#   - La DB y web NO publican puertos al host: solo Caddy expone 80/443.
+#   - Los secretos vienen del archivo `.env` (git-ignored) que vive junto a este
+#     compose en la EC2. Ver .env.example. CLAUDE.md §4.
+#
+# Uso en la EC2:
+#   cp .env.example .env && nano .env && chmod 600 .env   # rellenar secretos
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml logs -f
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: grabi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: grabi
+    volumes:
+      - grabi_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # -h 127.0.0.1 fuerza TCP: no marca "healthy" durante la fase de init
+      # (servidor temporal socket-only). Ver ADR-021.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U grabi -d grabi"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    # Sin `ports`: la base solo es accesible desde la red interna de compose.
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # env_file inyecta todos los secretos del .env (DSP_PRIVATE_KEY, GRABI_IMAP_*,
+    # ADMIN_*, GRABI_BREB_KEY_*). DATABASE_URL se arma abajo a partir de
+    # POSTGRES_PASSWORD para no repetir la contraseña en dos sitios.
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgres://grabi:${POSTGRES_PASSWORD}@db:5432/grabi?sslmode=disable"
+    volumes:
+      - grabi_uploads:/data/uploads
+    command: ["-addr=:8080", "-concil", "-uploads=/data/uploads"]
+    # Sin `ports`: solo Caddy habla con web, por la red interna.
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Dominio para el que Caddy pide y renueva el certificado TLS. Debe apuntar
+      # (DNS A) a la IP pública de la EC2.
+      DOMAIN: ${DOMAIN:?define DOMAIN en .env, ej. grabi.napi.lat}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # certificados TLS (persisten → no re-emitir en cada deploy)
+      - caddy_config:/config
+
+volumes:
+  grabi_pgdata:
+  grabi_uploads:
+  caddy_data:
+  caddy_config:

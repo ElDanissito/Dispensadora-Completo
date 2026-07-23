@@ -19,12 +19,20 @@ ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
     go build -trimpath -ldflags="-s -w" -o /out/server ./cmd/server
 
+# Carpeta de uploads con dueño 'nonroot'. Al montar aquí un volumen persistente
+# VACÍO (docker-compose.prod.yml), Docker copia el dueño de este directorio al
+# volumen → el proceso (nonroot) puede escribir las fotos. Sin esto, el volumen
+# nace root y las subidas fallarían con "permission denied" (ADR-021).
+RUN mkdir -p /data/uploads
+
 # ---- runtime --------------------------------------------------------------
 # distroless static: sin shell ni gestor de paquetes → superficie de ataque
 # mínima. Corre como usuario 'nonroot'.
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 COPY --from=build /out/server /app/server
+# Punto de montaje de las fotos subidas, propiedad de nonroot (ver build stage).
+COPY --from=build --chown=nonroot:nonroot /data /data
 
 # El servidor escucha en 8080; en la EC2 el reverse-proxy (Caddy/nginx) enruta ahí.
 EXPOSE 8080

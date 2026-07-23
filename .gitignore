@@ -4,6 +4,8 @@
 *.pem
 .env
 .env.*
+# Excepción: plantilla de variables SIN valores reales (guía de despliegue)
+!software/.env.example
 
 # Binarios compilados
 software/dsp

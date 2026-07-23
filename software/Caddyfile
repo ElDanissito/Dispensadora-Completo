@@ -1,0 +1,14 @@
+# Reverse-proxy con HTTPS automático (Let's Encrypt) — ADR-021.
+#
+# El dominio se toma de la variable DOMAIN (definida en .env y pasada al
+# contenedor caddy por docker-compose.prod.yml). Caddy solicita y RENUEVA el
+# certificado TLS por su cuenta; los certificados se guardan en el volumen
+# caddy_data para no re-emitirlos en cada redeploy.
+#
+# reverse_proxy enruta todo el tráfico al contenedor `web` en el puerto 8080
+# (nombre de servicio en la red interna de compose).
+
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:8080
+}
