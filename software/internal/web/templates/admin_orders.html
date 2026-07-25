@@ -1,22 +1,96 @@
 {{define "content"}}
-<div class="card">
-  <div class="muted"><a class="link" href="/admin">← Panel</a></div>
-  <h2 style="margin-top:8px">Órdenes recientes</h2>
-  {{if .Orders}}
-  <table>
-    <thead><tr><th>jti</th><th>Máquina</th><th>Total</th><th>Estado</th><th>Creada</th></tr></thead>
-    <tbody>
-    {{range .Orders}}
-      <tr>
-        <td><code>{{.Jti}}</code></td>
-        <td>{{.MachineID}}</td>
-        <td class="price">{{cop .TotalCOP}}</td>
-        <td><span class="badge">{{.Status}}</span></td>
-        <td class="muted">{{ts .CreatedAt}}</td>
-      </tr>
-    {{end}}
-    </tbody>
-  </table>
-  {{else}}<div class="muted">Aún no hay órdenes.</div>{{end}}
+{{/* El panel se auto-refresca (ADR-011bis, sin JS pesado) para reflejar órdenes
+     nuevas sin recargar a mano. El filtro activo se conserva vía la URL. */}}
+<meta http-equiv="refresh" content="20">
+
+<div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:0 0 16px">
+  <h2 style="margin:0">Órdenes · hoy</h2>
+  <span class="hint" style="margin:0">Se actualiza sola cada 20 s</span>
 </div>
+
+<div class="ochips" id="ochips">
+  <button type="button" class="ochip todas active" data-filter="">TODAS</button>
+  <button type="button" class="ochip warn" data-filter="pending">PENDIENTE</button>
+  <button type="button" class="ochip info" data-filter="paid">PAGADA</button>
+  <button type="button" class="ochip purple" data-filter="ambiguous">AMBIGUA</button>
+  <button type="button" class="ochip muted" data-filter="expired">EXPIRADA</button>
+  <button type="button" class="ochip sim" data-filter="paid_sim">SIMULADA</button>
+  {{if .Machines}}
+  <span class="omfilter">Máquina:
+    <select id="omMachine">
+      <option value="">todas</option>
+      {{range .Machines}}<option value="{{.}}">{{.}}</option>{{end}}
+    </select>
+  </span>
+  {{end}}
+</div>
+
+{{if .Orders}}
+<div class="otable">
+  <div class="ohead"><span>Hora</span><span>Máq.</span><span>Productos</span><span>Monto</span><span>Pagador</span><span>Estado</span></div>
+  {{range .Orders}}
+  <div class="orow" data-status="{{.Status}}" data-machine="{{.MachineID}}">
+    <span class="mono muted">{{.Hora}}</span>
+    <span class="mono">{{.MachineID}}</span>
+    <span>{{.Products}}</span>
+    <span class="mono">{{cop .TotalCOP}}</span>
+    <span class="muted">{{if .PayerName}}{{.PayerName}}{{else}}—{{end}}</span>
+    <span><span class="badge {{.PillCls}}">{{.Pill}}</span></span>
+  </div>
+  {{end}}
+  <div class="oempty ohide" id="oNoMatch">No hay órdenes con este filtro.</div>
+</div>
+
+<div class="ocards">
+  {{range .Orders}}
+  <div class="ocard" data-status="{{.Status}}" data-machine="{{.MachineID}}">
+    <div class="top"><span>{{.Hora}} · {{.MachineID}}</span><span class="badge {{.PillCls}}">{{.Pill}}</span></div>
+    <div class="prods">{{.Products}}</div>
+    <div class="bot"><span class="muted">{{if .PayerName}}{{.PayerName}}{{else}}—{{end}}</span><span>{{cop .TotalCOP}}</span></div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div class="card muted">Aún no hay órdenes.</div>
+{{end}}
+
+<script>
+(function(){
+  var chips=document.querySelectorAll('#ochips .ochip'),
+      machineSel=document.getElementById('omMachine'),
+      rows=document.querySelectorAll('.orow, .ocard'),
+      noMatch=document.getElementById('oNoMatch');
+  var params=new URLSearchParams(location.search);
+  var status=params.get('estado')||'', machine=params.get('maquina')||'';
+
+  function persist(){
+    var p=new URLSearchParams();
+    if(status) p.set('estado', status);
+    if(machine) p.set('maquina', machine);
+    var q=p.toString();
+    history.replaceState(null, '', location.pathname + (q ? '?'+q : ''));
+  }
+  function apply(){
+    var shown=0;
+    rows.forEach(function(el){
+      var ok=(status===''||el.dataset.status===status) && (machine===''||el.dataset.machine===machine);
+      el.classList.toggle('ohide', !ok);
+      if(ok) shown++;
+    });
+    if(noMatch) noMatch.classList.toggle('ohide', shown>0);
+  }
+  chips.forEach(function(c){
+    c.classList.toggle('active', c.dataset.filter===status);
+    c.addEventListener('click', function(){
+      chips.forEach(function(x){ x.classList.remove('active'); });
+      c.classList.add('active'); status=c.dataset.filter; persist(); apply();
+    });
+  });
+  if(machineSel){
+    machineSel.value=machine;
+    machineSel.addEventListener('change', function(){ machine=machineSel.value; persist(); apply(); });
+  }
+  apply();
+})();
+</script>
 {{end}}

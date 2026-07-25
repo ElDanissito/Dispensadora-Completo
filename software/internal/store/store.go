@@ -134,6 +134,7 @@ type Machine struct {
 	Name      string
 	Kid       string
 	Active    bool
+	Channels  int // número de canales físicos (para dibujar los slots libres)
 	CreatedAt int64
 }
 
@@ -210,23 +211,26 @@ const (
 // --- Máquinas ---
 
 // CreateMachine inserta una máquina nueva.
-func (s *Store) CreateMachine(ctx context.Context, id, name, kid string) error {
+func (s *Store) CreateMachine(ctx context.Context, id, name, kid string, channels int) error {
 	if kid == "" {
 		kid = "k1"
 	}
+	if channels <= 0 {
+		channels = 4
+	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO machines (id, name, kid, active, created_at) VALUES ($1, $2, $3, 1, $4)`,
-		id, name, kid, time.Now().Unix())
+		`INSERT INTO machines (id, name, kid, active, channels, created_at) VALUES ($1, $2, $3, 1, $4, $5)`,
+		id, name, kid, channels, time.Now().Unix())
 	return err
 }
 
 // GetMachine devuelve una máquina por id.
 func (s *Store) GetMachine(ctx context.Context, id string) (*Machine, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, name, kid, active, created_at FROM machines WHERE id = $1`, id)
+		`SELECT id, name, kid, active, channels, created_at FROM machines WHERE id = $1`, id)
 	var m Machine
 	var active int
-	if err := row.Scan(&m.ID, &m.Name, &m.Kid, &active, &m.CreatedAt); err != nil {
+	if err := row.Scan(&m.ID, &m.Name, &m.Kid, &active, &m.Channels, &m.CreatedAt); err != nil {
 		return nil, err
 	}
 	m.Active = active == 1
@@ -236,7 +240,7 @@ func (s *Store) GetMachine(ctx context.Context, id string) (*Machine, error) {
 // ListMachines devuelve todas las máquinas ordenadas por id.
 func (s *Store) ListMachines(ctx context.Context) ([]Machine, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, kid, active, created_at FROM machines ORDER BY id`)
+		`SELECT id, name, kid, active, channels, created_at FROM machines ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +249,7 @@ func (s *Store) ListMachines(ctx context.Context) ([]Machine, error) {
 	for rows.Next() {
 		var m Machine
 		var active int
-		if err := rows.Scan(&m.ID, &m.Name, &m.Kid, &active, &m.CreatedAt); err != nil {
+		if err := rows.Scan(&m.ID, &m.Name, &m.Kid, &active, &m.Channels, &m.CreatedAt); err != nil {
 			return nil, err
 		}
 		m.Active = active == 1
@@ -400,6 +404,19 @@ func (s *Store) SetWired(ctx context.Context, machineID string, slot int, wired 
 	return err
 }
 
+// SetStock fija el stock de un slot ya asignado. Es el reabastecimiento manual:
+// el operador cuenta las unidades físicas reales y las escribe, corrigiendo el
+// estimado que deriva por ventas no dispensadas / fallos (ADR-012).
+func (s *Store) SetStock(ctx context.Context, machineID string, slot, stock int) error {
+	if stock < 0 {
+		stock = 0
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE machine_products SET stock = $1 WHERE machine_id = $2 AND slot = $3`,
+		stock, machineID, slot)
+	return err
+}
+
 // DeleteSlot elimina la asignación de un slot de una máquina. Si el producto que
 // ocupaba ese slot no queda asignado a ningún otro slot (de ninguna máquina) ni
 // referenciado por órdenes, también se borra del catálogo global para no dejar
@@ -477,14 +494,55 @@ func (s *Store) ListOrders(ctx context.Context, limit int) ([]Order, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 	var out []Order
 	for rows.Next() {
 		o, err := scanOrder(rows)
 		if err != nil {
+			rows.Close()
 			return nil, err
 		}
 		out = append(out, *o)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Cargar las líneas de cada orden (resumen de productos del panel de órdenes).
+	for i := range out {
+		items, err := s.orderItems(ctx, out[i].Jti)
+		if err != nil {
+			return nil, err
+		}
+		out[i].Items = items
+	}
+	return out, nil
+}
+
+// ListUnmatchedMovements devuelve los abonos que NO casaron con una orden
+// (huérfano/fallido/descartado/conflicto), para auditoría y reembolsos. Los
+// `matched` ya se reflejan como órdenes pagadas, así que no se listan aquí.
+func (s *Store) ListUnmatchedMovements(ctx context.Context, limit int) ([]BankMovement, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT message_id, machine_id, amount_cop, payer, account, breb_key, occurred_at, processed_at, result, order_jti, from_addr
+		 FROM bank_movements WHERE result <> 'matched' ORDER BY processed_at DESC LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []BankMovement
+	for rows.Next() {
+		var m BankMovement
+		var machineID, payer, account, brebKey, orderJti, fromAddr sql.NullString
+		var amount, occurred sql.NullInt64
+		if err := rows.Scan(&m.MessageID, &machineID, &amount, &payer, &account, &brebKey, &occurred, &m.ProcessedAt, &m.Result, &orderJti, &fromAddr); err != nil {
+			return nil, err
+		}
+		m.MachineID, m.Payer, m.Account, m.BreBKey, m.OrderJti, m.FromAddr = machineID.String, payer.String, account.String, brebKey.String, orderJti.String, fromAddr.String
+		m.AmountCOP, m.OccurredAt = amount.Int64, occurred.Int64
+		out = append(out, m)
 	}
 	return out, rows.Err()
 }

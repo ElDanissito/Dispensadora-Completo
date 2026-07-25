@@ -1,7 +1,11 @@
 {{define "content"}}
 <div class="login-wrap">
-  <div class="card login-card">
-    <h2>Ingresar al panel</h2>
+  <div class="login-card">
+    <div style="margin-bottom:20px">
+      <div class="brand" style="font-size:2rem">GRABI<span class="dot">.</span></div>
+      <div class="hint" style="margin-top:2px">Panel de operación</div>
+    </div>
+    <div class="card">
     {{if .Failed}}<div class="flash" style="color:var(--danger);background:var(--danger-soft);border-color:var(--danger)">Credenciales inválidas. Inténtalo de nuevo.</div>{{end}}
     <form method="post" action="/admin/login">
       <div class="field">
@@ -14,6 +18,8 @@
       </div>
       <button type="submit" style="width:100%">Entrar</button>
     </form>
+    </div>
+    <div class="hint" style="margin-top:14px">Acceso restringido a operadores. Los intentos quedan registrados.</div>
   </div>
 </div>
 {{end}}

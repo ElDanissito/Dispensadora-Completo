@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -77,6 +78,19 @@ var funcs = template.FuncMap{
 	// ts formatea un epoch en hora de Colombia.
 	"ts": func(sec int64) string {
 		return time.Unix(sec, 0).In(bogota).Format("2006-01-02 15:04")
+	},
+	// tint deriva un color de placeholder estable desde el nombre del producto
+	// (para el tile cuando no hay foto, estilo mockup).
+	"tint": func(s string) string {
+		colors := []string{"#F2C94C", "#EB7A6B", "#7FD4E8", "#F2A05A", "#8FD48A", "#C792EA", "#5AB8FF", "#F2994A"}
+		h := 0
+		for _, c := range s {
+			h = h*31 + int(c)
+		}
+		if h < 0 {
+			h = -h
+		}
+		return colors[h%len(colors)]
 	},
 }
 
@@ -192,14 +206,20 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /admin/m/{id}", s.auth(http.HandlerFunc(s.handleAdminMachine)))
 	// CRUD de productos por máquina (ui-web-v1 §3): crear / editar / eliminar.
 	mux.Handle("POST /admin/m/{id}/products", s.auth(http.HandlerFunc(s.handleCreateProduct)))
+	mux.Handle("POST /admin/m/{id}/refill", s.auth(http.HandlerFunc(s.handleRefill)))
 	mux.Handle("GET /admin/m/{id}/slot/{slot}/edit", s.auth(http.HandlerFunc(s.handleEditSlotForm)))
 	mux.Handle("POST /admin/m/{id}/slot/{slot}", s.auth(http.HandlerFunc(s.handleUpdateSlot)))
 	mux.Handle("POST /admin/m/{id}/slot/{slot}/delete", s.auth(http.HandlerFunc(s.handleDeleteSlot)))
 	mux.Handle("GET /admin/orders", s.auth(http.HandlerFunc(s.handleAdminOrders)))
+	mux.Handle("GET /admin/movements", s.auth(http.HandlerFunc(s.handleAdminMovements)))
 
 	// Raíz → panel.
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin", http.StatusSeeOther)
+	})
+	// Catch-all: cualquier ruta no registrada muestra el 404 con estilo.
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		s.notFound(w, "ruta no encontrada: "+r.URL.Path)
 	})
 	return mux
 }
@@ -208,9 +228,10 @@ func (s *Server) Routes() http.Handler {
 
 // page es el envoltorio que reciben todas las plantillas.
 type page struct {
-	Title string
-	Admin bool // muestra la navegación de administración
-	Data  any
+	Title  string
+	Admin  bool   // muestra la navegación de administración
+	Active string // sección activa del menú lateral: "machines" | "orders"
+	Data   any
 }
 
 // render compone base.html con la plantilla `name` (que define "content").
@@ -308,13 +329,21 @@ func (s *Server) handleMachinePublic(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	m, err := s.st.GetMachine(r.Context(), id)
 	if err != nil {
-		s.notFound(w, "Máquina no encontrada")
+		s.machineNotFound(w, id)
 		return
 	}
 	cat, err := s.st.Catalog(r.Context(), id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	// Al cliente solo se le ofrecen los canales cableados (con motor): un producto
+	// sin motor no dispensa, así que queda oculto de la venta (ADR-017).
+	wired := make([]store.CatalogRow, 0, len(cat))
+	for _, row := range cat {
+		if row.Wired {
+			wired = append(wired, row)
+		}
 	}
 	s.render(w, "machine_public.html", page{
 		Title: "Máquina " + m.ID,
@@ -323,7 +352,8 @@ func (s *Server) handleMachinePublic(w http.ResponseWriter, r *http.Request) {
 			Machine   *store.Machine
 			Catalog   []store.CatalogRow
 			PayerMode bool // pide el nombre de quien paga (ADR-018)
-		}{m, cat, !s.uniqueAmt},
+			AllowSim  bool // muestra el botón dev "Simular pago" (solo con -allow-sim)
+		}{m, wired, !s.uniqueAmt, s.allowSim},
 	})
 }
 
@@ -339,6 +369,9 @@ func (s *Server) buildItems(r *http.Request, cat []store.CatalogRow) ([]dsptoken
 	var orderItems []store.OrderItem
 	var total int64
 	for _, row := range cat {
+		if !row.Wired {
+			continue // canal sin motor: no dispensa → no se puede comprar (ADR-017)
+		}
 		qty, _ := strconv.Atoi(r.FormValue(fmt.Sprintf("qty_%d", row.Slot)))
 		if qty <= 0 {
 			continue
@@ -376,7 +409,7 @@ func pickDesambiguador(base int64, reservados map[int64]bool) (int, bool) {
 func (s *Server) handlePagar(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if _, err := s.st.GetMachine(r.Context(), id); err != nil {
-		s.notFound(w, "Máquina no encontrada")
+		s.machineNotFound(w, id)
 		return
 	}
 	cat, err := s.st.Catalog(r.Context(), id)
@@ -444,7 +477,7 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 	id, jti := r.PathValue("id"), r.PathValue("jti")
 	m, err := s.st.GetMachine(r.Context(), id)
 	if err != nil {
-		s.notFound(w, "Máquina no encontrada")
+		s.machineNotFound(w, id)
 		return
 	}
 	o, err := s.st.GetOrder(r.Context(), jti)
@@ -477,6 +510,14 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 		if secondsLeft < 0 {
 			secondsLeft = 0
 		}
+		totalSecs := int64(s.payWindow / time.Second)
+		if totalSecs <= 0 {
+			totalSecs = 1
+		}
+		payPct := secondsLeft * 100 / totalSecs
+		if payPct > 100 {
+			payPct = 100
+		}
 		s.render(w, "machine_pago.html", page{
 			Title: "Paga tu compra · Máquina " + id,
 			Data: struct {
@@ -488,6 +529,8 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 				Desambiguador int64
 				SecondsLeft   int64
 				MinutesLeft   int64
+				Countdown     string // mm:ss restante
+				PayPct        int64  // % de la ventana que queda (barra)
 			}{
 				Machine:       m,
 				Order:         o,
@@ -497,6 +540,8 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 				Desambiguador: o.UniqueAmount - o.TotalCOP,
 				SecondsLeft:   secondsLeft,
 				MinutesLeft:   (secondsLeft + 59) / 60,
+				Countdown:     fmt.Sprintf("%d:%02d", secondsLeft/60, secondsLeft%60),
+				PayPct:        payPct,
 			},
 		})
 	}
@@ -575,7 +620,7 @@ func (s *Server) handleSimularPago(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PathValue("id")
 	if _, err := s.st.GetMachine(r.Context(), id); err != nil {
-		s.notFound(w, "Máquina no encontrada")
+		s.machineNotFound(w, id)
 		return
 	}
 	if s.priv == nil {
@@ -624,22 +669,52 @@ func (s *Server) handleAdminDashboard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Enriquecemos cada máquina con contadores para las tarjetas del dashboard:
+	// productos cargados, canales con stock bajo (≤3) y agotados (0).
+	type dashMachine struct {
+		store.Machine
+		Products int
+		Low      int
+		Out      int
+	}
+	views := make([]dashMachine, 0, len(machines))
+	for _, m := range machines {
+		cat, err := s.st.Catalog(r.Context(), m.ID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		v := dashMachine{Machine: m, Products: len(cat)}
+		for _, row := range cat {
+			if row.Stock == 0 {
+				v.Out++
+			} else if row.Stock <= 3 {
+				v.Low++
+			}
+		}
+		views = append(views, v)
+	}
 	s.render(w, "admin_dashboard.html", page{
-		Title: "Panel · GRABI",
-		Admin: true,
+		Title:  "Panel · GRABI",
+		Admin:  true,
+		Active: "machines",
 		Data: struct {
-			Machines []store.Machine
-		}{machines},
+			Machines []dashMachine
+		}{views},
 	})
 }
 
 func (s *Server) handleCreateMachine(w http.ResponseWriter, r *http.Request) {
 	id, name, kid := r.FormValue("id"), r.FormValue("name"), r.FormValue("kid")
+	channels, _ := strconv.Atoi(r.FormValue("channels"))
+	if channels <= 0 {
+		channels = 4
+	}
 	if id == "" || name == "" {
 		http.Error(w, "id y nombre son obligatorios", http.StatusBadRequest)
 		return
 	}
-	if err := s.st.CreateMachine(r.Context(), id, name, kid); err != nil {
+	if err := s.st.CreateMachine(r.Context(), id, name, kid, channels); err != nil {
 		http.Error(w, "no se pudo crear la máquina: "+err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -653,7 +728,7 @@ func (s *Server) handleAdminMachine(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	m, err := s.st.GetMachine(r.Context(), id)
 	if err != nil {
-		s.notFound(w, "Máquina no encontrada")
+		s.machineNotFound(w, id)
 		return
 	}
 	cat, err := s.st.Catalog(r.Context(), id)
@@ -661,15 +736,73 @@ func (s *Server) handleAdminMachine(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Vista por canal: 1..channels (más cualquier slot asignado por encima), cada
+	// uno con su producto o marcado como LIBRE. Así el panel dibuja los canales
+	// vacíos con "+ Asignar producto".
+	type chanView struct {
+		Slot     int
+		Assigned bool
+		store.CatalogRow
+	}
+	assigned := make(map[int]store.CatalogRow, len(cat))
+	maxSlot := m.Channels
+	for _, row := range cat {
+		assigned[row.Slot] = row
+		if row.Slot > maxSlot {
+			maxSlot = row.Slot
+		}
+	}
+	channels := make([]chanView, 0, maxSlot)
+	for i := 1; i <= maxSlot; i++ {
+		if row, ok := assigned[i]; ok {
+			channels = append(channels, chanView{Slot: i, Assigned: true, CatalogRow: row})
+		} else if i <= m.Channels {
+			channels = append(channels, chanView{Slot: i})
+		}
+	}
 	s.render(w, "admin_machine.html", page{
-		Title: "Máquina " + m.ID + " · GRABI",
-		Admin: true,
+		Title:  "Máquina " + m.ID + " · GRABI",
+		Admin:  true,
+		Active: "machines",
 		Data: struct {
-			Machine *store.Machine
-			Catalog []store.CatalogRow
-			Flash   string
-		}{m, cat, flashText(r.URL.Query().Get("ok"))},
+			Machine      *store.Machine
+			Channels     []chanView
+			ProductCount int
+			Flash        string
+			FlashErr     string
+		}{m, channels, len(cat), flashText(r.URL.Query().Get("ok")), flashErrText(r.URL.Query().Get("err"))},
 	})
+}
+
+// handleRefill aplica el reabastecimiento manual (ADR-012): por cada slot asignado
+// lee el conteo real (campo slot_<N>) y fija el stock a ese número. Los campos
+// vacíos se ignoran (no se toca ese canal).
+func (s *Server) handleRefill(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.st.GetMachine(r.Context(), id); err != nil {
+		s.machineNotFound(w, id)
+		return
+	}
+	cat, err := s.st.Catalog(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for _, row := range cat {
+		v := r.FormValue(fmt.Sprintf("slot_%d", row.Slot))
+		if v == "" {
+			continue
+		}
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			continue
+		}
+		if err := s.st.SetStock(r.Context(), id, row.Slot, n); err != nil {
+			http.Error(w, "no se pudo guardar el conteo: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	http.Redirect(w, r, "/admin/m/"+id+"?ok=refill", http.StatusSeeOther)
 }
 
 // slotForm son los campos comunes de crear/editar un producto en un slot.
@@ -712,7 +845,7 @@ func parseSlotForm(r *http.Request) (slotForm, error) {
 func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if _, err := s.st.GetMachine(r.Context(), id); err != nil {
-		s.notFound(w, "Máquina no encontrada")
+		s.machineNotFound(w, id)
 		return
 	}
 	f, err := parseSlotForm(r)
@@ -722,7 +855,7 @@ func (s *Server) handleCreateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	// Rechazar si el slot ya está ocupado (evita pisar otro producto sin querer).
 	if _, err := s.st.GetSlot(r.Context(), id, f.Slot); err == nil {
-		http.Error(w, fmt.Sprintf("el slot %d ya tiene un producto; edítalo o elige otro slot", f.Slot), http.StatusConflict)
+		http.Redirect(w, r, "/admin/m/"+id+"?err=slot_taken", http.StatusSeeOther)
 		return
 	}
 	imagePath, err := s.saveImage(r)
@@ -751,7 +884,7 @@ func (s *Server) handleEditSlotForm(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	m, err := s.st.GetMachine(r.Context(), id)
 	if err != nil {
-		s.notFound(w, "Máquina no encontrada")
+		s.machineNotFound(w, id)
 		return
 	}
 	slot, err := strconv.Atoi(r.PathValue("slot"))
@@ -765,8 +898,9 @@ func (s *Server) handleEditSlotForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, "admin_product_edit.html", page{
-		Title: "Editar producto · " + m.ID,
-		Admin: true,
+		Title:  "Editar producto · " + m.ID,
+		Admin:  true,
+		Active: "machines",
 		Data: struct {
 			Machine *store.Machine
 			Row     *store.CatalogRow
@@ -780,7 +914,7 @@ func (s *Server) handleEditSlotForm(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleUpdateSlot(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if _, err := s.st.GetMachine(r.Context(), id); err != nil {
-		s.notFound(w, "Máquina no encontrada")
+		s.machineNotFound(w, id)
 		return
 	}
 	origSlot, err := strconv.Atoi(r.PathValue("slot"))
@@ -801,7 +935,7 @@ func (s *Server) handleUpdateSlot(w http.ResponseWriter, r *http.Request) {
 	// Si cambia de slot, el destino no puede estar ocupado por OTRO producto.
 	if f.Slot != origSlot {
 		if _, err := s.st.GetSlot(r.Context(), id, f.Slot); err == nil {
-			http.Error(w, fmt.Sprintf("el slot %d ya está ocupado; elige otro", f.Slot), http.StatusConflict)
+			http.Redirect(w, r, "/admin/m/"+id+"?err=slot_taken", http.StatusSeeOther)
 			return
 		}
 	}
@@ -901,8 +1035,42 @@ func flashText(code string) string {
 		return "Cambios guardados."
 	case "deleted":
 		return "Producto eliminado del slot."
+	case "refill":
+		return "Conteo de reabastecimiento guardado."
 	default:
 		return ""
+	}
+}
+
+// flashErrText traduce el código de error (?err=) a un aviso rojo legible.
+func flashErrText(code string) string {
+	switch code {
+	case "slot_taken":
+		return "Ese canal ya tiene un producto. Elige otro canal, o edita el que ya está ahí."
+	default:
+		return ""
+	}
+}
+
+// orderPill traduce el estado de la orden a (etiqueta, clase de color) para el pill.
+func orderPill(status string) (string, string) {
+	switch status {
+	case "pending":
+		return "PENDIENTE", "warn"
+	case "paid":
+		return "PAGADA", "info"
+	case "dispensed":
+		return "DISPENSADA", "ok"
+	case "expired":
+		return "EXPIRADA", "muted"
+	case "canceled":
+		return "CANCELADA", "muted"
+	case "ambiguous":
+		return "AMBIGUA · REVISAR", "purple"
+	case "paid_sim":
+		return "SIMULADA", "sim"
+	default:
+		return strings.ToUpper(status), "muted"
 	}
 }
 
@@ -912,16 +1080,135 @@ func (s *Server) handleAdminOrders(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Resolver el nombre del producto por (máquina, canal), cacheando el catálogo.
+	names := map[string]map[int]string{}
+	nameFor := func(mid string, slot int) string {
+		m, ok := names[mid]
+		if !ok {
+			m = map[int]string{}
+			if cat, err := s.st.Catalog(r.Context(), mid); err == nil {
+				for _, row := range cat {
+					m[row.Slot] = row.ProductName
+				}
+			}
+			names[mid] = m
+		}
+		if n := m[slot]; n != "" {
+			return n
+		}
+		return fmt.Sprintf("Canal %d", slot)
+	}
+	type orderView struct {
+		store.Order
+		Hora     string
+		Products string
+		Pill     string
+		PillCls  string
+	}
+	views := make([]orderView, 0, len(orders))
+	machineSet := map[string]bool{}
+	for _, o := range orders {
+		parts := make([]string, 0, len(o.Items))
+		for _, it := range o.Items {
+			parts = append(parts, fmt.Sprintf("%d× %s", it.Qty, nameFor(o.MachineID, it.Slot)))
+		}
+		label, cls := orderPill(o.Status)
+		views = append(views, orderView{
+			Order:    o,
+			Hora:     time.Unix(o.CreatedAt, 0).In(bogota).Format("15:04"),
+			Products: strings.Join(parts, ", "),
+			Pill:     label,
+			PillCls:  cls,
+		})
+		machineSet[o.MachineID] = true
+	}
+	machines := make([]string, 0, len(machineSet))
+	for id := range machineSet {
+		machines = append(machines, id)
+	}
+	sort.Strings(machines)
 	s.render(w, "admin_orders.html", page{
-		Title: "Órdenes · Dispensadoras",
-		Admin: true,
-		Data:  struct{ Orders []store.Order }{orders},
+		Title:  "Órdenes · GRABI",
+		Admin:  true,
+		Active: "orders",
+		Data: struct {
+			Orders   []orderView
+			Machines []string
+		}{views, machines},
 	})
 }
 
+// movPill traduce el resultado de un abono a (etiqueta, clase de color).
+func movPill(result string) (string, string) {
+	switch result {
+	case store.MovOrphan:
+		return "HUÉRFANO", "warn"
+	case store.MovParseFailed:
+		return "FORMATO-FALLIDO", "out"
+	case store.MovDiscarded:
+		return "DESCARTADO", "muted"
+	case store.MovConflict:
+		return "CONFLICTO", "purple"
+	default:
+		return strings.ToUpper(result), "muted"
+	}
+}
+
+func (s *Server) handleAdminMovements(w http.ResponseWriter, r *http.Request) {
+	movs, err := s.st.ListUnmatchedMovements(r.Context(), 200)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	type movView struct {
+		store.BankMovement
+		Fecha     string
+		Remitente string
+		Pill      string
+		PillCls   string
+	}
+	views := make([]movView, 0, len(movs))
+	for _, m := range movs {
+		ts := m.OccurredAt
+		if ts == 0 {
+			ts = m.ProcessedAt
+		}
+		rem := m.Payer
+		if rem == "" {
+			rem = "(correo ilegible / formato nuevo)"
+		}
+		label, cls := movPill(m.Result)
+		views = append(views, movView{
+			BankMovement: m,
+			Fecha:        time.Unix(ts, 0).In(bogota).Format("02/01 15:04"),
+			Remitente:    rem,
+			Pill:         label,
+			PillCls:      cls,
+		})
+	}
+	s.render(w, "admin_movements.html", page{
+		Title:  "Movimientos · GRABI",
+		Admin:  true,
+		Active: "movements",
+		Data:   struct{ Movements []movView }{views},
+	})
+}
+
+// notFound renderiza la página 404 genérica ("esta página no existe"). msg es
+// opcional (auditoría/logs); la página muestra un texto fijo al usuario.
 func (s *Server) notFound(w http.ResponseWriter, msg string) {
 	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprintf(w, "%s", msg)
+	s.render(w, "notfound.html", page{Title: "No encontrado · GRABI"})
+}
+
+// machineNotFound renderiza la página amable de "máquina no encontrada" con el id
+// que el cliente intentó abrir (ej. QR dañado o máquina fuera de servicio).
+func (s *Server) machineNotFound(w http.ResponseWriter, id string) {
+	w.WriteHeader(http.StatusNotFound)
+	s.render(w, "machine_notfound.html", page{
+		Title: "Máquina no encontrada · GRABI",
+		Data:  struct{ ID string }{id},
+	})
 }
 
 // randomJTI genera un id de orden único (mismo formato que el CLI dsp: "ord_"+

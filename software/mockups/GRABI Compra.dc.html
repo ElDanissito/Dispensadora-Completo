@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=IBM+Plex+Mono:wght@400;500;600;700&amp;family=Archivo:wght@400;600;800;900&amp;display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#1A1D1B; font-family:'Space Grotesk',system-ui,sans-serif; }
+  a { color:#3BE87F; } a:hover { color:#7FF2AC; }
+  input:focus, button:focus-visible { outline:3px solid #3BE87F; outline-offset:2px; }
+  .dir2 input:focus, .dir2 button:focus-visible { outline:3px solid #0B7A3E; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.35 } }
+  @keyframes spin { to { transform:rotate(360deg) } }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important } }
+</style>
+</helmet>
+
+<section style="padding:48px; display:flex; flex-direction:column; gap:40px;">
+  <div style="display:flex; gap:64px; align-items:flex-start;">
+
+    <!-- ============ OPCIÓN 1a — KIOSKO OSCURO / NEÓN INDUSTRIAL ============ -->
+    <div id="1a" style="display:flex; flex-direction:column; gap:20px;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <span style="background:#3BE87F; color:#05130B; font:700 14px 'IBM Plex Mono',monospace; padding:4px 10px; border-radius:4px;">1a</span>
+        <h2 style="margin:0; color:#EAF4EE; font:700 22px 'Space Grotesk',sans-serif;">Kiosko oscuro — neón industrial</h2>
+      </div>
+      <p style="margin:0; max-width:720px; color:#8FA79A; font:400 14px/1.5 'Space Grotesk',sans-serif;">Oscuro tipo hardware de la máquina: números de canal en mono grande (el usuario mira la máquina y la web a la vez), verde solo para acción y dinero, esquinas rectas. Precios y stock en tabular mono para leer en 3 segundos.</p>
+
+      <div style="display:flex; gap:32px; align-items:flex-start;">
+        <!-- MÓVIL 1a -->
+        <div style="width:390px; flex:none; background:#0A0E0C; border:1px solid #26332B; border-radius:20px; overflow:hidden;">
+          <div style="padding:18px 18px 14px; border-bottom:1px solid #26332B; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+            <div>
+              <div style="font:900 24px 'Archivo',sans-serif; letter-spacing:1px; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></div>
+              <div style="font:500 12px 'IBM Plex Mono',monospace; color:#8FA79A; margin-top:2px;">Escanea, paga, agárralo.</div>
+            </div>
+            <div style="text-align:right; font:500 12px/1.5 'IBM Plex Mono',monospace; color:#8FA79A; border:1px solid #26332B; padding:6px 10px; border-radius:6px;">
+              <span style="color:#3BE87F;">M001</span><br>Tienda D1 · Cali
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column;">
+            <sc-for list="{{ itemsA }}" as="p" hint-placeholder-count="4">
+              <div style="display:flex; gap:12px; align-items:center; padding:14px 18px; border-bottom:1px solid #1B241F; opacity:{{ p.cardOp }};">
+                <div style="width:64px; height:64px; flex:none; border-radius:8px; background:{{ p.tile }}; display:flex; align-items:center; justify-content:center; font:700 20px 'Archivo',sans-serif; color:#05130B;">{{ p.abbr }}</div>
+                <div style="flex:1; min-width:0;">
+                  <div style="font:600 11px 'IBM Plex Mono',monospace; color:#3BE87F;">CANAL #{{ p.slot }}</div>
+                  <div style="font:500 15px 'Space Grotesk',sans-serif; color:#EAF4EE; margin:2px 0;">{{ p.name }}</div>
+                  <div style="display:flex; gap:10px; font:500 13px 'IBM Plex Mono',monospace;">
+                    <span style="color:#EAF4EE;">{{ p.priceFmt }}</span>
+                    <span style="color:{{ p.stockColor }};">{{ p.stockLabel }}</span>
+                  </div>
+                </div>
+                <sc-if value="{{ p.out }}" hint-placeholder-val="{{ false }}">
+                  <span style="font:700 11px 'IBM Plex Mono',monospace; color:#FFB454; border:1px solid #FFB454; padding:4px 8px; border-radius:4px;">AGOTADO</span>
+                </sc-if>
+                <sc-if value="{{ p.inStock }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex; align-items:center; gap:0; border:1px solid #26332B; border-radius:8px; overflow:hidden;">
+                    <button aria-label="Quitar uno" onClick="{{ p.dec }}" disabled="{{ p.noDec }}" style="width:44px; height:44px; border:none; background:#121814; color:#EAF4EE; font:700 20px 'IBM Plex Mono',monospace; cursor:pointer; opacity:{{ p.decOp }};">−</button>
+                    <span style="width:34px; text-align:center; font:700 16px 'IBM Plex Mono',monospace; color:{{ p.qtyColor }};">{{ p.qty }}</span>
+                    <button aria-label="Agregar uno" onClick="{{ p.inc }}" disabled="{{ p.noInc }}" style="width:44px; height:44px; border:none; background:#121814; color:#3BE87F; font:700 20px 'IBM Plex Mono',monospace; cursor:pointer; opacity:{{ p.incOp }};">+</button>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="padding:16px 18px 8px;">
+            <label for="name-1a-m" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">NOMBRE DE QUIEN HACE LA TRANSFERENCIA *</label>
+            <input id="name-1a-m" type="text" value="{{ nameA }}" onChange="{{ setNameA }}" placeholder="Ej: Camila Restrepo" style="width:100%; box-sizing:border-box; height:48px; background:#121814; border:1px solid #26332B; border-radius:8px; color:#EAF4EE; font:500 15px 'Space Grotesk',sans-serif; padding:0 14px;">
+            <div style="font:400 11px/1.5 'IBM Plex Mono',monospace; color:#8FA79A; margin-top:6px;">Lo usamos para identificar tu pago Bre-B. Puede pagar otra persona: escribe el nombre del titular que transfiere.</div>
+          </div>
+
+          <div style="margin:12px 18px; border:1px solid #26332B; border-radius:8px; padding:10px 12px; display:flex; gap:10px; align-items:flex-start;">
+            <span style="flex:none; width:8px; height:8px; border-radius:50%; background:#3BE87F; margin-top:5px;"></span>
+            <span style="font:400 12px/1.5 'IBM Plex Mono',monospace; color:#8FA79A;">El QR de retiro aparece <span style="color:#EAF4EE;">solo cuando el banco confirma tu pago</span>. Nunca por pantallazo.</span>
+          </div>
+
+          <!-- barra fija (position:sticky bottom:0 en producción) -->
+          <div style="border-top:1px solid #26332B; background:#0D1210; padding:14px 18px; display:flex; align-items:center; gap:14px;">
+            <div style="flex:1;">
+              <div style="font:500 11px 'IBM Plex Mono',monospace; color:#8FA79A;">TOTAL ({{ countLabelA }})</div>
+              <div style="font:700 24px 'IBM Plex Mono',monospace; color:#EAF4EE;">{{ totalFmtA }}</div>
+            </div>
+            <button disabled="{{ notReadyA }}" style="height:52px; padding:0 22px; border:none; border-radius:8px; background:#3BE87F; color:#05130B; font:700 16px 'Space Grotesk',sans-serif; cursor:pointer; opacity:{{ ctaOpA }};">Pagar con Bre-B →</button>
+          </div>
+        </div>
+
+        <!-- ESCRITORIO 1a -->
+        <div style="width:1280px; flex:none; background:#0A0E0C; border:1px solid #26332B; border-radius:16px; overflow:hidden;">
+          <div style="padding:20px 32px; border-bottom:1px solid #26332B; display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:baseline; gap:16px;">
+              <span style="font:900 28px 'Archivo',sans-serif; letter-spacing:1px; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></span>
+              <span style="font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A;">Escanea, paga, agárralo.</span>
+            </div>
+            <div style="font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A;">Máquina <span style="color:#3BE87F;">M001</span> · Tienda D1 · Cali</div>
+          </div>
+          <div style="display:flex; gap:0;">
+            <div style="flex:1; padding:28px 32px; display:grid; grid-template-columns:1fr 1fr; gap:16px; align-content:start;">
+              <sc-for list="{{ itemsA }}" as="p" hint-placeholder-count="4">
+                <div style="border:1px solid #26332B; border-radius:12px; background:#0D1210; padding:18px; display:flex; flex-direction:column; gap:12px; opacity:{{ p.cardOp }};">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div style="width:88px; height:88px; border-radius:10px; background:{{ p.tile }}; display:flex; align-items:center; justify-content:center; font:700 26px 'Archivo',sans-serif; color:#05130B;">{{ p.abbr }}</div>
+                    <span style="font:700 13px 'IBM Plex Mono',monospace; color:#3BE87F; border:1px solid #26332B; padding:4px 8px; border-radius:6px;">#{{ p.slot }}</span>
+                  </div>
+                  <div>
+                    <div style="font:500 17px 'Space Grotesk',sans-serif; color:#EAF4EE;">{{ p.name }}</div>
+                    <div style="display:flex; gap:12px; margin-top:4px; font:500 14px 'IBM Plex Mono',monospace;">
+                      <span style="color:#EAF4EE;">{{ p.priceFmt }}</span>
+                      <span style="color:{{ p.stockColor }};">{{ p.stockLabel }}</span>
+                    </div>
+                  </div>
+                  <sc-if value="{{ p.out }}" hint-placeholder-val="{{ false }}">
+                    <div style="font:700 12px 'IBM Plex Mono',monospace; color:#FFB454; border:1px solid #FFB454; padding:10px; border-radius:8px; text-align:center;">AGOTADO — pronto reponemos</div>
+                  </sc-if>
+                  <sc-if value="{{ p.inStock }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex; align-items:center; justify-content:space-between; border:1px solid #26332B; border-radius:8px; overflow:hidden;">
+                      <button aria-label="Quitar uno" onClick="{{ p.dec }}" disabled="{{ p.noDec }}" style="width:52px; height:44px; border:none; background:#121814; color:#EAF4EE; font:700 20px 'IBM Plex Mono',monospace; cursor:pointer; opacity:{{ p.decOp }};">−</button>
+                      <span style="font:700 17px 'IBM Plex Mono',monospace; color:{{ p.qtyColor }};">{{ p.qty }}</span>
+                      <button aria-label="Agregar uno" onClick="{{ p.inc }}" disabled="{{ p.noInc }}" style="width:52px; height:44px; border:none; background:#121814; color:#3BE87F; font:700 20px 'IBM Plex Mono',monospace; cursor:pointer; opacity:{{ p.incOp }};">+</button>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="width:380px; flex:none; border-left:1px solid #26332B; padding:28px; display:flex; flex-direction:column; gap:18px; background:#0D1210;">
+              <div style="font:700 15px 'Space Grotesk',sans-serif; color:#EAF4EE;">Tu pedido</div>
+              <sc-if value="{{ emptyA }}" hint-placeholder-val="{{ true }}">
+                <div style="border:1px dashed #26332B; border-radius:8px; padding:18px; font:400 13px/1.5 'IBM Plex Mono',monospace; color:#8FA79A; text-align:center;">Aún no has elegido productos</div>
+              </sc-if>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <sc-for list="{{ selA }}" as="s" hint-placeholder-count="0">
+                  <div style="display:flex; justify-content:space-between; font:500 14px 'IBM Plex Mono',monospace; color:#EAF4EE;">
+                    <span style="color:#8FA79A;">{{ s.qty }}× <span style="color:#EAF4EE;">{{ s.name }}</span></span>
+                    <span>{{ s.subFmt }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div>
+                <label for="name-1a-d" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">NOMBRE DE QUIEN TRANSFIERE *</label>
+                <input id="name-1a-d" type="text" value="{{ nameA }}" onChange="{{ setNameA }}" placeholder="Ej: Camila Restrepo" style="width:100%; box-sizing:border-box; height:46px; background:#0A0E0C; border:1px solid #26332B; border-radius:8px; color:#EAF4EE; font:500 14px 'Space Grotesk',sans-serif; padding:0 12px;">
+              </div>
+              <div style="border-top:1px solid #26332B; padding-top:14px; display:flex; justify-content:space-between; align-items:baseline;">
+                <span style="font:500 12px 'IBM Plex Mono',monospace; color:#8FA79A;">TOTAL</span>
+                <span style="font:700 28px 'IBM Plex Mono',monospace; color:#EAF4EE;">{{ totalFmtA }}</span>
+              </div>
+              <button disabled="{{ notReadyA }}" style="height:54px; border:none; border-radius:8px; background:#3BE87F; color:#05130B; font:700 16px 'Space Grotesk',sans-serif; cursor:pointer; opacity:{{ ctaOpA }};">Pagar con Bre-B →</button>
+              <div style="font:400 12px/1.6 'IBM Plex Mono',monospace; color:#8FA79A;"><span style="color:#3BE87F;">●</span> El QR de retiro aparece solo cuando el banco confirma tu pago. Nunca por pantallazo.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BONUS 1a -->
+      <div style="display:flex; gap:32px; align-items:flex-start;">
+        <div style="width:390px; flex:none; background:#0A0E0C; border:1px solid #26332B; border-radius:20px; overflow:hidden;">
+          <div style="padding:18px; border-bottom:1px solid #26332B; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font:900 20px 'Archivo',sans-serif; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></span>
+            <span style="font:500 12px 'IBM Plex Mono',monospace; color:#8FA79A;">M001 · Cali</span>
+          </div>
+          <div style="padding:28px 22px; display:flex; flex-direction:column; gap:20px; align-items:center; text-align:center;">
+            <div style="width:44px; height:44px; border-radius:50%; border:3px solid #26332B; border-top-color:#3BE87F; animation:spin 1s linear infinite;"></div>
+            <div>
+              <div style="font:700 20px 'Space Grotesk',sans-serif; color:#EAF4EE;">Esperando tu pago…</div>
+              <div style="font:400 13px/1.5 'IBM Plex Mono',monospace; color:#8FA79A; margin-top:6px;">Verificamos automáticamente cada 5 segundos. No cierres esta página.</div>
+            </div>
+            <div style="width:100%; border:1px solid #26332B; border-radius:12px; padding:18px; background:#0D1210;">
+              <div style="font:500 11px 'IBM Plex Mono',monospace; color:#8FA79A;">TRANSFIERE EXACTAMENTE</div>
+              <div style="font:700 36px 'IBM Plex Mono',monospace; color:#3BE87F; margin:4px 0 14px;">$8.000</div>
+              <div style="font:500 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">LLAVE BRE-B DE LA MÁQUINA</div>
+              <div style="display:flex; gap:8px;">
+                <div style="flex:1; border:1px solid #26332B; border-radius:8px; height:46px; display:flex; align-items:center; justify-content:center; font:600 15px 'IBM Plex Mono',monospace; color:#EAF4EE;">@grabi.m001</div>
+                <button onClick="{{ copyKey }}" style="height:46px; padding:0 16px; border:1px solid #3BE87F; border-radius:8px; background:transparent; color:#3BE87F; font:700 13px 'IBM Plex Mono',monospace; cursor:pointer;">{{ copyLabel }}</button>
+              </div>
+            </div>
+            <div style="width:100%;">
+              <div style="display:flex; justify-content:space-between; font:500 12px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">
+                <span>Tiempo para pagar</span><span style="color:#EAF4EE;">{{ countdown }}</span>
+              </div>
+              <div style="height:6px; background:#1B241F; border-radius:3px; overflow:hidden;"><div style="height:100%; width:{{ pct }}; background:#3BE87F;"></div></div>
+            </div>
+            <div style="font:400 12px/1.6 'IBM Plex Mono',monospace; color:#8FA79A;">A nombre de: <span style="color:#EAF4EE;">{{ payerName }}</span></div>
+          </div>
+        </div>
+
+        <div style="width:390px; flex:none; background:#0A0E0C; border:1px solid #3BE87F; border-radius:20px; overflow:hidden;">
+          <div style="padding:18px; border-bottom:1px solid #26332B; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font:900 20px 'Archivo',sans-serif; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></span>
+            <span style="font:700 12px 'IBM Plex Mono',monospace; color:#05130B; background:#3BE87F; padding:4px 10px; border-radius:4px;">PAGO CONFIRMADO</span>
+          </div>
+          <div style="padding:26px 22px; display:flex; flex-direction:column; gap:16px; align-items:center; text-align:center;">
+            <div style="font:700 22px 'Space Grotesk',sans-serif; color:#EAF4EE;">Tu QR está listo</div>
+            <div style="background:#FFFFFF; border-radius:12px; padding:16px;">{{ qrEl }}</div>
+            <div style="display:flex; gap:20px; font:500 13px 'IBM Plex Mono',monospace;">
+              <span style="color:#8FA79A;">Total <span style="color:#EAF4EE;">$8.000</span></span>
+              <span style="color:#8FA79A;">Expira en <span style="color:#FFB454;">{{ countdown }}</span></span>
+            </div>
+            <div style="width:100%; border:1px solid #26332B; border-radius:10px; padding:14px; font:500 14px/1.6 'Space Grotesk',sans-serif; color:#EAF4EE;">Acércalo al <span style="color:#3BE87F;">lector de la máquina</span> y agarra tu producto.</div>
+            <div style="font:400 11px/1.6 'IBM Plex Mono',monospace; color:#8FA79A;">Este QR está firmado y se generó porque tu pago entró al banco. Es de un solo uso.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ OPCIÓN 1b — TIQUETE / BODEGA LUMINOSA ============ -->
+    <div id="1b" class="dir2" style="display:flex; flex-direction:column; gap:20px;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <span style="background:#0B7A3E; color:#FFFFFF; font:700 14px 'IBM Plex Mono',monospace; padding:4px 10px; border-radius:4px;">1b</span>
+        <h2 style="margin:0; color:#EAF4EE; font:700 22px 'Space Grotesk',sans-serif;">Tiquete — bodega luminosa</h2>
+      </div>
+      <p style="margin:0; max-width:720px; color:#8FA79A; font:400 14px/1.5 'Space Grotesk',sans-serif;">Papel claro tipo recibo térmico: bordes de tinta duros, sombras sólidas, separadores punteados. Máxima legibilidad a pleno sol frente a la máquina y estética de "comprobante" que da confianza en el pago. Cero gradientes.</p>
+
+      <div style="display:flex; gap:32px; align-items:flex-start;">
+        <!-- MÓVIL 1b -->
+        <div style="width:390px; flex:none; background:#F3F0E8; border:2px solid #17170F; border-radius:18px; overflow:hidden;">
+          <div style="padding:18px; border-bottom:2px solid #17170F; display:flex; justify-content:space-between; align-items:center; background:#FFFFFF;">
+            <div>
+              <div style="font:900 24px 'Archivo',sans-serif; letter-spacing:1px; color:#17170F;">GRABI<span style="color:#0B7A3E;">.</span></div>
+              <div style="font:500 11px 'IBM Plex Mono',monospace; color:#5A5A4E; margin-top:2px;">ESCANEA · PAGA · AGÁRRALO</div>
+            </div>
+            <div style="text-align:right; font:600 12px/1.5 'IBM Plex Mono',monospace; color:#17170F; background:#F3F0E8; border:1.5px solid #17170F; padding:6px 10px;">
+              M001<br><span style="font-weight:400; color:#5A5A4E;">Tienda D1 · Cali</span>
+            </div>
+          </div>
+
+          <div style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+            <sc-for list="{{ itemsB }}" as="p" hint-placeholder-count="4">
+              <div style="background:#FFFFFF; border:1.5px solid #17170F; box-shadow:4px 4px 0 #17170F; padding:12px; display:flex; gap:12px; align-items:center; opacity:{{ p.cardOp }};">
+                <div style="width:60px; height:60px; flex:none; background:{{ p.tile }}; border:1.5px solid #17170F; display:flex; align-items:center; justify-content:center; font:800 18px 'Archivo',sans-serif; color:#17170F;">{{ p.abbr }}</div>
+                <div style="flex:1; min-width:0;">
+                  <div style="font:700 10px 'IBM Plex Mono',monospace; color:#0B7A3E;">CANAL #{{ p.slot }}</div>
+                  <div style="font:800 14px 'Archivo',sans-serif; color:#17170F; margin:2px 0; text-transform:uppercase;">{{ p.name }}</div>
+                  <div style="display:flex; gap:10px; font:600 13px 'IBM Plex Mono',monospace;">
+                    <span style="color:#17170F;">{{ p.priceFmt }}</span>
+                    <span style="color:{{ p.stockColorB }};">{{ p.stockLabel }}</span>
+                  </div>
+                </div>
+                <sc-if value="{{ p.out }}" hint-placeholder-val="{{ false }}">
+                  <span style="font:700 10px 'IBM Plex Mono',monospace; color:#FFFFFF; background:#17170F; padding:5px 8px;">AGOTADO</span>
+                </sc-if>
+                <sc-if value="{{ p.inStock }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex; border:1.5px solid #17170F;">
+                    <button aria-label="Quitar uno" onClick="{{ p.dec }}" disabled="{{ p.noDec }}" style="width:44px; height:44px; border:none; border-right:1.5px solid #17170F; background:#FFFFFF; color:#17170F; font:700 18px 'IBM Plex Mono',monospace; cursor:pointer; opacity:{{ p.decOp }};">−</button>
+                    <span style="width:32px; display:flex; align-items:center; justify-content:center; font:700 15px 'IBM Plex Mono',monospace; background:{{ p.qtyBgB }}; color:{{ p.qtyFgB }};">{{ p.qty }}</span>
+                    <button aria-label="Agregar uno" onClick="{{ p.inc }}" disabled="{{ p.noInc }}" style="width:44px; height:44px; border:none; border-left:1.5px solid #17170F; background:#FFFFFF; color:#0B7A3E; font:700 18px 'IBM Plex Mono',monospace; cursor:pointer; opacity:{{ p.incOp }};">+</button>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+
+            <div style="border-top:2px dashed #17170F; padding-top:14px;">
+              <label for="name-1b-m" style="display:block; font:700 11px 'IBM Plex Mono',monospace; color:#17170F; margin-bottom:6px;">NOMBRE DE QUIEN HACE LA TRANSFERENCIA *</label>
+              <input id="name-1b-m" type="text" value="{{ nameB }}" onChange="{{ setNameB }}" placeholder="Ej: Camila Restrepo" style="width:100%; box-sizing:border-box; height:48px; background:#FFFFFF; border:1.5px solid #17170F; color:#17170F; font:500 15px 'Space Grotesk',sans-serif; padding:0 14px;">
+              <div style="font:400 11px/1.5 'IBM Plex Mono',monospace; color:#5A5A4E; margin-top:6px;">Sirve para identificar tu pago Bre-B. Si paga otra persona, escribe el nombre de esa persona.</div>
+            </div>
+
+            <div style="background:#FFFFFF; border:1.5px solid #17170F; padding:10px 12px; font:500 12px/1.5 'IBM Plex Mono',monospace; color:#17170F;">✓ El QR de retiro sale <strong>solo cuando el banco confirma el pago</strong>. Nunca por pantallazo.</div>
+          </div>
+
+          <div style="border-top:2px solid #17170F; background:#FFFFFF; padding:14px 16px; display:flex; align-items:center; gap:14px;">
+            <div style="flex:1;">
+              <div style="font:700 10px 'IBM Plex Mono',monospace; color:#5A5A4E;">TOTAL ({{ countLabelB }})</div>
+              <div style="font:700 24px 'IBM Plex Mono',monospace; color:#17170F;">{{ totalFmtB }}</div>
+            </div>
+            <button disabled="{{ notReadyB }}" style="height:52px; padding:0 20px; border:1.5px solid #17170F; background:#0B7A3E; box-shadow:3px 3px 0 #17170F; color:#FFFFFF; font:800 15px 'Archivo',sans-serif; cursor:pointer; opacity:{{ ctaOpB }};">PAGAR CON BRE-B →</button>
+          </div>
+        </div>
+
+        <!-- ESCRITORIO 1b -->
+        <div style="width:1280px; flex:none; background:#F3F0E8; border:2px solid #17170F; border-radius:14px; overflow:hidden;">
+          <div style="padding:20px 32px; border-bottom:2px solid #17170F; background:#FFFFFF; display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:baseline; gap:16px;">
+              <span style="font:900 28px 'Archivo',sans-serif; color:#17170F;">GRABI<span style="color:#0B7A3E;">.</span></span>
+              <span style="font:500 12px 'IBM Plex Mono',monospace; color:#5A5A4E;">ESCANEA · PAGA · AGÁRRALO</span>
+            </div>
+            <div style="font:600 13px 'IBM Plex Mono',monospace; color:#17170F;">MÁQUINA M001 · TIENDA D1 · CALI</div>
+          </div>
+          <div style="display:flex;">
+            <div style="flex:1; padding:28px 32px; display:grid; grid-template-columns:1fr 1fr; gap:20px; align-content:start;">
+              <sc-for list="{{ itemsB }}" as="p" hint-placeholder-count="4">
+                <div style="background:#FFFFFF; border:1.5px solid #17170F; box-shadow:5px 5px 0 #17170F; padding:18px; display:flex; flex-direction:column; gap:12px; opacity:{{ p.cardOp }};">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div style="width:84px; height:84px; background:{{ p.tile }}; border:1.5px solid #17170F; display:flex; align-items:center; justify-content:center; font:800 24px 'Archivo',sans-serif; color:#17170F;">{{ p.abbr }}</div>
+                    <span style="font:700 12px 'IBM Plex Mono',monospace; color:#FFFFFF; background:#17170F; padding:4px 8px;">#{{ p.slot }}</span>
+                  </div>
+                  <div>
+                    <div style="font:800 16px 'Archivo',sans-serif; color:#17170F; text-transform:uppercase;">{{ p.name }}</div>
+                    <div style="display:flex; gap:12px; margin-top:4px; font:600 14px 'IBM Plex Mono',monospace;">
+                      <span style="color:#17170F;">{{ p.priceFmt }}</span>
+                      <span style="color:{{ p.stockColorB }};">{{ p.stockLabel }}</span>
+                    </div>
+                  </div>
+                  <sc-if value="{{ p.out }}" hint-placeholder-val="{{ false }}">
+                    <div style="font:700 12px 'IBM Plex Mono',monospace; color:#FFFFFF; background:#17170F; padding:11px; text-align:center;">AGOTADO — PRONTO REPONEMOS</div>
+                  </sc-if>
+                  <sc-if value="{{ p.inStock }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex; border:1.5px solid #17170F;">
+                      <button aria-label="Quitar uno" onClick="{{ p.dec }}" disabled="{{ p.noDec }}" style="flex:1; height:44px; border:none; border-right:1.5px solid #17170F; background:#FFFFFF; color:#17170F; font:700 18px 'IBM Plex Mono',monospace; cursor:pointer; opacity:{{ p.decOp }};">−</button>
+                      <span style="width:56px; display:flex; align-items:center; justify-content:center; font:700 16px 'IBM Plex Mono',monospace; background:{{ p.qtyBgB }}; color:{{ p.qtyFgB }};">{{ p.qty }}</span>
+                      <button aria-label="Agregar uno" onClick="{{ p.inc }}" disabled="{{ p.noInc }}" style="flex:1; height:44px; border:none; border-left:1.5px solid #17170F; background:#FFFFFF; color:#0B7A3E; font:700 18px 'IBM Plex Mono',monospace; cursor:pointer; opacity:{{ p.incOp }};">+</button>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="width:380px; flex:none; border-left:2px solid #17170F; padding:28px; background:#FFFFFF; display:flex; flex-direction:column; gap:18px;">
+              <div style="font:800 16px 'Archivo',sans-serif; color:#17170F; text-transform:uppercase; border-bottom:2px dashed #17170F; padding-bottom:10px;">Tu pedido</div>
+              <sc-if value="{{ emptyB }}" hint-placeholder-val="{{ true }}">
+                <div style="border:1.5px dashed #17170F; padding:18px; font:400 13px/1.5 'IBM Plex Mono',monospace; color:#5A5A4E; text-align:center;">Aún no has elegido productos</div>
+              </sc-if>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <sc-for list="{{ selB }}" as="s" hint-placeholder-count="0">
+                  <div style="display:flex; justify-content:space-between; font:600 14px 'IBM Plex Mono',monospace; color:#17170F;">
+                    <span><span style="color:#0B7A3E;">{{ s.qty }}×</span> {{ s.name }}</span>
+                    <span>{{ s.subFmt }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div>
+                <label for="name-1b-d" style="display:block; font:700 11px 'IBM Plex Mono',monospace; color:#17170F; margin-bottom:6px;">NOMBRE DE QUIEN TRANSFIERE *</label>
+                <input id="name-1b-d" type="text" value="{{ nameB }}" onChange="{{ setNameB }}" placeholder="Ej: Camila Restrepo" style="width:100%; box-sizing:border-box; height:46px; background:#F3F0E8; border:1.5px solid #17170F; color:#17170F; font:500 14px 'Space Grotesk',sans-serif; padding:0 12px;">
+              </div>
+              <div style="border-top:2px dashed #17170F; padding-top:14px; display:flex; justify-content:space-between; align-items:baseline;">
+                <span style="font:700 12px 'IBM Plex Mono',monospace; color:#5A5A4E;">TOTAL</span>
+                <span style="font:700 28px 'IBM Plex Mono',monospace; color:#17170F;">{{ totalFmtB }}</span>
+              </div>
+              <button disabled="{{ notReadyB }}" style="height:54px; border:1.5px solid #17170F; background:#0B7A3E; box-shadow:4px 4px 0 #17170F; color:#FFFFFF; font:800 16px 'Archivo',sans-serif; cursor:pointer; opacity:{{ ctaOpB }};">PAGAR CON BRE-B →</button>
+              <div style="font:500 12px/1.6 'IBM Plex Mono',monospace; color:#5A5A4E;">✓ El QR de retiro sale solo cuando el banco confirma tu pago. Nunca por pantallazo.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BONUS 1b -->
+      <div style="display:flex; gap:32px; align-items:flex-start;">
+        <div style="width:390px; flex:none; background:#F3F0E8; border:2px solid #17170F; border-radius:18px; overflow:hidden;">
+          <div style="padding:16px 18px; border-bottom:2px solid #17170F; background:#FFFFFF; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font:900 20px 'Archivo',sans-serif; color:#17170F;">GRABI<span style="color:#0B7A3E;">.</span></span>
+            <span style="font:600 12px 'IBM Plex Mono',monospace; color:#5A5A4E;">M001 · CALI</span>
+          </div>
+          <div style="padding:24px 20px; display:flex; flex-direction:column; gap:18px; align-items:center; text-align:center;">
+            <div style="font:700 12px 'IBM Plex Mono',monospace; color:#17170F; animation:pulse 1.6s ease-in-out infinite;">● ESPERANDO PAGO</div>
+            <div style="font:800 22px 'Archivo',sans-serif; color:#17170F; text-transform:uppercase;">Transfiere exactamente</div>
+            <div style="background:#FFFFFF; border:1.5px solid #17170F; box-shadow:4px 4px 0 #17170F; padding:18px 26px;">
+              <div style="font:700 40px 'IBM Plex Mono',monospace; color:#0B7A3E;">$8.000</div>
+            </div>
+            <div style="width:100%; text-align:left; background:#FFFFFF; border:1.5px solid #17170F; padding:14px;">
+              <div style="font:700 10px 'IBM Plex Mono',monospace; color:#5A5A4E; margin-bottom:6px;">LLAVE BRE-B DE LA MÁQUINA</div>
+              <div style="display:flex; gap:8px;">
+                <div style="flex:1; border:1.5px dashed #17170F; height:46px; display:flex; align-items:center; justify-content:center; font:700 15px 'IBM Plex Mono',monospace; color:#17170F;">@grabi.m001</div>
+                <button onClick="{{ copyKey }}" style="height:46px; padding:0 14px; border:1.5px solid #17170F; background:#17170F; color:#FFFFFF; font:700 12px 'IBM Plex Mono',monospace; cursor:pointer;">{{ copyLabel }}</button>
+              </div>
+            </div>
+            <div style="width:100%; display:flex; justify-content:space-between; font:600 12px 'IBM Plex Mono',monospace; color:#17170F;">
+              <span>Verificando cada 5 s…</span><span>Expira en {{ countdown }}</span>
+            </div>
+            <div style="width:100%; height:8px; border:1.5px solid #17170F; background:#FFFFFF;"><div style="height:100%; width:{{ pct }}; background:#0B7A3E;"></div></div>
+            <div style="font:500 12px/1.6 'IBM Plex Mono',monospace; color:#5A5A4E;">A nombre de: <span style="color:#17170F; font-weight:700;">{{ payerName }}</span></div>
+          </div>
+        </div>
+
+        <div style="width:390px; flex:none; background:#F3F0E8; border:2px solid #0B7A3E; border-radius:18px; overflow:hidden;">
+          <div style="padding:16px 18px; border-bottom:2px solid #17170F; background:#0B7A3E; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font:900 20px 'Archivo',sans-serif; color:#FFFFFF;">GRABI.</span>
+            <span style="font:700 11px 'IBM Plex Mono',monospace; color:#0B7A3E; background:#FFFFFF; padding:4px 10px;">✓ PAGO CONFIRMADO</span>
+          </div>
+          <div style="padding:24px 20px; display:flex; flex-direction:column; gap:16px; align-items:center; text-align:center;">
+            <div style="font:800 22px 'Archivo',sans-serif; color:#17170F; text-transform:uppercase;">Tu QR está listo</div>
+            <div style="background:#FFFFFF; border:1.5px solid #17170F; box-shadow:5px 5px 0 #17170F; padding:16px;">{{ qrEl }}</div>
+            <div style="display:flex; gap:20px; font:600 13px 'IBM Plex Mono',monospace; color:#17170F;">
+              <span>TOTAL $8.000</span><span style="color:#0B7A3E;">EXPIRA EN {{ countdown }}</span>
+            </div>
+            <div style="width:100%; background:#FFFFFF; border:1.5px dashed #17170F; padding:12px; font:600 13px/1.6 'Space Grotesk',sans-serif; color:#17170F;">Acércalo al lector de la máquina y agarra tu producto.</div>
+            <div style="font:500 11px/1.6 'IBM Plex Mono',monospace; color:#5A5A4E;">QR firmado, generado al confirmarse tu pago en el banco. Un solo uso.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;jugoAgotado&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Simulación&quot; },
+  &quot;minutosExpira&quot;: { &quot;editor&quot;: &quot;int&quot;, &quot;default&quot;: 10, &quot;min&quot;: 1, &quot;max&quot;: 30, &quot;unit&quot;: &quot;min&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Simulación&quot; }
+}">
+class Component extends DCLogic {
+  state = { qa: {}, qb: {}, nameA: '', nameB: '', secs: 600 };
+
+  componentDidMount() {
+    this._t = setInterval(() => {
+      this.setState(s => ({ secs: Math.max(0, s.secs - 1) }));
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this._t); if (this._c) clearTimeout(this._c); }
+
+  fmt(n) { return '$' + n.toLocaleString('es-CO'); }
+
+  bump(key, id, d, max) {
+    this.setState(s => {
+      const m = Object.assign({}, s[key]);
+      m[id] = Math.min(max, Math.max(0, (m[id] || 0) + d));
+      return { [key]: m };
+    });
+  }
+
+  items(key) {
+    const jugoStock = (this.props.jugoAgotado ?? true) ? 0 : 5;
+    const base = [
+      { id: 'papas', slot: 1, name: 'Papas Margarita', price: 2000, stock: 9, abbr: 'PM', tile: '#F2C94C', tileB: '#F2C94C' },
+      { id: 'coca', slot: 2, name: 'Coca-Cola 400ml', price: 3500, stock: 6, abbr: 'CC', tile: '#EB7A6B', tileB: '#EB7A6B' },
+      { id: 'agua', slot: 3, name: 'Agua Cristal 600ml', price: 2500, stock: 12, abbr: 'AC', tile: '#7FD4E8', tileB: '#7FD4E8' },
+      { id: 'jugo', slot: 4, name: 'Jugo Hit 500ml', price: 3000, stock: jugoStock, abbr: 'JH', tile: '#F2A05A', tileB: '#F2A05A' }
+    ];
+    const dark = key === 'qa';
+    return base.map(p => {
+      const qty = this.state[key][p.id] || 0;
+      const out = p.stock === 0;
+      const low = !out && p.stock <= 6;
+      return Object.assign({}, p, {
+        qty, out, inStock: !out,
+        priceFmt: this.fmt(p.price),
+        stockLabel: out ? 'Agotado' : p.stock + ' disp.',
+        stockColor: out ? '#FFB454' : (low ? '#FFB454' : '#8FA79A'),
+        stockColorB: out ? '#B3541E' : (low ? '#B3541E' : '#5A5A4E'),
+        cardOp: out ? '0.55' : '1',
+        inc: () => this.bump(key, p.id, 1, p.stock),
+        dec: () => this.bump(key, p.id, -1, p.stock),
+        noInc: qty >= p.stock, noDec: qty === 0,
+        incOp: qty >= p.stock ? '0.35' : '1',
+        decOp: qty === 0 ? '0.35' : '1',
+        qtyColor: qty > 0 ? '#3BE87F' : '#8FA79A',
+        qtyBgB: qty > 0 ? '#0B7A3E' : '#FFFFFF',
+        qtyFgB: qty > 0 ? '#FFFFFF' : '#5A5A4E'
+      });
+    });
+  }
+
+  makeQr(size) {
+    const n = 25, cell = size / n;
+    let seed = 42;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const rects = [];
+    const finder = (fx, fy) => {
+      for (let y = 0; y < 7; y++) for (let x = 0; x < 7; x++) {
+        const edge = x === 0 || x === 6 || y === 0 || y === 6;
+        const core = x >= 2 && x <= 4 && y >= 2 && y <= 4;
+        if (edge || core) rects.push([fx + x, fy + y]);
+      }
+    };
+    finder(0, 0); finder(n - 7, 0); finder(0, n - 7);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const inF = (x < 8 && y < 8) || (x >= n - 8 && y < 8) || (x < 8 && y >= n - 8);
+      if (!inF && rnd() > 0.55) rects.push([x, y]);
+    }
+    return React.createElement('svg', { width: size, height: size, viewBox: `0 0 ${size} ${size}`, role: 'img', 'aria-label': 'Código QR de retiro' },
+      rects.map((r, i) => React.createElement('rect', { key: i, x: r[0] * cell, y: r[1] * cell, width: cell + 0.4, height: cell + 0.4, fill: '#111' }))
+    );
+  }
+
+  renderVals() {
+    const itemsA = this.items('qa'), itemsB = this.items('qb');
+    const sum = list => list.reduce((t, p) => t + p.qty * p.price, 0);
+    const cnt = list => list.reduce((t, p) => t + p.qty, 0);
+    const sel = list => list.filter(p => p.qty > 0).map(p => ({ name: p.name, qty: p.qty, subFmt: this.fmt(p.qty * p.price) }));
+    const totalA = sum(itemsA), totalB = sum(itemsB);
+    const cA = cnt(itemsA), cB = cnt(itemsB);
+    const mins = this.props.minutosExpira ?? 10;
+    const total = mins * 60;
+    const secs = Math.min(this.state.secs, total);
+    const mm = Math.floor(secs / 60), ss = String(secs % 60).padStart(2, '0');
+    if (!this._qr) this._qr = this.makeQr(200);
+    return {
+      itemsA, itemsB,
+      selA: sel(itemsA), selB: sel(itemsB),
+      emptyA: cA === 0, emptyB: cB === 0,
+      totalFmtA: this.fmt(totalA), totalFmtB: this.fmt(totalB),
+      countLabelA: cA === 1 ? '1 ítem' : cA + ' ítems',
+      countLabelB: cB === 1 ? '1 ítem' : cB + ' ítems',
+      nameA: this.state.nameA, nameB: this.state.nameB,
+      setNameA: e => this.setState({ nameA: e.target.value }),
+      setNameB: e => this.setState({ nameB: e.target.value }),
+      notReadyA: cA === 0 || !this.state.nameA.trim(),
+      notReadyB: cB === 0 || !this.state.nameB.trim(),
+      ctaOpA: (cA === 0 || !this.state.nameA.trim()) ? '0.4' : '1',
+      ctaOpB: (cB === 0 || !this.state.nameB.trim()) ? '0.4' : '1',
+      countdown: mm + ':' + ss,
+      pct: Math.round(secs / total * 100) + '%',
+      payerName: this.state.nameA.trim() || this.state.nameB.trim() || 'Camila Restrepo',
+      copyLabel: this.state.copied ? '¡Copiada!' : 'Copiar',
+      copyKey: () => {
+        try { navigator.clipboard.writeText('@grabi.m001'); } catch (e) {}
+        this.setState({ copied: true });
+        this._c = setTimeout(() => this.setState({ copied: false }), 1500);
+      },
+      qrEl: this._qr
+    };
+  }
+}
+</script>
+</body>
+</html>

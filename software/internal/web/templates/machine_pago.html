@@ -1,106 +1,59 @@
 {{define "content"}}
-{{/* Auto-refresco sin JS (ADR-011bis): mientras la orden esté PENDIENTE la página
-     se recarga y consulta el estado; al conciliarse el pago, el handler sirve el QR. */}}
+{{/* Auto-refresco sin JS (ADR-011bis): la página se recarga y consulta el estado;
+     al conciliarse el pago, el handler sirve el QR. */}}
 <meta http-equiv="refresh" content="5">
+<div style="max-width:460px; margin:0 auto">
+  {{template "pubtop" .Machine}}
 
-<div class="card">
-  <div class="muted">Máquina {{.Machine.ID}} — {{.Machine.Name}}</div>
-  <h2 style="margin-top:4px">Paga tu compra por Bre-B</h2>
-
-  {{/* Llave Bre-B destacada en verde + copiar (ui-web-v1 §2) */}}
-  <div class="breb">
-    <div class="lbl">Llave Bre-B de destino</div>
-    <div class="copyline">
-      <span class="val" id="brebKey">{{if .BreBKey}}{{.BreBKey}}{{else}}{{.PointOfSale}}{{end}}</span>
-      <button type="button" class="copybtn" data-copy="brebKey">📋 Copiar</button>
+  <div class="stack" style="margin:8px 0 20px">
+    <div class="spinner"></div>
+    <div>
+      <h2 style="font-size:1.35rem; margin:0">Esperando tu pago…</h2>
+      <p class="hint" style="margin-top:6px">Verificamos automáticamente cada 5 segundos. No cierres esta página.</p>
     </div>
-    <div class="hint">Punto de venta: {{.PointOfSale}}</div>
   </div>
 
-  {{/* Monto a transferir, copiable */}}
-  <div class="breb">
-    <div class="lbl">Transfiere exactamente este valor</div>
-    <div class="copyline">
-      <span class="val" id="montoView" data-amount="{{.Order.UniqueAmount}}">{{cop .Order.UniqueAmount}}</span>
-      <button type="button" class="copybtn" data-copy-amount="montoView">📋 Copiar</button>
-    </div>
-    {{if .PayerMode}}
-    <div class="hint">El valor debe ser <strong>exacto</strong> para confirmar tu pago.</div>
+  <div class="breb" style="text-align:center">
+    <div class="lbl">Transfiere exactamente</div>
+    <div class="val big" style="margin:4px 0 6px">{{cop .Order.UniqueAmount}}</div>
+    {{if not .PayerMode}}
+    <div class="hint" style="margin:0 0 14px">Incluye los <strong style="color:var(--accent-2)">{{cop .Desambiguador}}</strong> de verificación: el valor debe ser exacto.</div>
     {{else}}
-    <div class="hint">
-      Producto {{cop .Order.TotalCOP}} + <strong style="color:var(--accent-2)">{{cop .Desambiguador}}</strong>
-      de verificación. El valor debe ser <strong>exacto</strong>, incluidos esos pesos: así confirmamos tu pago.
-    </div>
+    <div style="height:10px"></div>
     {{end}}
+    <div class="lbl">Llave Bre-B de la máquina</div>
+    <div style="display:flex; gap:8px; margin-top:6px">
+      <div id="brebKey" style="flex:1; border:1px solid var(--line); border-radius:var(--r-sm); padding:12px; font-family:var(--mono); font-weight:600; color:var(--fg)">{{if .BreBKey}}{{.BreBKey}}{{else}}{{.PointOfSale}}{{end}}</div>
+      <button type="button" class="copybtn" data-copy="brebKey">Copiar</button>
+    </div>
+  </div>
+
+  <div style="margin:2px 2px 6px">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+      <span class="hint" style="margin:0">Tiempo para pagar</span>
+      <span class="price" style="color:var(--fg)">{{.Countdown}}</span>
+    </div>
+    <div class="progress"><i style="width:{{.PayPct}}%"></i></div>
   </div>
 
   {{if .PayerMode}}
-  {{/* Nombre del pagador declarado: la transferencia debe venir de este nombre */}}
-  <div class="breb">
-    <div class="lbl">La transferencia debe venir a nombre de</div>
-    <div class="val" style="font-size:1.2rem">{{.Order.PayerName}}</div>
-    <div class="hint">Confirmamos tu pago cruzando este nombre con el de quien transfiere. Si no coincide, no podremos entregarte el QR automáticamente.</div>
-  </div>
+  <div class="hint" style="text-align:center; margin-top:16px">A nombre de: <strong style="color:var(--fg)">{{.Order.PayerName}}</strong></div>
   {{end}}
 
-  <ol class="steps">
-    <li>Copia la <strong>llave Bre-B</strong> y pégala en tu app del banco.</li>
-    <li>Transfiere el <strong>monto exacto</strong>{{if .PayerMode}} desde la cuenta de <strong>{{.Order.PayerName}}</strong>{{end}}.</li>
-    <li>Espera unos segundos: el <strong>QR</strong> aparecerá aquí para mostrarlo a la máquina.</li>
-  </ol>
-
-  <div class="row" style="margin-top:6px">
-    <div class="muted">Tiempo para pagar</div>
-    <div class="muted">~{{.MinutesLeft}} min</div>
-  </div>
-</div>
-
-<div class="card">
-  <h2>Tu selección</h2>
-  {{range .Order.Items}}
-  <div class="row">
-    <div>Slot {{.Slot}} · {{.Qty}} u.</div>
-    <div class="price">{{cop .PriceCOP}} c/u</div>
+  {{if le .SecondsLeft 0}}
+  <div class="card" style="text-align:center; margin-top:16px">
+    <div class="muted">La ventana de pago venció.</div>
+    <a class="link" href="/m/{{.Machine.ID}}">← Volver a intentar</a>
   </div>
   {{end}}
 </div>
-
-<div class="note">
-  <strong>Esperando tu pago…</strong> No cierres esta pantalla; se actualizará sola en cuanto entre el pago.
-  Nunca te pediremos captura del comprobante: confirmamos con la notificación real de la cuenta.
-</div>
-
-{{if le .SecondsLeft 0}}
-<div class="card" style="text-align:center">
-  <div class="muted">La ventana de pago venció.</div>
-  <a class="link" href="/m/{{.Machine.ID}}">← Volver a intentar</a>
-</div>
-{{end}}
 
 <script>
 (function(){
-  function flash(btn){
-    var old=btn.textContent;
-    btn.classList.add('copied'); btn.textContent='✓ ¡Copiado!';
-    setTimeout(function(){ btn.classList.remove('copied'); btn.textContent=old; }, 1500);
-  }
-  function copy(text, btn){
-    if(navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text).then(function(){ flash(btn); }).catch(function(){ legacy(text,btn); });
-    } else { legacy(text,btn); }
-  }
-  function legacy(text, btn){
-    var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
-    document.body.appendChild(ta); ta.select();
-    try{ document.execCommand('copy'); flash(btn); }catch(e){}
-    document.body.removeChild(ta);
-  }
-  document.querySelectorAll('[data-copy]').forEach(function(btn){
-    btn.addEventListener('click', function(){ copy(document.getElementById(btn.dataset.copy).textContent.trim(), btn); });
-  });
-  document.querySelectorAll('[data-copy-amount]').forEach(function(btn){
-    btn.addEventListener('click', function(){ copy(document.getElementById(btn.dataset.copyAmount).dataset.amount, btn); });
-  });
+  function flash(btn){ var old=btn.textContent; btn.classList.add('copied'); btn.textContent='¡Copiado!'; setTimeout(function(){ btn.classList.remove('copied'); btn.textContent=old; },1500); }
+  function copy(text, btn){ if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(function(){flash(btn);}).catch(function(){legacy(text,btn);}); } else { legacy(text,btn); } }
+  function legacy(text, btn){ var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy'); flash(btn);}catch(e){} document.body.removeChild(ta); }
+  document.querySelectorAll('[data-copy]').forEach(function(btn){ btn.addEventListener('click', function(){ copy(document.getElementById(btn.dataset.copy).textContent.trim(), btn); }); });
 })();
 </script>
 {{end}}

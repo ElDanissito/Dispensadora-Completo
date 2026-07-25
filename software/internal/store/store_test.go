@@ -29,7 +29,7 @@ func TestMachineAndCatalog(t *testing.T) {
 	ctx := context.Background()
 	st := openTemp(t)
 
-	if err := st.CreateMachine(ctx, "M001", "Cafetería Cali", "k1"); err != nil {
+	if err := st.CreateMachine(ctx, "M001", "Cafetería Cali", "k1", 4); err != nil {
 		t.Fatalf("CreateMachine: %v", err)
 	}
 	m, err := st.GetMachine(ctx, "M001")
@@ -67,7 +67,7 @@ func TestMachineAndCatalog(t *testing.T) {
 func TestCreateAndListOrders(t *testing.T) {
 	ctx := context.Background()
 	st := openTemp(t)
-	if err := st.CreateMachine(ctx, "M001", "Demo", "k1"); err != nil {
+	if err := st.CreateMachine(ctx, "M001", "Demo", "k1", 4); err != nil {
 		t.Fatal(err)
 	}
 

@@ -1,73 +1,75 @@
 {{define "content"}}
-<div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-  <div>
-    <div class="muted">Máquina {{.Machine.ID}}</div>
-    <h2 style="margin:4px 0 0">{{.Machine.Name}}</h2>
-  </div>
-  {{if not .Machine.Active}}<span class="badge out">fuera de servicio</span>{{end}}
-</div>
+{{template "pubtop" .Machine}}
+{{if not .Machine.Active}}<div style="margin-bottom:14px"><span class="badge out">fuera de servicio</span></div>{{end}}
 
 {{if .Catalog}}
-<form method="post" action="/m/{{.Machine.ID}}/pagar" id="buyForm">
-  <div class="grid" style="margin-bottom:16px">
+<form method="post" action="/m/{{.Machine.ID}}/pagar" id="buyForm" class="shop">
+  <div class="plist">
     {{range .Catalog}}
-    <div class="cell{{if le .Stock 0}} out{{end}}" data-slot="{{.Slot}}" data-price="{{.PriceCOP}}" data-name="{{.ProductName}}">
+    <div class="pcard{{if le .Stock 0}} out{{end}}" data-slot="{{.Slot}}" data-price="{{.PriceCOP}}" data-name="{{.ProductName}}">
       <div class="imgwrap">
-        <span class="slotchip">#{{.Slot}}</span>
-        {{if .ImagePath}}
-          <img src="{{.ImagePath}}" alt="{{.ProductName}}" loading="lazy">
-        {{else}}
-          <span class="img-ph" aria-hidden="true">🍫</span>
-        {{end}}
+        {{if .ImagePath}}<img src="{{.ImagePath}}" alt="{{.ProductName}}" loading="lazy">{{else}}<span class="ph" style="background:{{tint .ProductName}}">{{printf "%.2s" .ProductName}}</span>{{end}}
       </div>
-      <div class="pname">{{.ProductName}}</div>
-      <div class="pmeta">
-        <span class="price">{{cop .PriceCOP}}</span>
-        {{if gt .Stock 0}}<span class="badge ok">{{.Stock}} disp.</span>{{else}}<span class="badge out">agotado</span>{{end}}
+      <span class="slotchip">#{{.Slot}}</span>
+      <div class="body">
+        <div class="slot">CANAL #{{.Slot}}</div>
+        <div class="pname">{{.ProductName}}</div>
+        <div class="meta">
+          <span class="price">{{cop .PriceCOP}}</span>
+          {{if gt .Stock 0}}<span class="st{{if le .Stock 6}} low{{end}}">{{.Stock}} disp.</span>{{else}}<span class="st low">agotado</span>{{end}}
+        </div>
       </div>
       {{if gt .Stock 0}}
       <input type="hidden" name="qty_{{.Slot}}" value="0" data-qty="{{.Slot}}">
-      <div class="qty" data-max="{{.Stock}}">
-        <button type="button" class="minus" aria-label="Quitar uno de {{.ProductName}}">−</button>
-        <span class="val" data-val>0</span>
+      <div class="stepper" data-max="{{.Stock}}">
+        <button type="button" class="minus" aria-label="Quitar uno de {{.ProductName}}" disabled>−</button>
+        <span class="v" data-val>0</span>
         <button type="button" class="plus" aria-label="Añadir uno de {{.ProductName}}">+</button>
       </div>
       {{else}}
-      <div class="soldout">Agotado</div>
+      <span class="soldout">AGOTADO<span class="so-extra"> — pronto reponemos</span></span>
       {{end}}
     </div>
     {{end}}
   </div>
 
-  <div class="note">
-    <strong>¿Cómo compro?</strong> Toca <strong>+</strong> en los productos que quieras y pulsa
-    <strong>Pagar con Bre-B</strong>. Verás <strong>cuánto</strong> y a qué <strong>llave</strong> transferir.
-    En cuanto entre el pago, aparece el <strong>QR</strong> para mostrarlo al lector de la máquina.
-  </div>
+  <aside class="rail">
+    <div class="rtitle">Tu pedido</div>
+    <div class="summary">
+      <div id="sumList"><div class="sempty">Aún no has elegido productos.</div></div>
+    </div>
 
-  {{if .PayerMode}}
-  <div class="card">
-    <label for="payer_name" style="font-size:.95rem;color:var(--fg);margin-bottom:6px">
-      Nombre de quien hace la transferencia
-    </label>
-    <input id="payer_name" name="payer_name" required autocomplete="name"
-           placeholder="Como aparece en tu banco" style="width:100%">
-    <div class="hint">Lo usamos para confirmar <strong>tu</strong> pago por Bre-B. Puede ser quien te presta el celular o paga por ti.</div>
-  </div>
-  {{end}}
+    {{if .PayerMode}}
+    <div class="payer">
+      <label for="payer_name">Nombre de quien transfiere</label>
+      <input id="payer_name" name="payer_name" required autocomplete="name" placeholder="Ej: Camila Restrepo">
+      <div class="hint">Lo usamos para confirmar <strong>tu</strong> pago por Bre-B. Puede pagar otra persona: escribe el nombre del titular que transfiere.</div>
+    </div>
+    {{end}}
 
-  <div style="height:96px" aria-hidden="true"></div>{{/* espacio para la barra fija */}}
+    <div class="stotal"><span class="lbl">Total</span><span class="big" id="sumTotal">$0</span></div>
+    <button type="submit" class="btn-pay desktop-only" id="payDesktop" disabled>Pagar con Bre-B →</button>
 
-  <div class="cartbar">
-    <div class="cartbar-inner">
+    <div class="note">
+      El <b>QR</b> de retiro aparece <b>solo cuando el banco confirma tu pago</b>. Nunca por pantallazo.
+    </div>
+
+    {{if .AllowSim}}
+    <button type="submit" formaction="/m/{{.Machine.ID}}/simular-pago" formnovalidate class="secondary" style="width:100%">🧪 Simular pago (dev)</button>
+    {{end}}
+  </aside>
+
+  <div class="paybar">
+    <div class="paybar-inner">
       <div class="sum">
-        <div class="t" id="cartTotal">$0</div>
-        <div class="c"><span id="cartCount">0</span> producto(s)</div>
+        <div class="t" id="barTotal">$0</div>
+        <div class="c"><span id="barCount">0</span> producto(s)</div>
       </div>
-      <button type="submit" id="payBtn" disabled>Pagar con Bre-B</button>
+      <button type="submit" id="payMobile" disabled>Pagar con Bre-B →</button>
     </div>
   </div>
 </form>
+<div class="paybar-spacer" aria-hidden="true"></div>
 
 <script>
 (function(){
@@ -77,26 +79,36 @@
     return (v<0?'-':'')+'$'+out;
   }
   var form=document.getElementById('buyForm'),
-      totalEl=document.getElementById('cartTotal'),
-      countEl=document.getElementById('cartCount'),
-      payBtn=document.getElementById('payBtn');
+      barTotal=document.getElementById('barTotal'),
+      barCount=document.getElementById('barCount'),
+      sumTotal=document.getElementById('sumTotal'),
+      sumList=document.getElementById('sumList'),
+      payM=document.getElementById('payMobile'),
+      payD=document.getElementById('payDesktop');
+  var EMPTY='<div class="sempty">Aún no has elegido productos.</div>';
 
   function recalc(){
-    var total=0, count=0;
-    form.querySelectorAll('.cell').forEach(function(cell){
+    var total=0, count=0, lines=[];
+    form.querySelectorAll('.pcard').forEach(function(cell){
       var hidden=cell.querySelector('[data-qty]');
       if(!hidden) return;
       var q=parseInt(hidden.value||'0',10);
-      total += q * parseInt(cell.dataset.price,10);
-      count += q;
+      cell.classList.toggle('selected', q>0);
+      if(q>0){
+        var price=parseInt(cell.dataset.price,10);
+        total += q*price; count += q;
+        lines.push('<div class="sline"><span class="q">'+q+'× '+cell.dataset.name+'</span><span class="amt">'+copFmt(q*price)+'</span></div>');
+      }
     });
-    totalEl.textContent=copFmt(total);
-    countEl.textContent=count;
-    payBtn.disabled = count===0;
+    barTotal.textContent=copFmt(total);
+    barCount.textContent=count;
+    sumTotal.textContent=copFmt(total);
+    sumList.innerHTML = lines.length ? lines.join('') : EMPTY;
+    payM.disabled = payD.disabled = count===0;
   }
 
-  form.querySelectorAll('.qty').forEach(function(ctrl){
-    var cell=ctrl.closest('.cell'),
+  form.querySelectorAll('.stepper').forEach(function(ctrl){
+    var cell=ctrl.closest('.pcard'),
         hidden=cell.querySelector('[data-qty]'),
         valEl=ctrl.querySelector('[data-val]'),
         max=parseInt(ctrl.dataset.max,10),
@@ -105,6 +117,7 @@
     function set(q){
       if(q<0)q=0; if(q>max)q=max;
       hidden.value=q; valEl.textContent=q;
+      valEl.classList.toggle('on', q>0);
       minus.disabled=q<=0; plus.disabled=q>=max;
       recalc();
     }

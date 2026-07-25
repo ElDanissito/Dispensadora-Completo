@@ -71,7 +71,7 @@ func setupStore(t *testing.T) (*store.Store, int64) {
 	if err := st.ResetForTest(ctx); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
-	if err := st.CreateMachine(ctx, "M001", "Prueba", "k1"); err != nil {
+	if err := st.CreateMachine(ctx, "M001", "Prueba", "k1", 4); err != nil {
 		t.Fatal(err)
 	}
 	pid, err := st.CreateProduct(ctx, "Papas")

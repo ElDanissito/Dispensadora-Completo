@@ -1,0 +1,18 @@
+{{define "content"}}
+{{template "pubtop" false}}
+<div class="errwrap">
+  <div class="errbadge">Máquina no encontrada</div>
+  <h1 class="errtitle">No existe la máquina <span class="accent">{{.ID}}</span></h1>
+  <p class="errtext">Puede que el código QR de la máquina esté dañado o que la máquina ya no esté en servicio. No se ha cobrado nada.</p>
+  <div class="errcard">
+    <strong>¿Qué puedes hacer?</strong>
+    <ol>
+      <li>Vuelve a escanear el QR de la máquina.</li>
+      <li>Revisa que el enlace sea correcto (<span class="accent">grabi.napi.lat/m/…</span>).</li>
+    </ol>
+  </div>
+  <div class="erractions">
+    <button type="button" class="btn-primary" onclick="history.back()">Volver a escanear</button>
+  </div>
+</div>
+{{end}}

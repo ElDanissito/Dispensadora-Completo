@@ -42,6 +42,12 @@ services:
     environment:
       DATABASE_URL: "postgres://grabi:grabi@db:5432/grabi?sslmode=disable"
       ADMIN_PASS: "prueba1"
+      # Llave de firma para poder emitir QR en dev (simular-pago). Se toma de una
+      # env del HOST para no commitearla; si no está, simular-pago da 503.
+      DSP_PRIVATE_KEY: "${DSP_PRIVATE_KEY:-}"
+      # Llave Bre-B real de M001 (la que ve el cliente al pagar). Si no está,
+      # cae al nombre del punto de venta "GRABI M001".
+      GRABI_BREB_KEY_M001: "${GRABI_BREB_KEY_M001:-}"
     ports:
       - "${WEB_PORT:-8080}:8080"
     # Override del CMD del Dockerfile para desarrollo local: con seed de demo y
