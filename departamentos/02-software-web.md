@@ -145,3 +145,13 @@ La máquina **nunca habla con el servidor** para vender. Solo necesita su llave 
 - **ADR-006 cerrada por parte de Software (02):** migrado `dsptoken` a v2 y regenerados los
   vectores. El token de 2 items pasó de 318 a **258 chars**. Queda pendiente solo la
   validación con el GM65 real (frente de Firmware/Hardware).
+- **Rediseño de UI COMPLETO (2026-07-25, ADR-022):** todo el front pasó al lenguaje "kiosko oscuro 1a"
+  (cliente + admin con sidebar), fiel a los mockups, en móvil y escritorio. Incluye modo
+  **reabastecer**, panel de **movimientos**, campo `channels` (canales libres), y **estados de error**
+  (máquina no encontrada + 404). Se **cerró ADR-017**: un producto **sin motor** ahora se **oculta de
+  la venta** (no aparece al cliente ni se puede comprar). Terminología: la UI dice "canal", el código
+  sigue en `slot`.
+- **Pendiente (futuro, no bloquea el piloto) — panel de CONFIGURACIÓN por máquina:** editar la
+  **cantidad de canales**, y sobre todo **configurar la llave Bre-B de cada máquina desde el panel**
+  (hoy depende del `.env` `GRABI_BREB_KEY_M00X`) para no requerir redeploy al dar de alta una máquina,
+  más activar/desactivar, nombre y `kid`. Detalle en ADR-022.

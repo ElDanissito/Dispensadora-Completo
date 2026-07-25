@@ -7,6 +7,45 @@
 
 ---
 
+## ADR-022 · Rediseño completo de UI (kiosko oscuro 1a) + canales, reabastecimiento y panel de Configuración (pendiente)
+- **Fecha:** 2026-07-25 · **Autor:** Agente de Software (02) + Daniel.
+- **Decisión:** se rediseñó **todo** el front al lenguaje visual **"kiosko oscuro / neón" (dir 1a)**,
+  fiel a los mockups, en móvil y escritorio. El sistema de diseño vive en
+  `software/internal/web/templates/base.html` (paleta, tipografías Space Grotesk / IBM Plex Mono /
+  Archivo por Google Fonts, componentes) + **menú lateral (sidebar)** en el admin.
+- **Pantallas cubiertas (todas):**
+  - **Cliente:** compra (lista en móvil / dos columnas con panel "Tu pedido" en escritorio),
+    esperando pago (spinner + barra de tiempo real), QR, revisión, expirada, y **estados de error**
+    (máquina no encontrada con el id + 404 genérico con catch-all de rutas).
+  - **Admin:** login, dashboard (tarjetas de máquina), detalle de máquina (tarjetas por canal +
+    modo **Reabastecer** + modal de producto con dropzone de foto + 4 modales de confirmación),
+    órdenes (chips de filtro + tabla/tarjetas + **auto-refresh 20 s** conservando el filtro por URL),
+    movimientos (abonos que NO casan).
+- **Cambios de backend que trajo:**
+  - **`machines.channels`** (migración idempotente `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, default 4)
+    para dibujar los **canales LIBRES**; se elige al crear la máquina.
+  - **`SetStock`** por canal → **reabastecimiento manual** (conteo físico real, ADR-012).
+  - **`ListUnmatchedMovements`**: solo abonos sin casar (huérfano/fallido/descartado/conflicto).
+  - **Sin motor = oculto de la venta:** el catálogo público y `buildItems` filtran los canales no
+    cableados → **CIERRA el pendiente de ADR-017** ("hoy solo avisa, no oculta").
+  - Token de depuración solo en dev; botón "simular pago" solo con `-allow-sim`.
+- **Terminología (decidido):** la **UI dice "canal"**; el **código/token/DB/firmware siguen en `slot`**
+  (interno; el contrato del token es sagrado). Mapean 1:1.
+- **Fuentes:** hoy por Google Fonts (`<link>` + `display=swap`). **Optimización futura:** self-host de
+  las fuentes por perf/privacidad (no bloquea el piloto).
+
+### Pendiente a futuro → sección/panel de CONFIGURACIÓN por máquina (no bloquea el piloto)
+Hoy varias cosas de la máquina no se pueden editar tras crearla o dependen del `.env`. Falta una
+**sección de "Configuración"** en el panel admin que permita:
+- **Editar la cantidad de canales** de una máquina (hoy solo se fija al crearla).
+- **Configurar la llave Bre-B por máquina desde el panel** (hoy vive en la env `GRABI_BREB_KEY_M00X`,
+  ADR-014): poder **setear/editar la llave al crear o editar la máquina**, guardándola en la DB, para
+  **no depender del `.env`** ni de un redeploy, y tener una llave propia por cada máquina.
+- Otros ajustes de máquina en el mismo lugar: **activar/desactivar** (fuera de servicio), nombre/ubicación, `kid`.
+- **Nota de seguridad:** la llave Bre-B **no es secreta** (solo sirve para *recibir*), así que guardarla
+  en la DB es aceptable. NO aplica a secretos reales (llave privada Ed25519, App Password IMAP): esos
+  siguen fuera del repo, en env/secreto (CLAUDE.md §4).
+
 ## ADR-021 · Arranque robusto contra Postgres + servicio AWS (EC2 + Docker Compose) + secretos
 - **Fecha:** 2026-07-22 · **Autor:** Agente de Software (02).
 - **Contexto:** al migrar el desarrollo local a Postgres en Docker (rumbo a AWS, ADR-020), el
