@@ -105,6 +105,15 @@ Hoy varias cosas de la máquina no se pueden editar tras crearla o dependen del 
   **SSM Parameter Store (SecureString)** — **gratis** en tier estándar — y cargarlos al arranque.
   Para el piloto el `.env` en la caja (con permisos estrictos) es suficiente.
 
+### Addendum (2026-07-25 · Daniel) — dos puntos operativos cerrados
+- **Build en la EC2 sostenido por swap:** el `docker compose ... up -d --build` compila la imagen en
+  la propia t3.micro (1 GB RAM). Para evitar OOM durante el build se dejó **swap de 2 GB activo** en la
+  caja. Con eso el build en la instancia es viable y NO se mueve a build-en-Actions/registry por ahora.
+- **Backups → diferidos para el MVP:** con **una sola máquina** y datos recreables (catálogo/órdenes),
+  el respaldo `pg_dump`→S3 (y el de la carpeta de uploads) **no es necesario todavía**. Se retoma antes
+  de escalar o si el piloto empieza a acumular datos con valor. No es asesoría de continuidad; es una
+  decisión de alcance de piloto.
+
 ## ADR-020 · Despliegue en AWS (pay-on-demand) + CI/CD con GitHub Actions
 - **Fecha:** 2026-07-22 · **Autor:** Daniel.
 - **Decisión:** desplegar la web/servidor de GRABI en **AWS**, vinculando el servidor directamente
@@ -361,8 +370,9 @@ Hoy varias cosas de la máquina no se pueden editar tras crearla o dependen del 
 - [x] **Nombre** de la marca → **GRABI** (ADR-013).
 - [x] **Dominio** de la web → **`grabi.napi.lat`** (ADR-019). `grabi.lat`/`grabi.com.co` para cuando se escale.
 - [x] **Entidad/llave Bre-B del piloto** → **Bancolombia**; llave de **M001** registrada como "GRABI M001" (una llave por máquina, ADR-014). Valor guardado en config, fuera del repo.
-- [x] **Hosting / despliegue** → **AWS pay-on-demand** con **CI/CD (GitHub Actions → AWS)** (ADR-020). Descartados VPS fijos (Hostinger ~$70k, HostGator ~$35k/mes). **Servicio AWS concreto → EC2 pequeña + Docker Compose (ADR-021)**, tras descartar App Runner (cerrado a clientes nuevos el 2026-04-30) por control total y costo casi nulo en el piloto. Pipeline: pendiente de montar.
+- [x] **Hosting / despliegue** → **AWS pay-on-demand** con **CI/CD (GitHub Actions → AWS)** (ADR-020). Descartados VPS fijos (Hostinger ~$70k, HostGator ~$35k/mes). **Servicio AWS concreto → EC2 pequeña + Docker Compose (ADR-021)**, tras descartar App Runner (cerrado a clientes nuevos el 2026-04-30) por control total y costo casi nulo en el piloto. **Pipeline montado**: CI/CD continuo a la EC2 vía SSM + OIDC (build sostenido por swap de 2 GB). **Backups `pg_dump`→S3 diferidos para el MVP** (ADR-021 addendum). **✅ Desplegado y vivo en `grabi.napi.lat` (2026-07-25).**
 - [~] **Agregador Bre-B** → **diferido** (ADR-019): la conciliación por correo basta para el MVP. Comparativa lista para cuando se retome: [`negocio/agregadores-bre-b-comparativa.md`](./negocio/agregadores-bre-b-comparativa.md).
 - [~] **Legal / trámites** (RUT/DIAN/facturación/sanidad) → **diferidos** para 1 máquina (ADR-019); formalizar antes de escalar.
 - [ ] **Producto piloto concreto** (4 productos: qué snacks + bebidas) → define precios y surtido.
 - [ ] **Precios** por producto (salen del unit economics).
+- [ ] **Landing pública** (home en `/` de `grabi.napi.lat`) + **captura de interesados** que alimenta una sección "Interesados" en el admin (semilla de CRM). Spec: [`especificaciones/landing-v1.md`](./especificaciones/landing-v1.md). Objetivo: explicar la marca al público y servir de destino "volver a inicio" desde los 404.

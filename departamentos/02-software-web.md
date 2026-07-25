@@ -19,11 +19,11 @@
 | Capa | Elección | Por qué |
 |------|----------|---------|
 | **Backend** | **Go** | Lo pediste; ideal: binario único, rápido, excelente para firmar JWT y para correr barato en un VPS pequeño. Librerías: `net/http` o `chi`/`echo`, `golang-jwt` o `lestrrat-go/jwx`. |
-| **Base de datos** | **PostgreSQL** (o SQLite para arrancar) | SQLite basta para el piloto (1 archivo, cero costo). Migrar a Postgres al escalar. |
-| **Frontend** | HTML server-rendered (Go templates) + un poco de JS, o **HTMX** | Mantén el front ultraligero: la página de venta debe cargar rápido en el celular del cliente. Evita SPA pesada al inicio. |
-| **QR** | Librería Go de QR (`skip2/go-qrcode`) | Genera el QR desde el JWT en el servidor. |
-| **Hosting** | **AWS pay-on-demand** (ADR-020) | Se eligió AWS por costo variable (vs. VPS fijo: Hostinger ~$70k, HostGator ~$35k/mes). Un binario Go + SQLite corre en una instancia mínima. **CI/CD con GitHub Actions → AWS** (build + deploy en push a `main`). Servicio concreto (EC2/Lightsail/serverless) y pipeline: por montar. Secretos vía AWS Secrets Manager/SSM, nunca al repo. |
-| **Dominio + TLS** | Dominio `.co` + Caddy (TLS automático) | Caddy simplifica HTTPS. |
+| **Base de datos** | **PostgreSQL** (pgx) ✅ | **Migrado de SQLite a Postgres** (ADR-020/021). Esquema en `internal/store/schema.sql`. En el piloto corre como contenedor en la misma EC2; RDS al escalar. |
+| **Frontend** | HTML server-rendered (Go templates) + JS mínimo | Front ultraligero, sin SPA (ADR-011bis). Design system en `internal/web/templates/base.html`. |
+| **QR** | `skip2/go-qrcode` | Genera el QR desde el token en el servidor. |
+| **Hosting** | **AWS EC2 + Docker Compose** ✅ (ADR-021) | Desplegado y **vivo en `grabi.napi.lat`**. **CI/CD con GitHub Actions → EC2 vía SSM + OIDC** (build sostenido por swap de 2 GB). Secretos en un `.env` `600` en la EC2, nunca al repo. Backups `pg_dump`→S3 diferidos para el MVP. Guía: `software/DESPLIEGUE.md`. |
+| **Dominio + TLS** | `grabi.napi.lat` + Caddy (TLS automático) ✅ | Caddy en la misma caja da HTTPS. |
 
 ## 3. Arquitectura del flujo (crítico)
 
@@ -48,27 +48,25 @@ La máquina **nunca habla con el servidor** para vender. Solo necesita su llave 
 
 **Algoritmo de firma: `EdDSA` (Ed25519).** Ver justificación técnica completa en [Firmware](./03-firmware-electronica.md#algoritmo-de-firma). Resumen: la máquina solo guarda la **llave pública**; el ESP32 verifica Ed25519 en pocos milisegundos; nadie puede falsificar tokens sin la privada del servidor.
 
-**Payload de ejemplo:**
+> **La fuente de verdad es [`especificaciones/contrato-token.md`](../especificaciones/contrato-token.md) v2.**
+> Este bloque es solo un resumen; ante cualquier duda, manda el contrato.
+
+**Payload v2** (ADR-006 quitó `iss` e `iat` del token; se guardan solo en el servidor):
 
 ```json
 {
-  "iss": "dispensadoras.co",
   "mid": "M001",                     // machine_id: el token solo sirve en ESA máquina
   "jti": "ord_7f3a9c2e",             // id único de orden → anti-reuso
-  "iat": 1752460800,                 // emitido en
-  "exp": 1752461100,                 // expira (p.ej. 5 min) → limita ventana de abuso
-  "items": [                          // qué dispensar
-    { "slot": 3, "qty": 1 },
-    { "slot": 5, "qty": 2 }
-  ]
+  "exp": 1752461100,                 // expira (~5 min) → limita ventana de abuso
+  "items": [ { "s": 3, "q": 1 }, { "s": 5, "q": 2 } ]   // s=slot, q=cantidad
 }
 ```
 
-**Reglas de validación en la máquina (todas deben cumplirse):**
-1. Firma Ed25519 válida con la llave pública local.
+**Reglas de validación en la máquina (orden exacto en el contrato §5):**
+1. Firma Ed25519 válida con la llave pública local (`kid` del header).
 2. `mid` == id de esta máquina.
-3. `exp` no vencido (requiere reloj en la máquina; ver nota abajo).
-4. `jti` no está en la lista de usados (memoria no volátil).
+3. `exp` no vencido (requiere reloj/RTC en la máquina; ver nota abajo).
+4. `jti` no está en la lista de usados (memoria no volátil — resuelto con NVS, paso 5b).
 
 > **Nota sobre el reloj offline:** el ESP32 no tiene hora real sin internet/RTC. Opciones: (a) módulo **RTC DS3231** barato (recomendado, ~confiable por años); (b) si no hay RTC, usar solo `jti` + una ventana basada en contador. El RTC es la opción robusta y cuesta poco — coordinar con Dept. 03.
 
@@ -81,16 +79,22 @@ La máquina **nunca habla con el servidor** para vender. Solo necesita su llave 
 - La **privada nunca sale del servidor** (idealmente en un secreto/variable de entorno cifrada, no en el repo).
 - Procedimiento de **aprovisionamiento**: al fabricar una máquina, cargarle `machine_id` + llave pública + (opcional) su propio `kid`.
 
-## 6. Tareas — Fase MVP
+## 6. Tareas — Fase MVP (✅ hechas)
 
-- [ ] Definir esquema de datos: `machines`, `products`, `machine_products` (stock por máquina), `orders`, `order_items`, `used_jti` (auditoría).
-- [ ] Endpoint `GET /m/{id}`: render de catálogo + stock de esa máquina.
-- [ ] Flujo de pago (integración con Dept. 04, empezar con verificación semi-manual/correo).
-- [ ] Servicio de firma: generar par Ed25519, firmar JWT, exponer llave pública para aprovisionar máquinas.
-- [ ] Endpoint que, tras confirmar pago, cree la orden y devuelva el **QR** (imagen) al cliente.
-- [ ] Panel admin mínimo: crear máquinas, cargar productos/precios, ajustar stock, ver órdenes.
-- [ ] Desplegar en VPS con dominio + TLS.
-- [ ] **Simulador de máquina** (script) que verifique el JWT igual que el ESP32, para probar sin hardware.
+- [x] Esquema de datos (`machines`, `products`, `machine_products`, `orders`, `order_items`, `used_jti`, `bank_movements`) — en Postgres.
+- [x] Endpoint `GET /m/{id}`: catálogo + stock por máquina.
+- [x] Flujo de pago: **conciliación por correo Bre-B** (Dept. 04), match por monto + nombre (ADR-018).
+- [x] Servicio de firma Ed25519 + vectores de prueba + llave pública para aprovisionar.
+- [x] Tras confirmar pago → crea orden y emite el **QR**.
+- [x] Panel admin (máquinas, productos/precios, stock/refill, órdenes, movimientos).
+- [x] Desplegado con dominio + TLS (**EC2 + Caddy, vivo en `grabi.napi.lat`**) + CI/CD.
+- [x] **Simulador de verificación** (`dsp verify`) que da los mismos códigos que el ESP32.
+- [x] **Rediseño de UI** (ADR-022) — cliente + admin, "kiosko oscuro".
+
+### Backlog actual (tareas pequeñas — una por sesión de agente)
+- [ ] **Landing pública + captura de interesados** (semilla CRM) → `especificaciones/landing-v1.md`.
+- [ ] **Panel de Configuración por máquina** (ADR-022): llave Bre-B desde el panel (hoy en `.env`),
+      nº de canales, activar/desactivar, nombre, `kid` — para dar de alta máquinas sin redeploy.
 
 ## 7. Entregables
 
