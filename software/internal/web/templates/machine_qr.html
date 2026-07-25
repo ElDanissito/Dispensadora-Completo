@@ -22,10 +22,12 @@
   {{end}}
 </div>
 
+{{if .Debug}}
 <div class="card">
   <div class="muted">Token (para depuración / inspección · {{.TokenLen}} chars)</div>
   <div style="word-break:break-all;font-family:ui-monospace,Consolas,monospace;font-size:.75rem;margin-top:6px;color:var(--muted)">{{.Token}}</div>
 </div>
+{{end}}
 
 {{if .Sim}}
 <div class="note">

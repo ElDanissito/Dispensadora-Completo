@@ -526,10 +526,15 @@ func (s *Server) renderQR(w http.ResponseWriter, m *store.Machine, o *store.Orde
 			TokenLen  int
 			QRDataURI template.URL
 			Sim       bool
+			Debug     bool
 		}{
 			Machine: m, Items: o.Items, TotalCOP: o.TotalCOP, Jti: o.Jti, Exp: o.Exp,
 			Token: o.Token, TokenLen: len(o.Token), QRDataURI: template.URL(dataURI),
 			Sim: o.Status == "paid_sim",
+			// El bloque de token (inspección) solo se muestra en modo desarrollo:
+			// se reutiliza el mismo switch que -allow-sim (prod corre sin él), así
+			// que en producción el token nunca se expone al cliente.
+			Debug: s.allowSim,
 		},
 	})
 }
