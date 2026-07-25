@@ -1,0 +1,36 @@
+{{define "content"}}
+<h2 style="margin:0 0 6px">Abonos detectados por correo</h2>
+<div class="msub" style="margin-bottom:18px">Cada abono Bre-B se casa con una orden por monto + nombre. Lo que <strong>no casa</strong> queda aquí para auditoría y reembolsos.</div>
+
+{{if .Movements}}
+<div class="otable mv">
+  <div class="ohead"><span>Fecha</span><span>Monto</span><span>Remitente (correo banco)</span><span>Orden casada</span><span>Estado</span></div>
+  {{range .Movements}}
+  <div class="orow">
+    <span class="mono muted">{{.Fecha}}</span>
+    <span class="mono">{{cop .AmountCOP}}</span>
+    <span>{{.Remitente}}</span>
+    <span class="mono{{if not .OrderJti}} muted{{end}}">{{if .OrderJti}}{{.OrderJti}}{{else}}—{{end}}</span>
+    <span><span class="badge {{.PillCls}}">{{.Pill}}</span></span>
+  </div>
+  {{end}}
+</div>
+
+<div class="ocards">
+  {{range .Movements}}
+  <div class="ocard">
+    <div class="top"><span>{{.Fecha}} · {{cop .AmountCOP}}</span><span class="badge {{.PillCls}}">{{.Pill}}</span></div>
+    <div class="prods">{{.Remitente}}</div>
+    <div class="bot"><span class="muted">{{if .OrderJti}}{{.OrderJti}}{{else}}sin orden{{end}}</span></div>
+  </div>
+  {{end}}
+</div>
+
+<div class="hint" style="margin-top:14px; line-height:1.7">
+  huérfano = entró dinero sin orden que coincida → contactar y reembolsar ·
+  conflicto = dos órdenes candidatas → resolver manual
+</div>
+{{else}}
+<div class="card muted">No hay movimientos sin casar por ahora. Todo cuadra.</div>
+{{end}}
+{{end}}

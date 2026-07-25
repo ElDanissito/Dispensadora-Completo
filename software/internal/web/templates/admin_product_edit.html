@@ -9,7 +9,7 @@
         data-warn="product" data-orig-slot="{{.Row.Slot}}" data-has-image="{{if .Row.ImagePath}}true{{else}}false{{end}}">
     <div style="display:grid;gap:12px;grid-template-columns:1fr 1fr">
       <div style="grid-column:1/-1;display:flex;align-items:center;gap:12px">
-        {{if .Row.ImagePath}}<img class="thumb" style="width:64px;height:64px" src="{{.Row.ImagePath}}" alt="{{.Row.ProductName}}">{{else}}<span class="thumb-ph" style="width:64px;height:64px">🍫</span>{{end}}
+        {{if .Row.ImagePath}}<img class="thumb" style="width:64px;height:64px" src="{{.Row.ImagePath}}" alt="{{.Row.ProductName}}">{{else}}<span class="chtile" style="width:64px;height:64px;background:{{tint .Row.ProductName}}">{{printf "%.2s" .Row.ProductName}}</span>{{end}}
         <div class="muted">Foto actual. Sube una nueva para reemplazarla; si no, se conserva.</div>
       </div>
       <div style="grid-column:1/-1">
@@ -21,29 +21,33 @@
         <input id="ep-desc" name="description" value="{{.Row.Description}}" style="width:100%">
       </div>
       <div>
-        <label for="ep-slot">Slot</label>
+        <label for="ep-slot">Canal</label>
         <input id="ep-slot" name="slot" type="number" min="1" value="{{.Row.Slot}}" required style="width:100%">
         <div class="hint">Cambiarlo mueve el producto de canal físico.</div>
       </div>
       <div>
         <label for="ep-price">Precio (COP)</label>
         <input id="ep-price" name="price" type="number" min="0" step="50" value="{{.Row.PriceCOP}}" required style="width:100%">
-        <div class="hint">ℹ️ Evita precios idénticos entre productos (conciliación por monto único).</div>
+        <div class="hint">Evita precios idénticos entre productos (conciliación por monto único).</div>
       </div>
       <div>
         <label for="ep-stock">Stock (refill)</label>
         <input id="ep-stock" name="stock" type="number" min="0" value="{{.Row.Stock}}" required style="width:100%">
-        <div class="hint">ℹ️ Debe coincidir con lo cargado físicamente (ADR-012).</div>
+        <div class="hint">Debe coincidir con lo cargado físicamente (ADR-012).</div>
       </div>
-      <div>
+      <div style="grid-column:1/-1">
         <label for="ep-img">Reemplazar foto</label>
-        <input id="ep-img" name="image" type="file" accept="image/*" style="width:100%">
-        <div class="hint">JPG, PNG, WEBP o GIF · máx. 5 MB.</div>
+        <label class="dropzone" id="dz">
+          <div class="dz-title">Subir foto</div>
+          <div class="dz-sub">JPG/PNG · recomendado 800×800 · arrastra o toca</div>
+          <div class="dz-file" id="dzFile"></div>
+          <input id="ep-img" name="image" type="file" accept="image/*">
+        </label>
       </div>
       <div style="grid-column:1/-1">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
           <input type="checkbox" name="wired" value="1" style="width:auto" {{if .Row.Wired}}checked{{end}}>
-          Motor de este slot conectado (dispensa)
+          Motor de este canal conectado (dispensa)
         </label>
       </div>
     </div>
@@ -53,4 +57,14 @@
     </div>
   </form>
 </div>
+<script>
+(function(){
+  var dz=document.getElementById('dz'), dzFile=document.getElementById('dzFile'), fileInput=document.getElementById('ep-img');
+  if(!dz) return;
+  fileInput.addEventListener('change', function(){ dzFile.textContent = fileInput.files.length ? fileInput.files[0].name : ''; });
+  ['dragover','dragenter'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.add('drag'); }); });
+  ['dragleave','dragend'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.remove('drag'); }); });
+  dz.addEventListener('drop', function(e){ e.preventDefault(); dz.classList.remove('drag'); if(e.dataTransfer.files.length){ fileInput.files=e.dataTransfer.files; dzFile.textContent=e.dataTransfer.files[0].name; } });
+})();
+</script>
 {{end}}

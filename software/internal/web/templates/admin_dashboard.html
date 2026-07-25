@@ -1,29 +1,50 @@
 {{define "content"}}
-<div class="card">
-  <h2>Máquinas</h2>
-  {{if .Machines}}
-  {{range .Machines}}
-  <div class="row">
-    <div>
-      <a class="link" href="/admin/m/{{.ID}}">{{.ID}} — {{.Name}}</a>
-      <div class="muted">kid {{.Kid}} · <a class="link" href="/m/{{.ID}}">ver página pública</a></div>
-    </div>
-    {{if .Active}}<span class="badge ok">activa</span>{{else}}<span class="badge out">inactiva</span>{{end}}
-  </div>
-  {{end}}
-  {{else}}<div class="muted">Sin máquinas todavía.</div>{{end}}
+<div class="ahead">
+  <h2>Máquinas <span class="cnt">{{len .Machines}}</span></h2>
+  <button type="button" id="newBtn">+ Nueva máquina</button>
+</div>
 
-  <h2 style="margin-top:20px">Crear máquina</h2>
-  <form class="inline" method="post" action="/admin/machines">
+<div class="card" id="newForm" style="display:none">
+  <h2>Crear máquina</h2>
+  <form method="post" action="/admin/machines" style="display:grid; gap:12px; max-width:520px">
     <div><label>ID (mid)</label><input name="id" placeholder="M001" required></div>
     <div><label>Nombre / ubicación</label><input name="name" placeholder="Cafetería U. del Valle" required></div>
-    <div><label>kid</label><input name="kid" value="k1" size="4"></div>
-    <button type="submit">Crear</button>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px">
+      <div><label>Canales</label><input name="channels" type="number" min="1" value="4"></div>
+      <div><label>kid</label><input name="kid" value="k1"></div>
+    </div>
+    <button type="submit">Crear máquina</button>
   </form>
 </div>
 
-<div class="note">
-  Los <strong>productos</strong> se gestionan dentro de cada máquina (foto, precio, slot y stock).
-  Abre una máquina para crear, editar o eliminar productos.
+{{if .Machines}}
+<div class="mgrid">
+  {{range .Machines}}
+  <a class="mcard" href="/admin/m/{{.ID}}">
+    <div class="mcard-top">
+      <span class="mcard-id">{{.ID}}</span>
+      {{if .Active}}<span class="badge ok">ACTIVA</span>{{else}}<span class="badge out">FUERA DE SERVICIO</span>{{end}}
+    </div>
+    <div class="mcard-loc">{{.Name}}</div>
+    <div class="mcard-meta">{{.Products}} producto{{if ne .Products 1}}s{{end}} · {{.Channels}} canales</div>
+    <div class="mcard-alert">
+      {{if not .Active}}<span class="muted">No visible para clientes</span>
+      {{else if or (gt .Out 0) (gt .Low 0)}}<span class="warn-txt">⚠ {{.Low}} bajo · {{.Out}} agotado</span>
+      {{else}}<span class="muted">Stock OK</span>{{end}}
+    </div>
+  </a>
+  {{end}}
 </div>
+{{else}}
+<div class="card muted">Sin máquinas todavía. Crea la primera con “+ Nueva máquina”.</div>
+{{end}}
+
+<script>
+document.getElementById('newBtn').addEventListener('click', function(){
+  var f=document.getElementById('newForm');
+  var open = f.style.display!=='none';
+  f.style.display = open ? 'none' : 'block';
+  if(!open){ var i=f.querySelector('input[name=id]'); if(i) i.focus(); }
+});
+</script>
 {{end}}

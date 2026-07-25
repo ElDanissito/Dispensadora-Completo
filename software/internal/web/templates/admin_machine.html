@@ -1,80 +1,152 @@
 {{define "content"}}
 {{if .Flash}}<div class="flash">{{.Flash}}</div>{{end}}
+{{if .FlashErr}}<div class="flash err">{{.FlashErr}}</div>{{end}}
 
-<div class="card">
-  <div class="muted"><a class="link" href="/admin">← Máquinas</a></div>
-  <h2 style="margin-top:8px">{{.Machine.ID}} — {{.Machine.Name}}</h2>
-  <div class="muted">kid {{.Machine.Kid}} · <a class="link" href="/m/{{.Machine.ID}}">ver página pública</a></div>
+<div class="crumb"><a class="link" href="/admin">Máquinas</a> / {{.Machine.ID}}</div>
+<div class="mtitle">
+  <h2>{{.Machine.ID}} · {{.Machine.Name}} {{if .Machine.Active}}<span class="badge ok">ACTIVA</span>{{else}}<span class="badge out">FUERA DE SERVICIO</span>{{end}}</h2>
+  <div style="display:flex; gap:10px; flex-shrink:0">
+    <button type="button" id="newBtn" class="secondary">+ Nuevo producto</button>
+    <button type="button" id="refillBtn">⟳ Reabastecer</button>
+  </div>
 </div>
+<div class="msub">grabi.napi.lat/m/{{.Machine.ID}} · {{.Machine.Channels}} canales · {{.ProductCount}} productos · <a class="link" href="/m/{{.Machine.ID}}">ver página pública</a></div>
 
-<div class="card">
-  <h2>Productos y stock</h2>
-  {{if .Catalog}}
-  {{range .Catalog}}
-  <div class="row">
-    <div style="display:flex;align-items:center;gap:12px;min-width:0">
-      {{if .ImagePath}}<img class="thumb" src="{{.ImagePath}}" alt="{{.ProductName}}">{{else}}<span class="thumb-ph">🍫</span>{{end}}
-      <div style="min-width:0">
-        <div style="font-weight:600">{{.ProductName}}</div>
-        <div class="muted">
-          Slot {{.Slot}} · {{cop .PriceCOP}} ·
-          {{if gt .Stock 0}}{{.Stock}} en stock{{else}}<span class="badge out">sin stock</span>{{end}}
-          {{if .Wired}}<span class="badge ok">motor OK</span>{{else}}<span class="badge warn">⚠ sin motor</span>{{end}}
+<div id="mdetail">
+  <div class="refill-banner">Modo reabastecimiento: escribe el conteo <strong>físico real</strong> de cada canal. Al guardar, ese número reemplaza el estimado del servidor (ADR-012).</div>
+
+  {{if .Channels}}
+  <form id="refillForm" class="chgrid" method="post" action="/admin/m/{{.Machine.ID}}/refill">
+    {{range .Channels}}
+    {{if .Assigned}}
+    <div class="chcard{{if not .Wired}} nomotor{{end}}">
+      <div class="chbody">
+        <div class="chtile"{{if not .ImagePath}} style="background:{{tint .ProductName}}"{{end}}>
+          {{if .ImagePath}}<img src="{{.ImagePath}}" alt="{{.ProductName}}">{{else}}{{printf "%.2s" .ProductName}}{{end}}
+        </div>
+        <div class="chinfo">
+          <div class="chtop">
+            <span class="chslot">CANAL #{{.Slot}}</span>
+            <span class="chpills">
+              {{if le .Stock 0}}<span class="badge out">AGOTADO</span>{{else if le .Stock 3}}<span class="badge warn">STOCK BAJO</span>{{else}}<span class="badge ok">EN VENTA</span>{{end}}
+              {{if .Wired}}<span class="badge">MOTOR OK</span>{{else}}<span class="badge out">SIN MOTOR</span>{{end}}
+            </span>
+          </div>
+          <div class="chname">{{.ProductName}}</div>
+          <div class="chmeta">{{cop .PriceCOP}} · <span class="st{{if le .Stock 0}} out{{else if le .Stock 3}} low{{end}}">stock {{.Stock}}</span></div>
+          <div class="chrefill"><span class="lbl">est. {{.Stock}} →</span><input type="number" name="slot_{{.Slot}}" min="0" value="{{.Stock}}" class="refill-in" aria-label="Conteo real canal {{.Slot}}"></div>
+          {{if not .Wired}}<div class="chwarn">Sin motor: no dispensa. Oculto de la venta hasta conectarlo.</div>{{end}}
         </div>
       </div>
+      <div class="chactions">
+        <a class="btn-sm" href="/admin/m/{{$.Machine.ID}}/slot/{{.Slot}}/edit">Editar</a>
+        <a class="btn-sm" href="/admin/m/{{$.Machine.ID}}/slot/{{.Slot}}/edit">Mover</a>
+        <button type="submit" form="del-{{.Slot}}" class="btn-sm muted-btn">Vaciar</button>
+      </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;white-space:nowrap">
-      <a class="link" href="/admin/m/{{$.Machine.ID}}/slot/{{.Slot}}/edit">Editar</a>
-      <form method="post" action="/admin/m/{{$.Machine.ID}}/slot/{{.Slot}}/delete"
-            data-warn="delete" data-stock="{{.Stock}}" style="display:inline">
-        <button type="submit" class="danger secondary" style="padding:6px 12px">Eliminar</button>
-      </form>
+    {{else}}
+    <div class="chcard chfree">
+      <span class="lbl">CANAL #{{.Slot}} · LIBRE</span>
+      <button type="button" class="ghost btn-asignar" data-slot="{{.Slot}}">+ Asignar producto</button>
     </div>
+    {{end}}
+    {{end}}
+  </form>
+
+  <div class="refill-bar">
+    <button type="button" id="refillCancel" class="secondary">Cancelar</button>
+    <button type="submit" form="refillForm">Guardar conteo real</button>
   </div>
+
+  {{/* Forms de borrado por slot, fuera del refillForm para no anidar <form>. */}}
+  {{range .Channels}}{{if .Assigned}}
+  <form id="del-{{.Slot}}" method="post" action="/admin/m/{{$.Machine.ID}}/slot/{{.Slot}}/delete" data-warn="delete" data-stock="{{.Stock}}" data-name="{{.ProductName}}" data-slot="{{.Slot}}" style="display:none"></form>
+  {{end}}{{end}}
+
+  <div class="legend">
+    <span class="lbl">ESTADOS:</span>
+    <span class="badge ok">EN VENTA</span>
+    <span class="badge warn">STOCK BAJO</span>
+    <span class="badge out">AGOTADO</span>
+    <span class="badge out">SIN MOTOR</span>
+    <span class="badge" style="border-style:dashed">LIBRE</span>
+  </div>
+  {{else}}
+  <div class="card muted">Esta máquina no tiene canales configurados.</div>
   {{end}}
-  {{else}}<div class="muted">Sin productos configurados. Crea el primero abajo.</div>{{end}}
 </div>
 
-<div class="card">
-  <h2>Nuevo producto</h2>
-  <form method="post" action="/admin/m/{{.Machine.ID}}/products" enctype="multipart/form-data"
-        data-warn="product" data-orig-slot="" data-has-image="false">
-    <div style="display:grid;gap:12px;grid-template-columns:1fr 1fr">
-      <div style="grid-column:1/-1">
-        <label for="np-name">Nombre</label>
-        <input id="np-name" name="name" placeholder="Papas Margarita" required style="width:100%">
-      </div>
-      <div style="grid-column:1/-1">
-        <label for="np-desc">Descripción (opcional)</label>
-        <input id="np-desc" name="description" placeholder="Paquete 25g" style="width:100%">
-      </div>
-      <div>
-        <label for="np-slot">Slot</label>
-        <input id="np-slot" name="slot" type="number" min="1" required style="width:100%">
-      </div>
-      <div>
-        <label for="np-price">Precio (COP)</label>
-        <input id="np-price" name="price" type="number" min="0" step="50" required style="width:100%">
-        <div class="hint">ℹ️ Evita precios idénticos entre productos: dificulta la conciliación por monto único.</div>
-      </div>
-      <div>
-        <label for="np-stock">Stock (refill)</label>
-        <input id="np-stock" name="stock" type="number" min="0" value="0" required style="width:100%">
-        <div class="hint">ℹ️ Debe coincidir con las unidades cargadas físicamente (se corrige en cada recarga, ADR-012).</div>
-      </div>
-      <div>
-        <label for="np-img">Foto</label>
-        <input id="np-img" name="image" type="file" accept="image/*" style="width:100%">
-        <div class="hint">JPG, PNG, WEBP o GIF · máx. 5 MB.</div>
-      </div>
-      <div style="grid-column:1/-1">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-          <input type="checkbox" name="wired" value="1" style="width:auto">
-          Motor de este slot conectado (dispensa)
-        </label>
-      </div>
+{{/* --- Modal: asignar / nuevo producto --- */}}
+<div class="modal-backdrop" id="prodModal" role="dialog" aria-modal="true">
+  <div class="modal wide">
+    <div class="modal-head">
+      <h3 id="prodTitle">Nuevo producto</h3>
+      <button type="button" class="modal-x" id="prodClose" aria-label="Cerrar">✕</button>
     </div>
-    <div style="margin-top:14px"><button type="submit">Crear producto</button></div>
-  </form>
+    <form method="post" action="/admin/m/{{.Machine.ID}}/products" enctype="multipart/form-data"
+          data-warn="product" data-orig-slot="" data-has-image="false" style="display:grid; gap:16px">
+      <div><label for="np-name">Nombre *</label><input id="np-name" name="name" placeholder="Ej: Chocorramo" required></div>
+      <div><label for="np-desc">Descripción</label><input id="np-desc" name="description" placeholder="Ponqué con cobertura de chocolate, 65 g"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px">
+        <div><label for="np-price">Precio COP *</label><input id="np-price" name="price" type="number" min="0" step="50" placeholder="2800" required></div>
+        <div><label for="np-stock">Stock *</label><input id="np-stock" name="stock" type="number" min="0" placeholder="10" required></div>
+        <div><label for="np-slot">Canal *</label>
+          <select id="np-slot" name="slot" required>
+            {{range .Channels}}<option value="{{.Slot}}">#{{.Slot}}</option>{{end}}
+          </select>
+        </div>
+      </div>
+      <label style="display:flex; align-items:center; gap:10px; border:1px solid var(--line); border-radius:var(--r-sm); padding:12px 14px; text-transform:none; letter-spacing:0; font-size:.9rem; margin:0; cursor:pointer">
+        <input type="checkbox" name="wired" value="1" style="width:auto">
+        <span><strong>Motor conectado</strong> <span class="muted">(si no, el canal no dispensa y queda oculto de la venta)</span></span>
+      </label>
+      <label class="dropzone" id="dz">
+        <div class="dz-title">Subir foto</div>
+        <div class="dz-sub">JPG/PNG · recomendado 800×800 · arrastra o toca</div>
+        <div class="dz-file" id="dzFile"></div>
+        <input id="np-img" name="image" type="file" accept="image/*">
+      </label>
+      <div style="display:flex; gap:10px; justify-content:flex-end">
+        <button type="button" class="secondary" id="prodCancel">Cancelar</button>
+        <button type="submit">Guardar producto</button>
+      </div>
+    </form>
+  </div>
 </div>
+
+<script>
+(function(){
+  var detail=document.getElementById('mdetail'),
+      refillBtn=document.getElementById('refillBtn'),
+      refillCancel=document.getElementById('refillCancel'),
+      modal=document.getElementById('prodModal'),
+      title=document.getElementById('prodTitle'),
+      slotSel=document.getElementById('np-slot');
+
+  function openProd(slot){
+    if(slot){ title.textContent='Asignar producto · Canal #'+slot; slotSel.value=slot; }
+    else { title.textContent='Nuevo producto'; }
+    modal.classList.add('open');
+    var n=document.getElementById('np-name'); if(n) n.focus();
+  }
+  function closeProd(){ modal.classList.remove('open'); }
+
+  document.getElementById('newBtn').addEventListener('click', function(){ openProd(null); });
+  document.querySelectorAll('.btn-asignar').forEach(function(b){ b.addEventListener('click', function(){ openProd(b.dataset.slot); }); });
+  document.getElementById('prodClose').addEventListener('click', closeProd);
+  document.getElementById('prodCancel').addEventListener('click', closeProd);
+  modal.addEventListener('click', function(e){ if(e.target===modal) closeProd(); });
+
+  // Reabastecer
+  refillBtn.addEventListener('click', function(){ detail.classList.add('refill-on'); detail.scrollIntoView({behavior:'smooth', block:'start'}); });
+  refillCancel.addEventListener('click', function(){ detail.classList.remove('refill-on'); });
+
+  // Dropzone (subir foto: click o arrastrar)
+  var dz=document.getElementById('dz'), dzFile=document.getElementById('dzFile'), fileInput=document.getElementById('np-img');
+  fileInput.addEventListener('change', function(){ dzFile.textContent = fileInput.files.length ? fileInput.files[0].name : ''; });
+  ['dragover','dragenter'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.add('drag'); }); });
+  ['dragleave','dragend'].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.remove('drag'); }); });
+  dz.addEventListener('drop', function(e){ e.preventDefault(); dz.classList.remove('drag'); if(e.dataTransfer.files.length){ fileInput.files=e.dataTransfer.files; dzFile.textContent=e.dataTransfer.files[0].name; } });
+})();
+</script>
 {{end}}

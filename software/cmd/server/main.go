@@ -185,7 +185,7 @@ func seedDemo(st *store.Store) error {
 	if len(machines) > 0 {
 		return nil // ya hay datos; no duplicar
 	}
-	if err := st.CreateMachine(ctx, "M001", "Demo — Cafetería Cali", "k1"); err != nil {
+	if err := st.CreateMachine(ctx, "M001", "Demo — Cafetería Cali", "k1", 4); err != nil {
 		return err
 	}
 	type prod struct {
@@ -195,9 +195,9 @@ func seedDemo(st *store.Store) error {
 		stock int
 	}
 	demo := []prod{
-		{"Papas Margarita", 3, 3000, 8},
-		{"Coca-Cola 400ml", 5, 3500, 6},
-		{"Agua Cristal 600ml", 7, 2500, 0}, // agotado, para ver el estado
+		{"Papas Margarita", 1, 3000, 8},
+		{"Coca-Cola 400ml", 2, 3500, 6},
+		{"Agua Cristal 600ml", 3, 2500, 0}, // agotado, para ver el estado
 	}
 	for _, d := range demo {
 		id, err := st.CreateProduct(ctx, d.name)
@@ -205,6 +205,9 @@ func seedDemo(st *store.Store) error {
 			return err
 		}
 		if err := st.SetSlot(ctx, "M001", d.slot, id, d.price, d.stock); err != nil {
+			return err
+		}
+		if err := st.SetWired(ctx, "M001", d.slot, true); err != nil {
 			return err
 		}
 	}

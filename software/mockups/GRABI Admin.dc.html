@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=IBM+Plex+Mono:wght@400;500;600;700&amp;family=Archivo:wght@400;600;800;900&amp;display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#1A1D1B; font-family:'Space Grotesk',system-ui,sans-serif; }
+  a { color:#3BE87F; } a:hover { color:#7FF2AC; }
+  input:focus, button:focus-visible, select:focus { outline:3px solid #3BE87F; outline-offset:2px; }
+  input::placeholder { color:#5C6E64; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.35 } }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important } }
+</style>
+</helmet>
+
+<section style="padding:48px; display:flex; flex-direction:column; gap:56px; align-items:flex-start;">
+
+  <!-- ================= LOGIN ================= -->
+  <div data-screen-label="Login" style="display:flex; flex-direction:column; gap:16px;">
+    <h2 style="margin:0; color:#17170F; font:700 20px 'Space Grotesk',sans-serif;">1 · Login <span style="color:#5A5A4E; font-weight:400;">/admin/login</span></h2>
+    <div style="width:1280px; height:720px; background:#0A0E0C; border:1px solid #26332B; border-radius:16px; display:flex; align-items:center; justify-content:center;">
+      <div style="width:380px; display:flex; flex-direction:column; gap:22px;">
+        <div>
+          <div style="font:900 32px 'Archivo',sans-serif; letter-spacing:1px; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></div>
+          <div style="font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A; margin-top:4px;">Panel de operación</div>
+        </div>
+        <div style="background:#0D1210; border:1px solid #26332B; border-radius:12px; padding:24px; display:flex; flex-direction:column; gap:16px;">
+          <div>
+            <label for="lg-user" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">USUARIO</label>
+            <input id="lg-user" type="text" autocomplete="username" style="width:100%; box-sizing:border-box; height:48px; background:#0A0E0C; border:1px solid #26332B; border-radius:8px; color:#EAF4EE; font:500 15px 'Space Grotesk',sans-serif; padding:0 14px;">
+          </div>
+          <div>
+            <label for="lg-pass" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">CONTRASEÑA</label>
+            <input id="lg-pass" type="password" autocomplete="current-password" style="width:100%; box-sizing:border-box; height:48px; background:#0A0E0C; border:1px solid #26332B; border-radius:8px; color:#EAF4EE; font:500 15px 'Space Grotesk',sans-serif; padding:0 14px;">
+          </div>
+          <button style="height:50px; border:none; border-radius:8px; background:#3BE87F; color:#05130B; font:700 15px 'Space Grotesk',sans-serif; cursor:pointer;">Entrar</button>
+        </div>
+        <div style="font:400 12px/1.6 'IBM Plex Mono',monospace; color:#5C6E64;">Acceso restringido a operadores. Los intentos quedan registrados.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DASHBOARD ================= -->
+  <div data-screen-label="Dashboard máquinas" style="display:flex; flex-direction:column; gap:16px;">
+    <h2 style="margin:0; color:#17170F; font:700 20px 'Space Grotesk',sans-serif;">2 · Dashboard de máquinas <span style="color:#5A5A4E; font-weight:400;">/admin</span></h2>
+    <div style="display:flex; gap:32px; align-items:flex-start;">
+      <!-- desktop -->
+      <div style="width:1280px; flex:none; background:#0A0E0C; border:1px solid #26332B; border-radius:16px; overflow:hidden; display:flex; min-height:640px;">
+        <div style="width:200px; flex:none; border-right:1px solid #26332B; padding:20px 0; display:flex; flex-direction:column; background:#0D1210;">
+          <div style="padding:0 20px 20px; font:900 22px 'Archivo',sans-serif; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></div>
+          <div style="padding:11px 20px; font:600 13px 'IBM Plex Mono',monospace; color:#05130B; background:#3BE87F;">Máquinas</div>
+          <div style="padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A;">Órdenes</div>
+          <div style="padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A;">Movimientos</div>
+          <div style="margin-top:auto; padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#5C6E64;">operador@grabi · Salir</div>
+        </div>
+        <div style="flex:1; padding:28px 32px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:22px;">
+            <h3 style="margin:0; font:700 20px 'Space Grotesk',sans-serif; color:#EAF4EE;">Máquinas <span style="font:500 14px 'IBM Plex Mono',monospace; color:#8FA79A;">3</span></h3>
+            <button style="height:44px; padding:0 18px; border:none; border-radius:8px; background:#3BE87F; color:#05130B; font:700 14px 'Space Grotesk',sans-serif; cursor:pointer;">+ Nueva máquina</button>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px;">
+            <sc-for list="{{ machines }}" as="m" hint-placeholder-count="3">
+              <div style="background:#0D1210; border:1px solid #26332B; border-radius:12px; padding:18px; display:flex; flex-direction:column; gap:12px; cursor:pointer;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="font:700 18px 'IBM Plex Mono',monospace; color:#EAF4EE;">{{ m.id }}</span>
+                  <span style="font:600 11px 'IBM Plex Mono',monospace; color:{{ m.stColor }}; border:1px solid {{ m.stColor }}; padding:3px 8px; border-radius:99px;">{{ m.estado }}</span>
+                </div>
+                <div style="font:500 14px 'Space Grotesk',sans-serif; color:#EAF4EE;">{{ m.loc }}</div>
+                <div style="font:400 12px 'IBM Plex Mono',monospace; color:#8FA79A;">{{ m.prods }}</div>
+                <div style="border-top:1px solid #1B241F; padding-top:10px; font:600 12px 'IBM Plex Mono',monospace; color:{{ m.alertColor }};">{{ m.alert }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <!-- móvil -->
+      <div style="width:390px; flex:none; background:#0A0E0C; border:1px solid #26332B; border-radius:20px; overflow:hidden;">
+        <div style="padding:16px 18px; border-bottom:1px solid #26332B; display:flex; justify-content:space-between; align-items:center; background:#0D1210;">
+          <span style="font:900 20px 'Archivo',sans-serif; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></span>
+          <span style="font:500 12px 'IBM Plex Mono',monospace; color:#8FA79A;">Máquinas</span>
+        </div>
+        <div style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+          <button style="height:48px; border:1px dashed #3BE87F; border-radius:10px; background:transparent; color:#3BE87F; font:700 14px 'Space Grotesk',sans-serif; cursor:pointer;">+ Nueva máquina</button>
+          <sc-for list="{{ machines }}" as="m" hint-placeholder-count="3">
+            <div style="background:#0D1210; border:1px solid #26332B; border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font:700 17px 'IBM Plex Mono',monospace; color:#EAF4EE;">{{ m.id }} <span style="font:500 13px 'Space Grotesk',sans-serif; color:#8FA79A;">{{ m.loc }}</span></span>
+                <span style="font:600 10px 'IBM Plex Mono',monospace; color:{{ m.stColor }}; border:1px solid {{ m.stColor }}; padding:3px 7px; border-radius:99px;">{{ m.estado }}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; font:500 12px 'IBM Plex Mono',monospace;">
+                <span style="color:#8FA79A;">{{ m.prods }}</span>
+                <span style="color:{{ m.alertColor }};">{{ m.alert }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="border-top:1px solid #26332B; background:#0D1210; display:flex;">
+          <div style="flex:1; padding:14px 0; text-align:center; font:600 12px 'IBM Plex Mono',monospace; color:#3BE87F; border-top:2px solid #3BE87F;">Máquinas</div>
+          <div style="flex:1; padding:14px 0; text-align:center; font:500 12px 'IBM Plex Mono',monospace; color:#8FA79A;">Órdenes</div>
+          <div style="flex:1; padding:14px 0; text-align:center; font:500 12px 'IBM Plex Mono',monospace; color:#8FA79A;">Movs.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DETALLE DE MÁQUINA ================= -->
+  <div data-screen-label="Detalle máquina" style="display:flex; flex-direction:column; gap:16px;">
+    <h2 style="margin:0; color:#17170F; font:700 20px 'Space Grotesk',sans-serif;">3 · Detalle de máquina M001 <span style="color:#5A5A4E; font-weight:400;">— canales + reabastecimiento (prueba el botón "Reabastecer")</span></h2>
+    <div style="display:flex; gap:32px; align-items:flex-start;">
+      <!-- desktop -->
+      <div style="width:1280px; flex:none; background:#0A0E0C; border:1px solid #26332B; border-radius:16px; overflow:hidden; display:flex; min-height:700px;">
+        <div style="width:200px; flex:none; border-right:1px solid #26332B; padding:20px 0; display:flex; flex-direction:column; background:#0D1210;">
+          <div style="padding:0 20px 20px; font:900 22px 'Archivo',sans-serif; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></div>
+          <div style="padding:11px 20px; font:600 13px 'IBM Plex Mono',monospace; color:#05130B; background:#3BE87F;">Máquinas</div>
+          <div style="padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A;">Órdenes</div>
+          <div style="padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A;">Movimientos</div>
+          <div style="margin-top:auto; padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#5C6E64;">operador@grabi · Salir</div>
+        </div>
+        <div style="flex:1; padding:28px 32px;">
+          <div style="font:500 12px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:8px;"><a href="#" style="color:#8FA79A; text-decoration:none;">Máquinas</a> / M001</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <h3 style="margin:0; font:700 22px 'Space Grotesk',sans-serif; color:#EAF4EE;">M001 · Tienda D1 · Cali <span style="font:600 11px 'IBM Plex Mono',monospace; color:#2ED3B7; border:1px solid #2ED3B7; padding:3px 8px; border-radius:99px; vertical-align:middle;">ACTIVA</span></h3>
+            <div style="display:flex; gap:10px;">
+              <sc-if value="{{ refillOff }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ startRefill }}" style="height:44px; padding:0 18px; border:1px solid #3BE87F; border-radius:8px; background:transparent; color:#3BE87F; font:700 14px 'Space Grotesk',sans-serif; cursor:pointer;">⟳ Reabastecer</button>
+              </sc-if>
+              <sc-if value="{{ refillOn }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ cancelRefill }}" style="height:44px; padding:0 16px; border:1px solid #26332B; border-radius:8px; background:transparent; color:#8FA79A; font:600 14px 'Space Grotesk',sans-serif; cursor:pointer;">Cancelar</button>
+                <button onClick="{{ saveRefill }}" style="height:44px; padding:0 18px; border:none; border-radius:8px; background:#3BE87F; color:#05130B; font:700 14px 'Space Grotesk',sans-serif; cursor:pointer;">Guardar conteo real</button>
+              </sc-if>
+            </div>
+          </div>
+          <div style="font:400 13px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:20px;">grabi.napi.lat/m/M001 · 4 canales · último refill hace 3 días</div>
+          <sc-if value="{{ refillOn }}" hint-placeholder-val="{{ false }}">
+            <div style="border:1px solid #FFB454; border-radius:10px; padding:12px 16px; margin-bottom:16px; font:500 13px/1.5 'IBM Plex Mono',monospace; color:#FFB454;">Modo reabastecimiento: escribe el conteo FÍSICO real de cada canal. Al guardar, ese número reemplaza el estimado del servidor.</div>
+          </sc-if>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <sc-for list="{{ slots }}" as="s" hint-placeholder-count="4">
+              <div style="background:#0D1210; border:1px {{ s.borderStyle }} {{ s.borderColor }}; border-radius:12px; padding:18px;">
+                <sc-if value="{{ s.free }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:150px;">
+                    <span style="font:700 13px 'IBM Plex Mono',monospace; color:#5C6E64;">CANAL #{{ s.n }} · LIBRE</span>
+                    <button style="height:44px; padding:0 18px; border:1px dashed #3BE87F; border-radius:8px; background:transparent; color:#3BE87F; font:700 13px 'Space Grotesk',sans-serif; cursor:pointer;">+ Asignar producto</button>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ s.used }}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex; gap:14px;">
+                    <div style="width:64px; height:64px; flex:none; border-radius:8px; background:{{ s.tile }}; display:flex; align-items:center; justify-content:center; font:700 20px 'Archivo',sans-serif; color:#05130B;">{{ s.abbr }}</div>
+                    <div style="flex:1; min-width:0;">
+                      <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font:700 13px 'IBM Plex Mono',monospace; color:#3BE87F;">CANAL #{{ s.n }}</span>
+                        <div style="display:flex; gap:6px;">
+                          <span style="font:600 10px 'IBM Plex Mono',monospace; color:{{ s.stockColor }}; border:1px solid {{ s.stockColor }}; padding:3px 7px; border-radius:99px;">{{ s.stockChip }}</span>
+                          <span style="font:600 10px 'IBM Plex Mono',monospace; color:{{ s.motorColor }}; border:1px solid {{ s.motorColor }}; padding:3px 7px; border-radius:99px;">{{ s.motorChip }}</span>
+                        </div>
+                      </div>
+                      <div style="font:500 15px 'Space Grotesk',sans-serif; color:#EAF4EE; margin:4px 0 2px;">{{ s.name }}</div>
+                      <div style="display:flex; gap:14px; font:500 13px 'IBM Plex Mono',monospace; align-items:center;">
+                        <span style="color:#EAF4EE;">{{ s.priceFmt }}</span>
+                        <sc-if value="{{ refillOff }}" hint-placeholder-val="{{ true }}"><span style="color:{{ s.stockColor }};">stock {{ s.stock }}</span></sc-if>
+                        <sc-if value="{{ refillOn }}" hint-placeholder-val="{{ false }}">
+                          <span style="color:#8FA79A;">est. {{ s.stock }} →</span>
+                          <input aria-label="Conteo real canal {{ s.n }}" type="number" min="0" inputMode="numeric" value="{{ s.countVal }}" onChange="{{ s.setCount }}" style="width:72px; height:40px; background:#0A0E0C; border:1px solid #FFB454; border-radius:8px; color:#EAF4EE; font:700 15px 'IBM Plex Mono',monospace; text-align:center;">
+                        </sc-if>
+                      </div>
+                      <sc-if value="{{ s.noMotor }}" hint-placeholder-val="{{ false }}">
+                        <div style="margin-top:8px; font:500 11px/1.5 'IBM Plex Mono',monospace; color:#FF6B6B;">Sin motor: no dispensa. Oculto de la venta hasta conectarlo.</div>
+                      </sc-if>
+                    </div>
+                  </div>
+                  <div style="display:flex; gap:8px; margin-top:14px; border-top:1px solid #1B241F; padding-top:12px;">
+                    <button style="height:36px; padding:0 12px; border:1px solid #26332B; border-radius:6px; background:transparent; color:#EAF4EE; font:600 12px 'Space Grotesk',sans-serif; cursor:pointer;">Editar</button>
+                    <button style="height:36px; padding:0 12px; border:1px solid #26332B; border-radius:6px; background:transparent; color:#EAF4EE; font:600 12px 'Space Grotesk',sans-serif; cursor:pointer;">Mover</button>
+                    <button style="height:36px; padding:0 12px; border:1px solid #26332B; border-radius:6px; background:transparent; color:#8FA79A; font:600 12px 'Space Grotesk',sans-serif; cursor:pointer;">Vaciar</button>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:18px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; font:600 10px 'IBM Plex Mono',monospace;">
+            <span style="color:#5C6E64; font-weight:500;">ESTADOS:</span>
+            <span style="color:#2ED3B7; border:1px solid #2ED3B7; padding:3px 7px; border-radius:99px;">EN VENTA</span>
+            <span style="color:#FFB454; border:1px solid #FFB454; padding:3px 7px; border-radius:99px;">STOCK BAJO</span>
+            <span style="color:#FF6B6B; border:1px solid #FF6B6B; padding:3px 7px; border-radius:99px;">AGOTADO</span>
+            <span style="color:#FF6B6B; border:1px solid #FF6B6B; padding:3px 7px; border-radius:99px;">SIN MOTOR</span>
+            <span style="color:#5C6E64; border:1px dashed #5C6E64; padding:3px 7px; border-radius:99px;">LIBRE</span>
+          </div>
+        </div>
+      </div>
+      <!-- móvil (refill con el pulgar) -->
+      <div style="width:390px; flex:none; background:#0A0E0C; border:1px solid #26332B; border-radius:20px; overflow:hidden;">
+        <div style="padding:16px 18px; border-bottom:1px solid #26332B; background:#0D1210;">
+          <div style="font:500 11px 'IBM Plex Mono',monospace; color:#8FA79A;">← Máquinas</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px;">
+            <span style="font:700 17px 'Space Grotesk',sans-serif; color:#EAF4EE;">M001 · Tienda D1</span>
+            <sc-if value="{{ refillOff }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ startRefill }}" style="height:40px; padding:0 14px; border:1px solid #3BE87F; border-radius:8px; background:transparent; color:#3BE87F; font:700 13px 'Space Grotesk',sans-serif; cursor:pointer;">⟳ Reabastecer</button>
+            </sc-if>
+            <sc-if value="{{ refillOn }}" hint-placeholder-val="{{ false }}">
+              <span style="font:600 11px 'IBM Plex Mono',monospace; color:#FFB454; animation:pulse 1.6s infinite;">● CONTEO FÍSICO</span>
+            </sc-if>
+          </div>
+        </div>
+        <div style="padding:14px 16px; display:flex; flex-direction:column; gap:10px;">
+          <sc-for list="{{ slots }}" as="s" hint-placeholder-count="4">
+            <div style="background:#0D1210; border:1px {{ s.borderStyle }} {{ s.borderColor }}; border-radius:12px; padding:14px; display:flex; gap:12px; align-items:center;">
+              <sc-if value="{{ s.free }}" hint-placeholder-val="{{ false }}">
+                <span style="flex:1; font:600 12px 'IBM Plex Mono',monospace; color:#5C6E64;">CANAL #{{ s.n }} · LIBRE</span>
+                <button style="height:44px; padding:0 14px; border:1px dashed #3BE87F; border-radius:8px; background:transparent; color:#3BE87F; font:700 12px 'Space Grotesk',sans-serif; cursor:pointer;">+ Asignar</button>
+              </sc-if>
+              <sc-if value="{{ s.used }}" hint-placeholder-val="{{ true }}">
+                <div style="width:48px; height:48px; flex:none; border-radius:8px; background:{{ s.tile }}; display:flex; align-items:center; justify-content:center; font:700 16px 'Archivo',sans-serif; color:#05130B;">{{ s.abbr }}</div>
+                <div style="flex:1; min-width:0;">
+                  <div style="font:600 10px 'IBM Plex Mono',monospace; color:#3BE87F;">#{{ s.n }} <span style="color:{{ s.motorColor }};">· {{ s.motorChip }}</span></div>
+                  <div style="font:500 14px 'Space Grotesk',sans-serif; color:#EAF4EE;">{{ s.name }}</div>
+                  <div style="font:500 12px 'IBM Plex Mono',monospace; color:{{ s.stockColor }};">{{ s.stockChip }} · est. {{ s.stock }}</div>
+                </div>
+                <sc-if value="{{ refillOn }}" hint-placeholder-val="{{ false }}">
+                  <input aria-label="Conteo real canal {{ s.n }}" type="number" min="0" inputMode="numeric" value="{{ s.countVal }}" onChange="{{ s.setCount }}" style="width:64px; height:52px; background:#0A0E0C; border:1px solid #FFB454; border-radius:10px; color:#EAF4EE; font:700 18px 'IBM Plex Mono',monospace; text-align:center;">
+                </sc-if>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <sc-if value="{{ refillOn }}" hint-placeholder-val="{{ false }}">
+          <div style="border-top:1px solid #26332B; background:#0D1210; padding:12px 16px; display:flex; gap:10px;">
+            <button onClick="{{ cancelRefill }}" style="height:52px; padding:0 16px; border:1px solid #26332B; border-radius:8px; background:transparent; color:#8FA79A; font:600 14px 'Space Grotesk',sans-serif; cursor:pointer;">Cancelar</button>
+            <button onClick="{{ saveRefill }}" style="flex:1; height:52px; border:none; border-radius:8px; background:#3BE87F; color:#05130B; font:700 15px 'Space Grotesk',sans-serif; cursor:pointer;">Guardar conteo real</button>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= FORMULARIO PRODUCTO + MODALES ================= -->
+  <div data-screen-label="Formulario y confirmaciones" style="display:flex; flex-direction:column; gap:16px;">
+    <h2 style="margin:0; color:#17170F; font:700 20px 'Space Grotesk',sans-serif;">3b · Formulario de producto y confirmaciones de seguridad</h2>
+    <div style="display:flex; gap:32px; align-items:flex-start; flex-wrap:wrap;">
+      <!-- form producto -->
+      <div style="width:460px; flex:none; background:#0D1210; border:1px solid #26332B; border-radius:14px; overflow:hidden;">
+        <div style="padding:16px 22px; border-bottom:1px solid #26332B; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font:700 16px 'Space Grotesk',sans-serif; color:#EAF4EE;">Asignar producto · Canal #4</span>
+          <span style="font:500 16px 'IBM Plex Mono',monospace; color:#8FA79A; cursor:pointer;">✕</span>
+        </div>
+        <div style="padding:22px; display:flex; flex-direction:column; gap:14px;">
+          <div>
+            <label for="fp-nombre" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">NOMBRE *</label>
+            <input id="fp-nombre" type="text" placeholder="Ej: Chocorramo" style="width:100%; box-sizing:border-box; height:46px; background:#0A0E0C; border:1px solid #26332B; border-radius:8px; color:#EAF4EE; font:500 14px 'Space Grotesk',sans-serif; padding:0 12px;">
+          </div>
+          <div>
+            <label for="fp-desc" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">DESCRIPCIÓN</label>
+            <input id="fp-desc" type="text" placeholder="Ponqué con cobertura de chocolate, 65 g" style="width:100%; box-sizing:border-box; height:46px; background:#0A0E0C; border:1px solid #26332B; border-radius:8px; color:#EAF4EE; font:500 14px 'Space Grotesk',sans-serif; padding:0 12px;">
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+            <div>
+              <label for="fp-precio" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">PRECIO COP *</label>
+              <input id="fp-precio" type="number" placeholder="2800" style="width:100%; box-sizing:border-box; height:46px; background:#0A0E0C; border:1px solid #26332B; border-radius:8px; color:#EAF4EE; font:600 14px 'IBM Plex Mono',monospace; padding:0 12px;">
+            </div>
+            <div>
+              <label for="fp-stock" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">STOCK *</label>
+              <input id="fp-stock" type="number" placeholder="10" style="width:100%; box-sizing:border-box; height:46px; background:#0A0E0C; border:1px solid #26332B; border-radius:8px; color:#EAF4EE; font:600 14px 'IBM Plex Mono',monospace; padding:0 12px;">
+            </div>
+            <div>
+              <label for="fp-slot" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">CANAL *</label>
+              <select id="fp-slot" style="width:100%; box-sizing:border-box; height:46px; background:#0A0E0C; border:1px solid #26332B; border-radius:8px; color:#EAF4EE; font:600 14px 'IBM Plex Mono',monospace; padding:0 8px;">
+                <option>#4</option><option>#1</option><option>#2</option><option>#3</option>
+              </select>
+            </div>
+          </div>
+          <label style="display:flex; gap:10px; align-items:center; border:1px solid #26332B; border-radius:8px; padding:12px; cursor:pointer;">
+            <input type="checkbox" style="width:20px; height:20px; accent-color:#3BE87F;">
+            <span style="font:500 13px 'Space Grotesk',sans-serif; color:#EAF4EE;">Motor conectado <span style="color:#8FA79A;">(si no, el canal no dispensa y queda oculto de la venta)</span></span>
+          </label>
+          <div style="border:1px dashed #26332B; border-radius:10px; padding:20px; text-align:center;">
+            <div style="font:600 13px 'Space Grotesk',sans-serif; color:#EAF4EE;">Subir foto</div>
+            <div style="font:400 11px/1.5 'IBM Plex Mono',monospace; color:#8FA79A; margin-top:4px;">JPG/PNG · recomendado 800×800 · arrastra o toca</div>
+          </div>
+          <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button style="height:46px; padding:0 16px; border:1px solid #26332B; border-radius:8px; background:transparent; color:#8FA79A; font:600 13px 'Space Grotesk',sans-serif; cursor:pointer;">Cancelar</button>
+            <button style="height:46px; padding:0 18px; border:none; border-radius:8px; background:#3BE87F; color:#05130B; font:700 13px 'Space Grotesk',sans-serif; cursor:pointer;">Guardar producto</button>
+          </div>
+        </div>
+      </div>
+      <!-- modales -->
+      <div style="display:grid; grid-template-columns:420px 420px; gap:24px;">
+        <div style="background:#0D1210; border:1px solid #FFB454; border-radius:14px; padding:22px;">
+          <div style="font:700 14px 'IBM Plex Mono',monospace; color:#FFB454; margin-bottom:10px;">⚠ VERIFICA EL CANAL FÍSICO</div>
+          <div style="font:400 14px/1.6 'Space Grotesk',sans-serif; color:#EAF4EE;">Vas a asignar <strong>Chocorramo</strong> al canal <strong>#4</strong>. Confirma que el producto cargado en ese espiral físico coincide: si no, la máquina entregará otra cosa.</div>
+          <label style="display:flex; gap:10px; align-items:center; margin:14px 0; cursor:pointer;">
+            <input type="checkbox" style="width:20px; height:20px; accent-color:#FFB454;">
+            <span style="font:500 13px 'Space Grotesk',sans-serif; color:#EAF4EE;">Verifiqué el canal físico de la máquina</span>
+          </label>
+          <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button style="height:44px; padding:0 14px; border:1px solid #26332B; border-radius:8px; background:transparent; color:#8FA79A; font:600 13px 'Space Grotesk',sans-serif; cursor:pointer;">Cancelar</button>
+            <button disabled="{{ true }}" style="height:44px; padding:0 16px; border:none; border-radius:8px; background:#FFB454; color:#05130B; font:700 13px 'Space Grotesk',sans-serif; opacity:.4;">Confirmar asignación</button>
+          </div>
+        </div>
+        <div style="background:#0D1210; border:1px solid #FF6B6B; border-radius:14px; padding:22px;">
+          <div style="font:700 14px 'IBM Plex Mono',monospace; color:#FF6B6B; margin-bottom:10px;">⚠ CANAL SIN MOTOR</div>
+          <div style="font:400 14px/1.6 'Space Grotesk',sans-serif; color:#EAF4EE;">El canal <strong>#3</strong> no tiene motor conectado: <strong>no dispensa todavía</strong>. Si lo publicas, cobrarás sin entregar el producto.</div>
+          <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
+            <button style="height:44px; padding:0 14px; border:none; border-radius:8px; background:#3BE87F; color:#05130B; font:700 13px 'Space Grotesk',sans-serif; cursor:pointer;">Mantener oculto</button>
+            <button style="height:44px; padding:0 16px; border:1px solid #FF6B6B; border-radius:8px; background:transparent; color:#FF6B6B; font:700 13px 'Space Grotesk',sans-serif; cursor:pointer;">Publicar igual</button>
+          </div>
+        </div>
+        <div style="background:#0D1210; border:1px solid #FF6B6B; border-radius:14px; padding:22px;">
+          <div style="font:700 14px 'IBM Plex Mono',monospace; color:#FF6B6B; margin-bottom:10px;">⚠ AÚN HAY UNIDADES FÍSICAS</div>
+          <div style="font:400 14px/1.6 'Space Grotesk',sans-serif; color:#EAF4EE;">No puedes eliminar <strong>Papas Margarita</strong>: quedan <strong>9 unidades</strong> en el canal #1. Retíralas de la máquina y pon el stock en 0 primero.</div>
+          <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+            <button style="height:44px; padding:0 16px; border:1px solid #26332B; border-radius:8px; background:transparent; color:#EAF4EE; font:600 13px 'Space Grotesk',sans-serif; cursor:pointer;">Entendido</button>
+          </div>
+        </div>
+        <div style="background:#0D1210; border:1px solid #5AB8FF; border-radius:14px; padding:22px;">
+          <div style="font:700 14px 'IBM Plex Mono',monospace; color:#5AB8FF; margin-bottom:10px;">SIN FOTO DEL PRODUCTO</div>
+          <div style="font:400 14px/1.6 'Space Grotesk',sans-serif; color:#EAF4EE;">Los productos con foto se venden mejor y evitan confusiones en el canal. Puedes continuar y subirla después.</div>
+          <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
+            <button style="height:44px; padding:0 14px; border:1px solid #26332B; border-radius:8px; background:transparent; color:#8FA79A; font:600 13px 'Space Grotesk',sans-serif; cursor:pointer;">Continuar sin foto</button>
+            <button style="height:44px; padding:0 16px; border:none; border-radius:8px; background:#3BE87F; color:#05130B; font:700 13px 'Space Grotesk',sans-serif; cursor:pointer;">Subir foto</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= ÓRDENES ================= -->
+  <div data-screen-label="Órdenes" style="display:flex; flex-direction:column; gap:16px;">
+    <h2 style="margin:0; color:#17170F; font:700 20px 'Space Grotesk',sans-serif;">4 · Órdenes <span style="color:#5A5A4E; font-weight:400;">/admin/orders — los filtros funcionan</span></h2>
+    <div style="display:flex; gap:32px; align-items:flex-start;">
+      <!-- desktop -->
+      <div style="width:1280px; flex:none; background:#0A0E0C; border:1px solid #26332B; border-radius:16px; overflow:hidden; display:flex; min-height:640px;">
+        <div style="width:200px; flex:none; border-right:1px solid #26332B; padding:20px 0; display:flex; flex-direction:column; background:#0D1210;">
+          <div style="padding:0 20px 20px; font:900 22px 'Archivo',sans-serif; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></div>
+          <div style="padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A;">Máquinas</div>
+          <div style="padding:11px 20px; font:600 13px 'IBM Plex Mono',monospace; color:#05130B; background:#3BE87F;">Órdenes</div>
+          <div style="padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A;">Movimientos</div>
+          <div style="margin-top:auto; padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#5C6E64;">operador@grabi · Salir</div>
+        </div>
+        <div style="flex:1; padding:28px 32px;">
+          <h3 style="margin:0 0 16px; font:700 20px 'Space Grotesk',sans-serif; color:#EAF4EE;">Órdenes · hoy</h3>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px;">
+            <sc-for list="{{ chips }}" as="c" hint-placeholder-count="7">
+              <button onClick="{{ c.pick }}" style="height:36px; padding:0 14px; border:1px solid {{ c.bd }}; border-radius:99px; background:{{ c.bg }}; color:{{ c.fg }}; font:600 12px 'IBM Plex Mono',monospace; cursor:pointer;">{{ c.label }}</button>
+            </sc-for>
+            <span style="align-self:center; margin-left:8px; font:500 12px 'IBM Plex Mono',monospace; color:#5C6E64;">Máquina: todas ▾</span>
+          </div>
+          <div style="border:1px solid #26332B; border-radius:12px; overflow:hidden;">
+            <div style="display:grid; grid-template-columns:80px 70px 1fr 100px 160px 150px; gap:12px; padding:12px 18px; background:#0D1210; border-bottom:1px solid #26332B; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A;">
+              <span>HORA</span><span>MÁQ.</span><span>PRODUCTOS</span><span>MONTO</span><span>PAGADOR</span><span>ESTADO</span>
+            </div>
+            <sc-for list="{{ orders }}" as="o" hint-placeholder-count="7">
+              <div style="display:grid; grid-template-columns:80px 70px 1fr 100px 160px 150px; gap:12px; padding:14px 18px; border-bottom:1px solid #1B241F; font:500 13px 'IBM Plex Mono',monospace; align-items:center;">
+                <span style="color:#8FA79A;">{{ o.hora }}</span>
+                <span style="color:#EAF4EE;">{{ o.maq }}</span>
+                <span style="color:#EAF4EE; font-family:'Space Grotesk',sans-serif;">{{ o.prods }}</span>
+                <span style="color:#EAF4EE;">{{ o.monto }}</span>
+                <span style="color:#8FA79A; font-family:'Space Grotesk',sans-serif;">{{ o.pagador }}</span>
+                <span><span style="font:600 11px 'IBM Plex Mono',monospace; color:{{ o.fg }}; border:1px {{ o.bs }} {{ o.fg }}; padding:4px 10px; border-radius:99px;">{{ o.pill }}</span></span>
+              </div>
+            </sc-for>
+            <sc-if value="{{ noOrders }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:28px; text-align:center; font:400 13px 'IBM Plex Mono',monospace; color:#5C6E64;">No hay órdenes con este filtro</div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+      <!-- móvil -->
+      <div style="width:390px; flex:none; background:#0A0E0C; border:1px solid #26332B; border-radius:20px; overflow:hidden;">
+        <div style="padding:16px 18px 12px; border-bottom:1px solid #26332B; background:#0D1210;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <span style="font:900 20px 'Archivo',sans-serif; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></span>
+            <span style="font:500 12px 'IBM Plex Mono',monospace; color:#8FA79A;">Órdenes · hoy</span>
+          </div>
+          <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:4px;">
+            <sc-for list="{{ chips }}" as="c" hint-placeholder-count="7">
+              <button onClick="{{ c.pick }}" style="flex:none; height:34px; padding:0 12px; border:1px solid {{ c.bd }}; border-radius:99px; background:{{ c.bg }}; color:{{ c.fg }}; font:600 11px 'IBM Plex Mono',monospace; cursor:pointer;">{{ c.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="padding:14px 16px; display:flex; flex-direction:column; gap:10px;">
+          <sc-for list="{{ orders }}" as="o" hint-placeholder-count="5">
+            <div style="background:#0D1210; border:1px solid #26332B; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font:600 12px 'IBM Plex Mono',monospace; color:#8FA79A;">{{ o.hora }} · {{ o.maq }}</span>
+                <span style="font:600 10px 'IBM Plex Mono',monospace; color:{{ o.fg }}; border:1px {{ o.bs }} {{ o.fg }}; padding:3px 8px; border-radius:99px;">{{ o.pill }}</span>
+              </div>
+              <div style="font:500 14px 'Space Grotesk',sans-serif; color:#EAF4EE;">{{ o.prods }}</div>
+              <div style="display:flex; justify-content:space-between; font:600 13px 'IBM Plex Mono',monospace;">
+                <span style="color:#8FA79A; font-family:'Space Grotesk',sans-serif; font-weight:400;">{{ o.pagador }}</span>
+                <span style="color:#EAF4EE;">{{ o.monto }}</span>
+              </div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ noOrders }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:24px; text-align:center; font:400 12px 'IBM Plex Mono',monospace; color:#5C6E64;">No hay órdenes con este filtro</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MOVIMIENTOS ================= -->
+  <div data-screen-label="Movimientos bancarios" style="display:flex; flex-direction:column; gap:16px;">
+    <h2 style="margin:0; color:#17170F; font:700 20px 'Space Grotesk',sans-serif;">5 · Movimientos bancarios <span style="color:#5A5A4E; font-weight:400;">/admin/movements — conciliación</span></h2>
+    <div style="width:1280px; background:#0A0E0C; border:1px solid #26332B; border-radius:16px; overflow:hidden; display:flex; min-height:560px;">
+      <div style="width:200px; flex:none; border-right:1px solid #26332B; padding:20px 0; display:flex; flex-direction:column; background:#0D1210;">
+        <div style="padding:0 20px 20px; font:900 22px 'Archivo',sans-serif; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></div>
+        <div style="padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A;">Máquinas</div>
+        <div style="padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A;">Órdenes</div>
+        <div style="padding:11px 20px; font:600 13px 'IBM Plex Mono',monospace; color:#05130B; background:#3BE87F;">Movimientos</div>
+        <div style="margin-top:auto; padding:11px 20px; font:500 13px 'IBM Plex Mono',monospace; color:#5C6E64;">operador@grabi · Salir</div>
+      </div>
+      <div style="flex:1; padding:28px 32px;">
+        <h3 style="margin:0 0 6px; font:700 20px 'Space Grotesk',sans-serif; color:#EAF4EE;">Abonos detectados por correo</h3>
+        <div style="font:400 13px/1.5 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:18px;">Cada abono Bre-B se casa con una orden por monto + nombre. Lo que no casa queda aquí para auditoría y reembolsos.</div>
+        <div style="border:1px solid #26332B; border-radius:12px; overflow:hidden;">
+          <div style="display:grid; grid-template-columns:130px 110px 1fr 170px 150px; gap:12px; padding:12px 18px; background:#0D1210; border-bottom:1px solid #26332B; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A;">
+            <span>FECHA</span><span>MONTO</span><span>REMITENTE (CORREO BANCO)</span><span>ORDEN CASADA</span><span>ESTADO</span>
+          </div>
+          <sc-for list="{{ movs }}" as="v" hint-placeholder-count="5">
+            <div style="display:grid; grid-template-columns:130px 110px 1fr 170px 150px; gap:12px; padding:14px 18px; border-bottom:1px solid #1B241F; font:500 13px 'IBM Plex Mono',monospace; align-items:center;">
+              <span style="color:#8FA79A;">{{ v.fecha }}</span>
+              <span style="color:#EAF4EE;">{{ v.monto }}</span>
+              <span style="color:#EAF4EE; font-family:'Space Grotesk',sans-serif;">{{ v.remitente }}</span>
+              <span style="color:{{ v.ordColor }};">{{ v.orden }}</span>
+              <span><span style="font:600 11px 'IBM Plex Mono',monospace; color:{{ v.fg }}; border:1px solid {{ v.fg }}; padding:4px 10px; border-radius:99px;">{{ v.pill }}</span></span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top:14px; font:500 12px/1.7 'IBM Plex Mono',monospace; color:#5C6E64;">huérfano = entró dinero sin orden que coincida → contactar y reembolsar · conflicto = dos órdenes candidatas → resolver manual</div>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;canal4Libre&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Simulación&quot; }
+}">
+class Component extends DCLogic {
+  state = { refill: false, counts: {}, filter: 'todas' };
+
+  fmt(n) { return '$' + n.toLocaleString('es-CO'); }
+
+  renderVals() {
+    const C = { ok: '#2ED3B7', warn: '#FFB454', crit: '#FF6B6B', info: '#5AB8FF', purple: '#C792EA', gray: '#8FA79A', dim: '#5C6E64' };
+    const machines = [
+      { id: 'M001', loc: 'Tienda D1 · Cali', estado: 'ACTIVA', stColor: C.ok, prods: '3 productos · 4 canales', alert: '⚠ 1 canal bajo · 1 agotado', alertColor: C.warn },
+      { id: 'M002', loc: 'Éxito Chipichape · Cali', estado: 'ACTIVA', stColor: C.ok, prods: '4 productos · 4 canales', alert: 'Stock OK', alertColor: C.dim },
+      { id: 'M003', loc: 'Panadería La 14 · Yumbo', estado: 'FUERA DE SERVICIO', stColor: C.crit, prods: '2 productos · 4 canales', alert: 'No visible para clientes', alertColor: C.dim }
+    ];
+
+    const stocks = this.state.stocks || { papas: 9, coca: 6, agua: 2, jugo: 0 };
+    const base = [
+      { n: 1, id: 'papas', name: 'Papas Margarita', price: 2000, abbr: 'PM', tile: '#F2C94C', motor: true },
+      { n: 2, id: 'coca', name: 'Coca-Cola 400ml', price: 3500, abbr: 'CC', tile: '#EB7A6B', motor: true },
+      { n: 3, id: 'agua', name: 'Agua Cristal 600ml', price: 2500, abbr: 'AC', tile: '#7FD4E8', motor: true },
+      { n: 4, id: 'jugo', name: 'Jugo Hit 500ml', price: 3000, abbr: 'JH', tile: '#F2A05A', motor: false }
+    ];
+    const freeSlot = this.props.canal4Libre ?? false;
+    const slots = base.map(s => {
+      if (freeSlot && s.n === 4) return { n: 4, free: true, used: false, borderStyle: 'dashed', borderColor: '#3A4A40' };
+      const stock = stocks[s.id];
+      const out = stock === 0, low = !out && stock <= 3;
+      const cv = this.state.counts[s.id];
+      return Object.assign({}, s, {
+        free: false, used: true, stock,
+        priceFmt: this.fmt(s.price),
+        stockChip: out ? 'AGOTADO' : (low ? 'STOCK BAJO' : 'EN VENTA'),
+        stockColor: out ? C.crit : (low ? C.warn : C.ok),
+        motorChip: s.motor ? 'MOTOR OK' : 'SIN MOTOR',
+        motorColor: s.motor ? C.gray : C.crit,
+        noMotor: !s.motor,
+        borderStyle: 'solid',
+        borderColor: s.motor ? '#26332B' : '#4A2A2A',
+        countVal: cv === undefined ? String(stock) : cv,
+        setCount: e => this.setState(st => ({ counts: Object.assign({}, st.counts, { [s.id]: e.target.value }) }))
+      });
+    });
+
+    const estados = {
+      pendiente: { pill: 'PENDIENTE', fg: C.warn, bs: 'solid' },
+      pagada: { pill: 'PAGADA', fg: C.info, bs: 'solid' },
+      dispensada: { pill: 'DISPENSADA', fg: C.ok, bs: 'solid' },
+      expirada: { pill: 'EXPIRADA', fg: C.gray, bs: 'solid' },
+      ambigua: { pill: 'AMBIGUA · REVISAR', fg: C.purple, bs: 'solid' },
+      simulada: { pill: 'SIMULADA', fg: C.dim, bs: 'dashed' }
+    };
+    const rawOrders = [
+      { hora: '14:32', maq: 'M001', prods: '1× Papas Margarita, 1× Coca-Cola', monto: 5500, pagador: 'Camila Restrepo', e: 'dispensada' },
+      { hora: '14:21', maq: 'M001', prods: '2× Agua Cristal', monto: 5000, pagador: 'Andrés Mejía', e: 'pagada' },
+      { hora: '14:05', maq: 'M002', prods: '1× Coca-Cola 400ml', monto: 3500, pagador: 'Luisa Fernanda G.', e: 'pendiente' },
+      { hora: '13:48', maq: 'M001', prods: '1× Papas Margarita', monto: 2000, pagador: 'Jorge Iván T.', e: 'ambigua' },
+      { hora: '13:12', maq: 'M002', prods: '1× Agua Cristal, 1× Papas', monto: 4500, pagador: 'Sara López', e: 'expirada' },
+      { hora: '12:58', maq: 'M001', prods: '1× Coca-Cola 400ml', monto: 3500, pagador: 'Mateo Ruiz', e: 'dispensada' },
+      { hora: '11:30', maq: 'M001', prods: '1× Papas Margarita', monto: 2000, pagador: 'prueba interna', e: 'simulada' }
+    ];
+    const f = this.state.filter;
+    const orders = rawOrders.filter(o => f === 'todas' || o.e === f).map(o => Object.assign({}, o, estados[o.e], { monto: this.fmt(o.monto) }));
+    const chips = ['todas', 'pendiente', 'pagada', 'dispensada', 'expirada', 'ambigua', 'simulada'].map(k => {
+      const act = f === k;
+      const col = k === 'todas' ? '#3BE87F' : estados[k].fg;
+      return {
+        label: k.toUpperCase(),
+        bg: act ? col : 'transparent',
+        fg: act ? '#05130B' : col,
+        bd: act ? col : '#26332B',
+        pick: () => this.setState({ filter: k })
+      };
+    });
+
+    const mePill = { casado: C.ok, huerfano: C.warn, fallido: C.crit, descartado: C.gray, conflicto: C.purple };
+    const movs = [
+      { fecha: '24/07 14:20', monto: '$5.000', remitente: 'ANDRES MEJIA — Bancolombia', orden: 'ORD-0231 · M001', ordColor: '#EAF4EE', pill: 'CASADO', fg: mePill.casado },
+      { fecha: '24/07 13:55', monto: '$3.500', remitente: 'LUISA F GOMEZ — Nequi', orden: '—', ordColor: C.dim, pill: 'HUÉRFANO', fg: mePill.huerfano },
+      { fecha: '24/07 13:47', monto: '$2.000', remitente: '(correo ilegible / formato nuevo)', orden: '—', ordColor: C.dim, pill: 'FORMATO-FALLIDO', fg: mePill.fallido },
+      { fecha: '24/07 13:40', monto: '$2.000', remitente: 'JORGE I TORRES — Davivienda', orden: 'ORD-0228 / ORD-0229', ordColor: C.purple, pill: 'CONFLICTO', fg: mePill.conflicto },
+      { fecha: '24/07 09:12', monto: '$100', remitente: 'PRUEBA OPERADOR — Nequi', orden: '—', ordColor: C.dim, pill: 'DESCARTADO', fg: mePill.descartado }
+    ];
+
+    return {
+      machines, slots, orders, chips, movs,
+      noOrders: orders.length === 0,
+      refillOn: this.state.refill, refillOff: !this.state.refill,
+      startRefill: () => this.setState({ refill: true, counts: {} }),
+      cancelRefill: () => this.setState({ refill: false, counts: {} }),
+      saveRefill: () => this.setState(st => {
+        const cur = st.stocks || { papas: 9, coca: 6, agua: 2, jugo: 0 };
+        const next = Object.assign({}, cur);
+        for (const k in st.counts) { const v = parseInt(st.counts[k], 10); if (!isNaN(v) && v >= 0) next[k] = v; }
+        return { stocks: next, refill: false, counts: {} };
+      }),
+      true: true
+    };
+  }
+}
+</script>
+</body>
+</html>

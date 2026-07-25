@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS machines (
   name       TEXT NOT NULL,                -- nombre/ubicación legible
   kid        TEXT NOT NULL DEFAULT 'k1',   -- llave con la que se firman sus tokens
   active     INTEGER NOT NULL DEFAULT 1,   -- 1 = operativa
+  channels   INTEGER NOT NULL DEFAULT 4,   -- nº de canales físicos (para slots libres)
   created_at BIGINT NOT NULL               -- epoch s
 );
 
@@ -105,3 +106,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_machine ON orders(machine_id);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_match ON orders(machine_id, status, unique_amount);
+
+-- Migración idempotente para bases ya creadas (las nuevas ya traen la columna en
+-- el CREATE): añade `channels` sin romper. ADD COLUMN IF NOT EXISTS = no-op si existe.
+ALTER TABLE machines ADD COLUMN IF NOT EXISTS channels INTEGER NOT NULL DEFAULT 4;
