@@ -52,8 +52,12 @@ chmod 600 .env       # solo el dueño lee los secretos
 Valores críticos del `.env`:
 - `POSTGRES_PASSWORD` — contraseña fuerte del Postgres interno.
 - `ADMIN_PASS` — contraseña del panel `/admin`.
-- `DSP_PRIVATE_KEY` — base64 de la llave privada Ed25519 (de `dsp keygen`). **Sin
-  ella no se pueden emitir QR.** La pública ya está en el firmware.
+- `DSP_PRIVATE_KEY` — base64 de la llave privada Ed25519. **Debe ser la MISMA llave
+  del piloto** (el contenido de `software/.keys/private-k1.key` de tu PC), NO una nueva:
+  la máquina (ESP32) ya tiene grabada la pública de ESE par. Si corres `dsp keygen` en
+  la EC2 generas un par nuevo y **todos los QR darían `BAD_SIGNATURE`**. Como `.keys/`
+  es git-ignored, no llega con el `git clone`: copia el valor a mano al `.env`. **Sin
+  ella no se pueden emitir QR.**
 - `GRABI_IMAP_PASS` — App Password de Gmail de `grabibot`.
 - `GRABI_BREB_KEY_M001` — alias Bre-B de la máquina M001 (se muestra al pagar).
 
