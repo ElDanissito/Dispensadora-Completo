@@ -95,3 +95,45 @@ func TestCreateAndListOrders(t *testing.T) {
 		t.Fatal("esperaba error por jti duplicado, no hubo")
 	}
 }
+
+// TestRefreshOrderToken cubre la re-emisión del QR vencido: renueva token/exp de
+// una orden PAGADA conservando el jti, y no toca las que no están pagadas.
+func TestRefreshOrderToken(t *testing.T) {
+	ctx := context.Background()
+	st := openTemp(t)
+	if err := st.CreateMachine(ctx, "M001", "Demo", "k1", 4); err != nil {
+		t.Fatal(err)
+	}
+	base := Order{
+		MachineID: "M001", TotalCOP: 3000, Iat: 1000, Exp: 1300, CreatedAt: 1000,
+		Items: []OrderItem{{Slot: 1, Qty: 1, PriceCOP: 3000}},
+	}
+	paid := base
+	paid.Jti, paid.Status, paid.Token = "ord_paid01", "paid", "jws.viejo"
+	if err := st.CreateOrder(ctx, paid); err != nil {
+		t.Fatal(err)
+	}
+	ok, err := st.RefreshOrderToken(ctx, paid.Jti, "jws.nuevo", 9999)
+	if err != nil || !ok {
+		t.Fatalf("RefreshOrderToken en orden pagada: ok=%v err=%v", ok, err)
+	}
+	got, err := st.GetOrder(ctx, paid.Jti)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Token != "jws.nuevo" || got.Exp != 9999 || got.Jti != paid.Jti || got.Status != "paid" {
+		t.Fatalf("orden re-emitida inesperada: %+v", got)
+	}
+
+	// Pendiente (nadie pagó) y dispensada (el producto ya salió): no se re-emiten.
+	for _, status := range []string{"pending", "dispensed"} {
+		o := base
+		o.Jti, o.Status = "ord_"+status, status
+		if err := st.CreateOrder(ctx, o); err != nil {
+			t.Fatal(err)
+		}
+		if ok, err := st.RefreshOrderToken(ctx, o.Jti, "jws.no", 8888); err != nil || ok {
+			t.Fatalf("estado %s: esperaba ok=false, obtuve ok=%v err=%v", status, ok, err)
+		}
+	}
+}

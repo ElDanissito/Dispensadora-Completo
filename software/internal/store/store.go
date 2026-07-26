@@ -751,6 +751,27 @@ func (s *Store) markPaid(ctx context.Context, jti, status, token string, exp, pa
 	return true, nil
 }
 
+// RefreshOrderToken re-emite el token de una orden YA PAGADA cuyo QR expiró sin
+// haberse dispensado: guarda el nuevo JWS y su `exp`. Conserva el MISMO `jti`, así
+// que el QR sigue siendo de un solo uso (la máquina consume el jti al dispensar,
+// contrato §3) y esto NO permite retirar dos veces. Solo actúa sobre 'paid' y
+// 'paid_sim': nunca sobre pendientes (no se ha cobrado), 'dispensed' (ya se
+// entregó) ni canceladas. Devuelve false si no aplicó a ninguna fila.
+func (s *Store) RefreshOrderToken(ctx context.Context, jti, token string, exp int64) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE orders SET token = $1, exp = $2
+		WHERE jti = $3 AND status IN ('paid','paid_sim')`,
+		token, exp, jti)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
 // MarkOrdersAmbiguous marca como 'ambiguous' (revisión/soporte) las órdenes cuyos
 // jti se pasan, siempre que sigan en 'pending' o 'expired'. Se usa cuando UN pago
 // casó con ≥2 órdenes (ADR-018): NO se dispensa ninguna y quedan para revisión

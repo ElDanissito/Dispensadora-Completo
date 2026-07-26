@@ -191,6 +191,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /m/{id}", s.handleMachinePublic)
 	mux.HandleFunc("POST /m/{id}/pagar", s.handlePagar)
 	mux.HandleFunc("GET /m/{id}/orden/{jti}/estado", s.handleEstadoOrden)
+	// Re-emitir el QR de una orden pagada cuyo token venció sin dispensar.
+	mux.HandleFunc("POST /m/{id}/orden/{jti}/reemitir", s.handleReemitirQR)
 
 	// Atajo de pruebas (firma el QR sin pago real). Solo si allowSim (spec §8).
 	mux.HandleFunc("POST /m/{id}/simular-pago", s.handleSimularPago)
@@ -492,7 +494,7 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 
 	switch o.Status {
 	case "paid", "paid_sim", "dispensed":
-		s.renderQR(w, m, o)
+		s.renderQR(w, r, m, o)
 	case "ambiguous":
 		// Regla de seguridad ADR-018: un pago casó con ≥2 órdenes; no se dispensa.
 		// El cliente ve un mensaje de soporte (no un QR ni un error técnico).
@@ -551,9 +553,42 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// qrItem es una línea de la compra con el nombre del producto resuelto, para que
+// el cliente vea QUÉ compró junto al QR (no solo el total).
+type qrItem struct {
+	Qty      int
+	Name     string
+	Slot     int
+	PriceCOP int64
+}
+
+// orderItemNames resuelve el nombre de producto de cada línea de la orden a partir
+// del catálogo de la máquina. Si un canal ya no tiene producto asignado, cae a
+// "Canal #N" (la orden es histórica y no debe romperse por eso).
+func (s *Server) orderItemNames(ctx context.Context, o *store.Order) []qrItem {
+	names := map[int]string{}
+	if cat, err := s.st.Catalog(ctx, o.MachineID); err == nil {
+		for _, row := range cat {
+			names[row.Slot] = row.ProductName
+		}
+	}
+	out := make([]qrItem, 0, len(o.Items))
+	for _, it := range o.Items {
+		name := names[it.Slot]
+		if name == "" {
+			name = fmt.Sprintf("Canal #%d", it.Slot)
+		}
+		out = append(out, qrItem{Qty: it.Qty, Name: name, Slot: it.Slot, PriceCOP: it.PriceCOP})
+	}
+	return out
+}
+
 // renderQR muestra el QR de una orden ya pagada (token firmado guardado en la
 // orden). Sim indica si fue un pago simulado (para el aviso de la plantilla).
-func (s *Server) renderQR(w http.ResponseWriter, m *store.Machine, o *store.Order) {
+// Pasa los segundos que le quedan al token para el contador regresivo y, si ya
+// venció, el estado expirado con la opción de re-emitirlo (el pago sigue siendo
+// válido: solo caducó la ventana de 5 min del contrato).
+func (s *Server) renderQR(w http.ResponseWriter, r *http.Request, m *store.Machine, o *store.Order) {
 	if o.Token == "" {
 		http.Error(w, "la orden está pagada pero no tiene token emitido (revisar servidor)", http.StatusInternalServerError)
 		return
@@ -563,21 +598,32 @@ func (s *Server) renderQR(w http.ResponseWriter, m *store.Machine, o *store.Orde
 		http.Error(w, "no se pudo generar el QR: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	secondsLeft := o.Exp - time.Now().Unix()
+	if secondsLeft < 0 {
+		secondsLeft = 0
+	}
 	s.render(w, "machine_qr.html", page{
 		Title: "Tu QR · Máquina " + m.ID,
 		Data: struct {
-			Machine   *store.Machine
-			Items     []store.OrderItem
-			TotalCOP  int64
-			Jti       string
-			Exp       int64
-			Token     string
-			TokenLen  int
-			QRDataURI template.URL
-			Sim       bool
-			Debug     bool
+			Machine     *store.Machine
+			Items       []qrItem
+			TotalCOP    int64
+			Jti         string
+			Exp         int64
+			SecondsLeft int64
+			Countdown   string // mm:ss inicial (el JS sigue contando)
+			Expired     bool   // el QR ya venció: se muestra atenuado + re-emitir
+			Dispensed   bool   // la máquina ya lo consumió: no se re-emite
+			Token       string
+			TokenLen    int
+			QRDataURI   template.URL
+			Sim         bool
+			Debug       bool
 		}{
-			Machine: m, Items: o.Items, TotalCOP: o.TotalCOP, Jti: o.Jti, Exp: o.Exp,
+			Machine: m, Items: s.orderItemNames(r.Context(), o), TotalCOP: o.TotalCOP,
+			Jti: o.Jti, Exp: o.Exp, SecondsLeft: secondsLeft,
+			Countdown: fmt.Sprintf("%d:%02d", secondsLeft/60, secondsLeft%60),
+			Expired:   secondsLeft <= 0, Dispensed: o.Status == "dispensed",
 			Token: o.Token, TokenLen: len(o.Token), QRDataURI: template.URL(dataURI),
 			Sim: o.Status == "paid_sim",
 			// El bloque de token (inspección) solo se muestra en modo desarrollo:
@@ -586,6 +632,41 @@ func (s *Server) renderQR(w http.ResponseWriter, m *store.Machine, o *store.Orde
 			Debug: s.allowSim,
 		},
 	})
+}
+
+// handleReemitirQR re-firma el token de una orden ya pagada cuyo QR venció sin
+// dispensar ("Generar uno nuevo"). El pago no se repite: se conserva el mismo
+// `jti` (un solo uso, contrato §3) y solo se renueva `exp`, así que el cliente no
+// pierde su compra por quedarse mirando un QR caducado. No aplica a órdenes
+// pendientes (nadie pagó) ni ya dispensadas (el producto salió).
+func (s *Server) handleReemitirQR(w http.ResponseWriter, r *http.Request) {
+	id, jti := r.PathValue("id"), r.PathValue("jti")
+	if _, err := s.st.GetMachine(r.Context(), id); err != nil {
+		s.machineNotFound(w, id)
+		return
+	}
+	o, err := s.st.GetOrder(r.Context(), jti)
+	if err != nil || o.MachineID != id {
+		s.notFound(w, "Orden no encontrada")
+		return
+	}
+	if o.Status != "paid" && o.Status != "paid_sim" {
+		http.Error(w, "esta orden no puede re-emitir el QR (estado: "+o.Status+")", http.StatusConflict)
+		return
+	}
+	token, exp, err := s.SignOrder(r.Context(), *o)
+	if err != nil {
+		http.Error(w, "no se pudo firmar el nuevo QR: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	if ok, err := s.st.RefreshOrderToken(r.Context(), jti, token, exp); err != nil {
+		http.Error(w, "no se pudo guardar el nuevo QR: "+err.Error(), http.StatusInternalServerError)
+		return
+	} else if !ok {
+		http.Error(w, "esta orden ya no puede re-emitir el QR", http.StatusConflict)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/m/%s/orden/%s/estado", id, jti), http.StatusSeeOther)
 }
 
 // SignOrder implementa concil.Emitter: firma el token v2 de una orden ya conciliada
