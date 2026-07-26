@@ -1,7 +1,9 @@
 {{define "content"}}
-<nav class="lnav">
+{{/* Sin JS no hay observador que revele las secciones: se muestran de una. */}}
+<noscript><style>.reveal{opacity:1 !important; transform:none !important;}</style></noscript>
+<nav class="lnav" id="lnav">
   <div class="lwrap">
-    <span class="brand">GRABI<span class="dot">.</span></span>
+    <a class="brand" href="#top" style="text-decoration:none">GRABI<span class="dot">.</span></a>
     <div class="lnav-links">
       <a class="lnl" href="#como">Cómo funciona</a>
       <a class="lnl" href="#porque">Por qué GRABI</a>
@@ -10,35 +12,45 @@
   </div>
 </nav>
 
-<main>
+<main id="top">
   <section class="lsec lhero">
     <div class="lwrap">
       <div class="lhero-copy">
-        <span class="leyebrow">Vending sin efectivo · Colombia</span>
-        <h1 class="lh1">Escanea, paga,<br><span class="accent">agárralo.</span></h1>
-        <p class="lh-sub">Máquinas sin efectivo ni datáfono. Pagas por Bre-B desde tu celular y agárralo.</p>
-        <div class="lhero-cta">
+        <span class="leyebrow reveal">Vending sin efectivo · Colombia</span>
+        <h1 class="lh1 reveal">Escanea, paga,<br><span class="accent">agárralo.</span></h1>
+        <p class="lh-sub reveal">Máquinas sin efectivo ni datáfono. Pagas por Bre-B desde tu celular y agárralo.</p>
+        <div class="lhero-cta reveal">
           <a class="lbtn" href="#contacto">Quiero saber más ↓</a>
           <span class="lpilot"><span class="on">●</span> Piloto activo en Cali</span>
         </div>
-        <div class="lstats">
+        <div class="lstats reveal">
           <span><b>0</b> billeteros</span>
           <span><b>0</b> datáfonos</span>
           <span><b>0</b> filas</span>
           <span><span class="on">100%</span> Bre-B</span>
         </div>
       </div>
-      {{/* Maqueta ilustrativa de la pantalla de compra. El QR es real: apunta a esta misma web. */}}
-      <div class="lphone" aria-hidden="true">
-        <div class="lphone-in">
-          <div class="lphone-top">
-            <span class="brand">GRABI<span class="dot">.</span></span>
-            <span class="lphone-tag">PAGO CONFIRMADO</span>
-          </div>
-          <div class="lphone-body">
-            <span class="t">Tu QR está listo</span>
-            {{if .DemoQR}}<div class="qrbox"><img src="{{.DemoQR}}" alt=""></div>{{end}}
-            <span class="c">Total <b>$3.500</b> · muéstralo al lector</span>
+      {{/* Maqueta 3D de la pantalla de compra (flota y sigue al cursor).
+           El QR es real: apunta a esta misma web, no es un token de dispensado. */}}
+      <div class="lstage reveal" aria-hidden="true">
+        <div class="lfloat">
+          <div class="ltilt" id="lphone">
+            <div class="lphone">
+              <div class="lphone-screen">
+                <span class="lphone-island"></span>
+                <span class="lphone-glare"></span>
+                <div class="lphone-top">
+                  <span class="brand">GRABI<span class="dot">.</span></span>
+                  <span class="lphone-tag">PAGO CONFIRMADO</span>
+                </div>
+                <div class="lphone-body">
+                  <span class="t">Tu QR está listo</span>
+                  {{if .DemoQR}}<div class="qrbox"><img src="{{.DemoQR}}" alt=""></div>{{end}}
+                  <span class="c">Total <b>$3.500</b><br>muéstralo al lector de la máquina</span>
+                  <span class="exp">Vence en 4:52</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -47,24 +59,24 @@
 
   <section class="lsec" id="como">
     <div class="lwrap">
-      <span class="leyebrow">Cómo funciona</span>
-      <h2 class="ltitle">Tres pasos y listo</h2>
+      <span class="leyebrow reveal">Cómo funciona</span>
+      <h2 class="ltitle reveal">Tres pasos y listo</h2>
       <div class="lsteps">
-        <div class="lstep">
+        <div class="lstep reveal">
           <div class="n">1</div>
           <div>
             <div class="t">Escanea el QR de la máquina</div>
             <div class="d">O entra directo a la dirección de la máquina desde tu navegador. Sin apps, sin registro.</div>
           </div>
         </div>
-        <div class="lstep">
+        <div class="lstep reveal">
           <div class="n">2</div>
           <div>
             <div class="t">Paga por Bre-B el monto exacto</div>
             <div class="d">Transferencia instantánea desde tu banco colombiano. Sin efectivo, sin tarjeta, sin datáfono.</div>
           </div>
         </div>
-        <div class="lstep">
+        <div class="lstep reveal">
           <div class="n">3</div>
           <div>
             <div class="t">Muestra tu QR y agárralo</div>
@@ -77,22 +89,22 @@
 
   <section class="lsec" id="porque">
     <div class="lwrap">
-      <span class="leyebrow">Por qué GRABI</span>
-      <h2 class="ltitle">Hecho para confiar</h2>
+      <span class="leyebrow reveal">Por qué GRABI</span>
+      <h2 class="ltitle reveal">Hecho para confiar</h2>
       <div class="lcards">
-        <div class="lcard">
+        <div class="lcard reveal">
           <div class="k">SIN EFECTIVO NI TARJETA</div>
           <div class="d">La máquina no tiene billetero, monedero ni datáfono. Menos costo, menos fallas, menos robos.</div>
         </div>
-        <div class="lcard">
+        <div class="lcard reveal">
           <div class="k">PAGO POR BRE-B</div>
           <div class="d">Transferencia instantánea entre bancos colombianos, directa desde tu celular.</div>
         </div>
-        <div class="lcard">
+        <div class="lcard reveal">
           <div class="k">QR SOLO CON PAGO REAL</div>
           <div class="d">Tu QR de retiro solo aparece cuando el banco confirma el pago. Nunca por pantallazo.</div>
         </div>
-        <div class="lcard">
+        <div class="lcard reveal">
           <div class="k">FUNCIONA SIN INTERNET</div>
           <div class="d">La máquina verifica tu QR sin conexión: está firmado digitalmente y es de un solo uso.</div>
         </div>
@@ -102,12 +114,17 @@
 
   <section class="lsec lcontact" id="contacto">
     <div class="lwrap">
-      <div class="lcontact-copy">
+      <div class="lcontact-copy reveal">
         <span class="leyebrow">Contacto</span>
         <h2 class="ltitle">¿Quieres saber más o una GRABI en tu punto?</h2>
         <p>Déjanos tu correo y celular. Te contamos costos, requisitos del punto y fechas del piloto.</p>
+        <ul class="lqa">
+          <li>Costos y qué incluye la máquina</li>
+          <li>Requisitos del punto: espacio y toma de luz</li>
+          <li>Fechas del piloto y de las siguientes máquinas</li>
+        </ul>
       </div>
-      <div class="lformcard">
+      <div class="lformcard reveal">
         {{if .Sent}}
         <div class="lthanks">
           <div class="tick">✓</div>
@@ -115,22 +132,28 @@
           <div class="d">Te escribimos al correo o al celular que nos dejaste.</div>
         </div>
         {{else}}
-        <form class="lform" method="post" action="/interesados" id="leadForm">
+        <form class="lform" method="post" action="/interesados" id="leadForm" novalidate>
           {{if .Error}}<div class="flash err">{{.Error}}</div>{{end}}
           {{/* Honeypot anti-spam (landing-v1 §3): invisible para personas, tentador para bots. */}}
           <div class="lhoney" aria-hidden="true">
             <label for="l-web">Sitio web</label>
             <input id="l-web" type="text" name="website" tabindex="-1" autocomplete="off">
           </div>
-          <div>
+          <div class="lfield" data-check="email">
             <label for="l-mail">Correo *</label>
             <input id="l-mail" type="email" name="email" required autocomplete="email"
-                   placeholder="tu@correo.com" value="{{.Form.Email}}">
+                   placeholder="tu@correo.com" value="{{.Form.Email}}"
+                   aria-describedby="l-mail-msg">
+            <span class="ltick" aria-hidden="true">✓</span>
+            <p class="lmsg" id="l-mail-msg">Escribe un correo con el formato tu@correo.com.</p>
           </div>
-          <div>
+          <div class="lfield" data-check="phone">
             <label for="l-cel">Celular *</label>
             <input id="l-cel" type="tel" name="phone" required inputmode="tel" autocomplete="tel"
-                   placeholder="300 123 4567" value="{{.Form.Phone}}">
+                   placeholder="300 123 4567" value="{{.Form.Phone}}"
+                   aria-describedby="l-cel-msg">
+            <span class="ltick" aria-hidden="true">✓</span>
+            <p class="lmsg" id="l-cel-msg">Escribe tu celular: al menos 7 dígitos.</p>
           </div>
           <div>
             <label for="l-name">Nombre <span class="opt">(opcional)</span></label>
@@ -141,7 +164,8 @@
             <label for="l-msg">Mensaje <span class="opt">(opcional)</span></label>
             <textarea id="l-msg" name="message" placeholder="Cuéntanos de tu punto: barrio, tipo de local, flujo de gente…">{{.Form.Message}}</textarea>
           </div>
-          <button class="lbtn" type="submit">Enviar →</button>
+          <button class="lbtn" type="submit" id="leadBtn">Enviar →</button>
+          <p class="lform-hint" id="leadHint"></p>
           <p class="lprivacy">Usamos tus datos solo para contactarte, no los compartimos. Nada de spam.</p>
         </form>
         {{end}}
@@ -161,16 +185,117 @@
 </footer>
 
 <script>
-// Validación ligera (landing-v1 §7: JS vanilla mínimo). El servidor valida igual.
+// JS vanilla mínimo de la landing (ADR-011bis): validación en vivo, aparición al
+// hacer scroll, nav activo y el celular 3D. Todo es progresivo: sin JS la página
+// sigue completa y el servidor valida igual.
 (function(){
-  var f=document.getElementById('leadForm'); if(!f) return;
-  var btn=f.querySelector('button[type=submit]'),
-      mail=f.querySelector('[name=email]'), cel=f.querySelector('[name=phone]');
-  function ready(){
-    return /.+@.+\..+/.test(mail.value.trim()) && cel.value.replace(/\D/g,'').length>=7;
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // --- 1. Validación en tiempo real + botón Enviar condicional ---
+  var f = document.getElementById('leadForm');
+  if(f){
+    var btn = document.getElementById('leadBtn'),
+        hint = document.getElementById('leadHint'),
+        checks = {
+          email: function(v){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim()); },
+          phone: function(v){ var d = v.replace(/\D/g,''); return d.length >= 7 && d.length <= 15; }
+        },
+        fields = [].slice.call(f.querySelectorAll('.lfield[data-check]')).map(function(w){
+          return { wrap:w, input:w.querySelector('input'), ok:checks[w.dataset.check] };
+        });
+
+    function paint(fd, showErr){
+      var v = fd.input.value, empty = v.trim() === '', good = fd.ok(v);
+      fd.input.classList.toggle('good', good);
+      fd.input.classList.toggle('bad', !good && !empty && showErr);
+      fd.wrap.classList.toggle('ok', good);
+      fd.wrap.classList.toggle('show', !good && !empty && showErr);
+      fd.input.setAttribute('aria-invalid', (!good && !empty && showErr) ? 'true' : 'false');
+      return good;
+    }
+    function sync(){
+      var faltan = 0;
+      fields.forEach(function(fd){ if(!paint(fd, fd.touched)) faltan++; });
+      btn.disabled = faltan > 0;
+      hint.textContent = faltan > 0 ? 'Completa correo y celular para enviar.' : '';
+    }
+    fields.forEach(function(fd){
+      // Mientras escribe: solo feedback positivo. El error aparece al salir del
+      // campo (o si ya lo había visto), para no regañar a media palabra.
+      fd.input.addEventListener('input', sync);
+      fd.input.addEventListener('blur', function(){ fd.touched = true; sync(); });
+      if(fd.input.value.trim() !== '') fd.touched = true; // vino del servidor con datos
+    });
+    sync();
   }
-  function sync(){ btn.disabled=!ready(); btn.style.opacity=ready()?'1':'.4'; }
-  mail.addEventListener('input',sync); cel.addEventListener('input',sync); sync();
+
+  // --- 2. Navegación fluida: aparición al hacer scroll + enlace activo + nav pegajoso ---
+  var nav = document.getElementById('lnav');
+  if(nav){
+    var onScroll = function(){ nav.classList.toggle('stuck', window.scrollY > 8); };
+    window.addEventListener('scroll', onScroll, {passive:true});
+    onScroll();
+  }
+
+  var revs = [].slice.call(document.querySelectorAll('.reveal'));
+  if(!('IntersectionObserver' in window) || reduce){
+    revs.forEach(function(el){ el.classList.add('in'); });
+  } else {
+    // Escalonado por posición dentro de su contenedor: entran en cascada.
+    revs.forEach(function(el){
+      var i = [].indexOf.call(el.parentNode.children, el);
+      el.style.transitionDelay = Math.min(i, 5) * 70 + 'ms';
+    });
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); }
+      });
+    }, {rootMargin:'0px 0px -8% 0px', threshold:0.08});
+    revs.forEach(function(el){ io.observe(el); });
+  }
+
+  // Enlace del nav resaltado según la sección visible.
+  var links = [].slice.call(document.querySelectorAll('.lnav-links a[href^="#"]'));
+  if(links.length && 'IntersectionObserver' in window){
+    var secs = links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+    var spy = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(!e.isIntersecting) return;
+        links.forEach(function(a, i){ a.classList.toggle('on', secs[i] === e.target); });
+      });
+    }, {rootMargin:'-45% 0px -50% 0px'});
+    secs.forEach(function(s){ if(s) spy.observe(s); });
+  }
+
+  // Respaldo del scroll suave para navegadores sin scroll-behavior (Safari viejo).
+  if(!('scrollBehavior' in document.documentElement.style) && !reduce){
+    document.querySelectorAll('a[href^="#"]').forEach(function(a){
+      a.addEventListener('click', function(e){
+        var t = document.querySelector(a.getAttribute('href'));
+        if(!t) return;
+        e.preventDefault();
+        t.scrollIntoView({behavior:'smooth', block:'start'});
+      });
+    });
+  }
+
+  // --- 3. Celular 3D: sigue al cursor dentro del hero (solo con ratón) ---
+  var phone = document.getElementById('lphone'), hero = document.querySelector('.lhero');
+  if(phone && hero && !reduce && window.matchMedia('(hover: hover) and (min-width: 820px)').matches){
+    var raf = null, base = {ry:-17, rx:7};
+    hero.addEventListener('pointermove', function(ev){
+      if(raf) return;
+      raf = requestAnimationFrame(function(){
+        raf = null;
+        var r = hero.getBoundingClientRect(),
+            px = (ev.clientX - r.left) / r.width - 0.5,
+            py = (ev.clientY - r.top) / r.height - 0.5;
+        phone.style.transform = 'rotateY(' + (base.ry + px * 20).toFixed(2) + 'deg) ' +
+                                'rotateX(' + (base.rx - py * 16).toFixed(2) + 'deg)';
+      });
+    });
+    hero.addEventListener('pointerleave', function(){ phone.style.transform = ''; });
+  }
 })();
 </script>
 {{end}}
