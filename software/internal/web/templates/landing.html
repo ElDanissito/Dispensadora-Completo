@@ -39,16 +39,31 @@
               <div class="lphone-screen">
                 <span class="lphone-island"></span>
                 <span class="lphone-glare"></span>
+                <div class="lph-status">
+                  <span>9:41</span>
+                  <span class="lph-ind">
+                    <i class="lph-bars"><b></b><b></b><b></b><b></b></i>
+                    <i class="lph-bat"></i>
+                  </span>
+                </div>
                 <div class="lphone-top">
                   <span class="brand">GRABI<span class="dot">.</span></span>
-                  <span class="lphone-tag">PAGO CONFIRMADO</span>
+                  <span class="lphone-tag">✓ PAGO CONFIRMADO</span>
                 </div>
                 <div class="lphone-body">
+                  <span class="mid">MÁQUINA M001</span>
                   <span class="t">Tu QR está listo</span>
                   {{if .DemoQR}}<div class="qrbox"><img src="{{.DemoQR}}" alt=""></div>{{end}}
-                  <span class="c">Total <b>$3.500</b><br>muéstralo al lector de la máquina</span>
                   <span class="exp">Vence en 4:52</span>
+                  <div class="lph-items">
+                    <span class="r"><span>2× Papas limón</span><span>$2.000</span></span>
+                    <span class="r"><span>1× Agua 600 ml</span><span>$1.500</span></span>
+                    <span class="r tot"><span>Total</span><span>$3.500</span></span>
+                  </div>
+                  <span class="rd">Acércalo al <b>lector de la máquina</b> y agárralo.</span>
+                  <span class="lph-btn">← Volver a la máquina</span>
                 </div>
+                <span class="lph-home"></span>
               </div>
             </div>
           </div>

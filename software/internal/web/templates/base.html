@@ -322,26 +322,52 @@
   .lstats b{color:var(--fg); font-weight:600;}
   .lstats .on{color:var(--accent); font-weight:600;}
 
-  /* Maqueta del celular en 3D (solo escritorio, como en el mock) */
-  .lstage{display:none; flex:none; width:360px; perspective:1400px; perspective-origin:60% 40%;}
+  /* Maqueta de celular COMPLETO en 3D (solo escritorio, como en el mock).
+     Proporción real 9:19.5. Todo el interior se mide en `em` sobre un tamaño
+     base derivado de --lph-w, así que el celular entero escala con el alto de
+     la pantalla sin deformarse ni salirse del hero. */
+  .lstage{display:none; flex:none; --lph-w:clamp(200px,28vh,330px); width:calc(var(--lph-w) + 76px); perspective:1500px; perspective-origin:60% 45%;}
   .lfloat{animation:lfloat 7s ease-in-out infinite; transform-style:preserve-3d;}
   .ltilt{transform:rotateY(-17deg) rotateX(7deg); transform-style:preserve-3d; transition:transform .35s cubic-bezier(.22,.61,.36,1); will-change:transform;}
   @keyframes lfloat{0%,100%{transform:translateY(-10px);}50%{transform:translateY(12px);}}
-  .lphone{position:relative; border-radius:42px; padding:11px; background:linear-gradient(150deg,#3d4f45 0%,#151d19 38%,#0a0e0c 70%,#2a3a31 100%); box-shadow:0 40px 90px -20px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.06), inset 0 0 0 1.5px rgba(255,255,255,.07);}
-  .lphone::after{content:""; position:absolute; left:-14px; top:118px; width:3px; height:64px; border-radius:2px; background:linear-gradient(180deg,#2d3b33,#151d19); transform:translateZ(-6px);}
-  .lphone-screen{position:relative; border-radius:32px; overflow:hidden; background:var(--bg); box-shadow:inset 0 0 0 1px rgba(0,0,0,.7);}
-  .lphone-island{position:absolute; top:9px; left:50%; transform:translateX(-50%); width:78px; height:19px; border-radius:99px; background:#040705; z-index:3;}
-  .lphone-glare{position:absolute; inset:0; z-index:4; pointer-events:none; border-radius:32px; background:linear-gradient(118deg,rgba(255,255,255,.16) 0%,rgba(255,255,255,.05) 22%,transparent 46%,transparent 100%);}
-  .lphone-top{display:flex; justify-content:space-between; align-items:center; gap:8px; padding:34px 16px 12px; border-bottom:1px solid var(--line);}
-  .lphone-top .brand{font-size:.95rem;}
-  .lphone-tag{font-family:var(--mono); font-size:.55rem; font-weight:700; letter-spacing:.04em; color:var(--accent-ink); background:var(--accent); padding:4px 8px; border-radius:4px; white-space:nowrap;}
-  .lphone-body{padding:20px 16px 24px; display:flex; flex-direction:column; align-items:center; gap:11px; text-align:center;}
-  .lphone-body .t{font-weight:700; font-size:.95rem;}
-  .lphone-body .qrbox{padding:10px; border-radius:10px;}
-  .lphone-body .qrbox img{width:158px; max-width:158px;}
-  .lphone-body .c{font-family:var(--mono); font-size:.68rem; color:var(--muted); line-height:1.5;}
-  .lphone-body .c b{color:var(--fg); font-weight:600;}
-  .lphone-body .exp{font-family:var(--mono); font-size:.62rem; color:var(--warn);}
+  .lphone{position:relative; width:max-content; padding:calc(var(--lph-w)*.034); border-radius:calc(var(--lph-w)*.15); background:linear-gradient(150deg,#3d4f45 0%,#151d19 38%,#0a0e0c 70%,#2a3a31 100%); box-shadow:0 50px 100px -25px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.06), inset 0 0 0 1.5px rgba(255,255,255,.07);}
+  /* Botones físicos (silencio a la izquierda, encendido a la derecha). */
+  .lphone::before{content:""; position:absolute; left:calc(var(--lph-w)*-.012); top:19%; width:calc(var(--lph-w)*.012); height:8%; border-radius:2px; background:linear-gradient(180deg,#2d3b33,#151d19);}
+  .lphone::after{content:""; position:absolute; right:calc(var(--lph-w)*-.012); top:27%; width:calc(var(--lph-w)*.012); height:12%; border-radius:2px; background:linear-gradient(180deg,#2d3b33,#151d19);}
+  .lphone-screen{position:relative; width:var(--lph-w); aspect-ratio:9 / 19.5; overflow:hidden; display:flex; flex-direction:column; border-radius:calc(var(--lph-w)*.115); font-size:calc(var(--lph-w)/26); background:radial-gradient(130% 75% at 50% 0%,#101815,var(--bg) 62%); box-shadow:inset 0 0 0 1px rgba(0,0,0,.7);}
+  .lphone-island{position:absolute; top:.8em; left:50%; transform:translateX(-50%); width:6.4em; height:1.6em; border-radius:99px; background:#040705; z-index:3;}
+  .lphone-glare{position:absolute; inset:0; z-index:4; pointer-events:none; background:linear-gradient(118deg,rgba(255,255,255,.15) 0%,rgba(255,255,255,.05) 22%,transparent 46%,transparent 100%);}
+  /* Barra de estado del sistema */
+  .lph-status{display:flex; justify-content:space-between; align-items:center; padding:1.15em 1.5em .3em; font-family:var(--mono); font-size:.8em; font-weight:600; color:var(--fg);}
+  .lph-ind{display:inline-flex; align-items:center; gap:.5em;}
+  .lph-bars{display:inline-flex; align-items:flex-end; gap:.14em; height:.85em;}
+  .lph-bars b{width:.2em; background:var(--fg); border-radius:1px;}
+  .lph-bars b:nth-child(1){height:35%;} .lph-bars b:nth-child(2){height:58%;}
+  .lph-bars b:nth-child(3){height:80%;} .lph-bars b:nth-child(4){height:100%;}
+  .lph-bat{position:relative; width:1.65em; height:.82em; border:1px solid var(--fg); border-radius:.22em;}
+  .lph-bat::before{content:""; position:absolute; left:.13em; top:.13em; bottom:.13em; width:62%; background:var(--accent); border-radius:.08em;}
+  .lph-bat::after{content:""; position:absolute; right:-.24em; top:.24em; width:.14em; height:.34em; background:var(--fg); border-radius:0 .1em .1em 0;}
+  /* Cabecera de la app */
+  .lphone-top{display:flex; justify-content:space-between; align-items:center; gap:.6em; padding:.5em 1.25em .75em; border-bottom:1px solid var(--line);}
+  .lphone-top .brand{font-size:1.35em; letter-spacing:.5px;}
+  .lphone-tag{font-family:var(--mono); font-size:.62em; font-weight:700; letter-spacing:.04em; color:var(--accent-ink); background:var(--accent); padding:.4em .65em; border-radius:.35em; white-space:nowrap;}
+  /* Cuerpo: la pantalla del QR emitido */
+  .lphone-body{flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; gap:.65em; padding:1em 1.4em 0; text-align:center;}
+  /* mid + .lph-items con margin-top:auto reparten el hueco libre: el bloque del
+     QR queda centrado entre la cabecera y el recibo anclado abajo. */
+  .lphone-body .mid{margin-top:auto; font-family:var(--mono); font-size:.72em; font-weight:600; letter-spacing:.08em; color:var(--faint);}
+  .lphone-body .t{font-weight:700; font-size:1.3em; line-height:1.2;}
+  .lphone-body .qrbox{padding:.55em; border-radius:.6em;}
+  .lphone-body .qrbox img{width:10.4em; max-width:none;}
+  .lphone-body .exp{font-family:var(--mono); font-size:.78em; color:var(--warn);}
+  /* El recibo y el botón quedan anclados abajo: la pantalla se ve completa. */
+  .lph-items{width:100%; margin-top:auto; padding-top:.6em; border-top:1px solid var(--line-soft); display:flex; flex-direction:column; gap:.3em; font-family:var(--mono); font-size:.8em;}
+  .lph-items .r{display:flex; justify-content:space-between; gap:.6em; color:var(--muted);}
+  .lph-items .r.tot{margin-top:.3em; padding-top:.45em; border-top:1px solid var(--line-soft); color:var(--fg); font-weight:700;}
+  .lphone-body .rd{font-family:var(--mono); font-size:.72em; line-height:1.6; color:var(--muted);}
+  .lphone-body .rd b{color:var(--accent); font-weight:600;}
+  .lph-btn{width:100%; margin-bottom:.2em; padding:.75em; border:1px solid var(--line); border-radius:.55em; font-family:var(--mono); font-size:.74em; font-weight:600; color:var(--muted);}
+  .lph-home{flex:none; width:34%; height:.34em; margin:.55em auto .75em; border-radius:99px; background:#26332B;}
 
   /* Cómo funciona / Por qué */
   .lsteps,.lcards{display:grid; grid-template-columns:1fr; gap:14px;}
@@ -422,11 +448,15 @@
   }
 
   @media (min-width:1180px){
-    .lstage{width:400px;}
-    .lphone-body .qrbox img{width:178px; max-width:178px;}
+    .lstage{--lph-w:clamp(220px,30vh,372px);}
     .lsteps{gap:28px;}
     .lcards{grid-template-columns:repeat(4,1fr); gap:22px;}
     .lcontact > .lwrap{gap:96px;}
+  }
+
+  /* Portátiles de poca altura: menos aire para que el celular completo quepa. */
+  @media (min-width:820px) and (max-height:760px){
+    .lhero > .lwrap{padding-top:30px; padding-bottom:30px;}
   }
 
   @media (prefers-reduced-motion:reduce){
