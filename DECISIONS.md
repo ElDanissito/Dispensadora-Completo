@@ -7,6 +7,41 @@
 
 ---
 
+## ADR-024 · Landing v2: la experiencia arriba, el negocio abajo (+ QR con contador y re-emisión)
+- **Fecha:** 2026-07-26 · **Autor:** Agente de Software (02) + Daniel.
+- **Decisión:** la landing se reordena en **dos discursos** (spec [`especificaciones/landing-v2.md`](./especificaciones/landing-v2.md),
+  que **supera** a v1 en estructura, hero y campos del formulario):
+  **hero + recorrido venden la experiencia de compra**; la **sección B2B vende el negocio**.
+  Orden: hero → cómo funciona → puente → **para tu negocio** → por qué GRABI → contacto → piloto → footer.
+- **Cómo funciona = 4 pasos + teléfono sticky.** Se **descartó** el carrusel/acordeón 3D con
+  auto-rotación: pelea con la lectura, pesa en Android de gama media e ignora `prefers-reduced-motion`.
+  La pantalla del teléfono cambia con el scroll (CSS, sin WebGL) y en móvil degrada a pasos apilados
+  con captura estática. El paso activo se calcula por **posición respecto a la línea de lectura** (42%
+  del alto), no con bandas de `IntersectionObserver`: con bandas, el enlace del nav y el paso quedaban
+  desfasados según el orden de las entradas.
+- **Las pantallas del mockup son réplicas de las pantallas reales** (`machine_public`, `machine_pago`,
+  `machine_qr`): mismo copy y mismos elementos, medidas en `em` sobre el tamaño del dispositivo. No son
+  capturas PNG (no hay binarios en el repo y las fotos de producto viven en `data/uploads`, git-ignored):
+  los thumbnails de la tienda son **ilustraciones SVG** hasta que existan fotos reales.
+- **Inclinación 3D bajada a ~5°** (antes 17°) para que el texto interno siga legible, y **dos teléfonos
+  como máximo** en el hero: tienda atenuada detrás, QR firmado delante. Por debajo de 1180px queda uno.
+- **Formulario B2B** (reemplaza correo+celular de v1 §3): **nombre · tipo de espacio · ciudad ·
+  WhatsApp**, los cuatro obligatorios, con validación en vivo y select validado contra lista en el
+  servidor. El **botón de WhatsApp** solo aparece si `GRABI_WHATSAPP` está definido: sin número
+  configurado no se publica ningún contacto (misma regla de ADR-023).
+- **Pantalla del QR (producción, no mockup):** "✓ Pago confirmado" pasa a ser el bloque principal;
+  la expiración es un **contador regresivo** con la hora absoluta al lado; se listan los **ítems**
+  comprados; hint de brillo junto al QR. Al vencer, el QR se atenúa y aparece **"Generar uno nuevo"**
+  → `POST /m/{id}/orden/{jti}/reemitir`, que **re-firma conservando el `jti`** (sigue siendo de un
+  solo uso, contrato §3) y solo renueva `exp`. `store.RefreshOrderToken` solo actúa sobre
+  `paid`/`paid_sim`: nunca sobre pendientes (nadie pagó), dispensadas (el producto salió) ni canceladas.
+  **El contrato del token no cambia.**
+- **Accesibilidad:** el texto mono pequeño sube de `--faint` a `--muted` para cumplir AA.
+- **Pendiente (sin cambios):** tabla `leads` + sección "Interesados" del admin. Hasta entonces el lead
+  se registra en el **log del servidor**.
+
+---
+
 ## ADR-023 · La landing pública es la home (`GET /`); el panel se queda en `/admin`
 - **Fecha:** 2026-07-26 · **Autor:** Agente de Software (02) + Daniel.
 - **Decisión:** `GET /` sirve la **landing pública de la marca** (spec [`especificaciones/landing-v1.md`](./especificaciones/landing-v1.md),

@@ -98,6 +98,19 @@ func BreBKey(machineID string) string {
 	return os.Getenv("GRABI_BREB_KEY_" + strings.ToUpper(machineID))
 }
 
+// WhatsApp devuelve el número de WhatsApp público (formato internacional sin
+// símbolos, ej. 573001234567) leído de GRABI_WHATSAPP. Si está vacío, la landing
+// NO muestra el botón de WhatsApp: nunca se publica un contacto inventado.
+func WhatsApp() string {
+	var b strings.Builder
+	for _, r := range os.Getenv("GRABI_WHATSAPP") {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
 // UniqueAmountFallback indica si la conciliación debe usar el mecanismo LEGADO de
 // "monto único" (desambiguador de pesos) en vez del nuevo match por monto exacto
 // + nombre del pagador (ADR-018). Se activa con GRABI_MATCH_MODE=unique_amount;

@@ -79,6 +79,17 @@ var funcs = template.FuncMap{
 	"ts": func(sec int64) string {
 		return time.Unix(sec, 0).In(bogota).Format("2006-01-02 15:04")
 	},
+	// dict arma un map para pasar varios valores a una plantilla anidada
+	// ({{template "x" dict "Screen" "qr" "Data" .}}); html/template no trae helper.
+	"dict": func(kv ...any) map[string]any {
+		m := make(map[string]any, len(kv)/2)
+		for i := 0; i+1 < len(kv); i += 2 {
+			if k, ok := kv[i].(string); ok {
+				m[k] = kv[i+1]
+			}
+		}
+		return m
+	},
 	// tint deriva un color de placeholder estable desde el nombre del producto
 	// (para el tile cuando no hay foto, estilo mockup).
 	"tint": func(s string) string {

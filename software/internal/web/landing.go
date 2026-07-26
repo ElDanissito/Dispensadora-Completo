@@ -1,7 +1,7 @@
 package web
 
-// Landing pública (home en GET /) + recepción del formulario de interesados,
-// según `especificaciones/landing-v1.md`. Es una capa NUEVA: no toca el flujo
+// Landing pública (home en GET /) + recepción del formulario B2B de interesados,
+// según `especificaciones/landing-v2.md`. Es una capa NUEVA: no toca el flujo
 // /m/{id} → conciliación → QR ni el contrato del token.
 
 import (
@@ -9,14 +9,15 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"regexp"
+	"net/url"
 	"strings"
 	"time"
 
+	"dispensadoras/software/internal/config"
 	"dispensadoras/software/internal/qr"
 )
 
-// Rate-limit ligero del formulario (landing-v1 §3): sin CAPTCHA, solo un tope
+// Rate-limit ligero del formulario (landing-v2 §5): sin CAPTCHA, solo un tope
 // por IP en memoria. Basta para el piloto (un solo proceso).
 const (
 	leadMaxPerWindow = 5
@@ -25,27 +26,52 @@ const (
 
 // Topes de longitud: el formulario es público, no confiamos en el cliente.
 const (
-	maxLeadEmail   = 254
-	maxLeadPhone   = 32
-	maxLeadName    = 120
-	maxLeadMessage = 1000
+	maxLeadPhone = 32
+	maxLeadName  = 120
+	maxLeadCity  = 80
 )
 
-// emailRe es una validación de formato deliberadamente laxa (algo@algo.algo):
-// el objetivo es atajar errores de dedo, no rechazar correos válidos raros.
-var emailRe = regexp.MustCompile(`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
-
-// leadForm son los campos del formulario de interesados (landing-v1 §3):
-// correo y celular obligatorios; nombre y mensaje opcionales.
-type leadForm struct {
-	Name    string
-	Email   string
-	Phone   string
-	Message string
+// spaceTypes son los tipos de espacio del formulario B2B (valor → etiqueta). El
+// servidor solo acepta estas claves: un select no es una promesa, es una lista.
+var spaceTypes = []struct{ Key, Label string }{
+	{"conjunto", "Conjunto residencial"},
+	{"oficina", "Oficina / coworking"},
+	{"negocio", "Negocio / local comercial"},
+	{"otro", "Otro"},
 }
 
-// handleLanding sirve la home pública de la marca (landing-v1 §1). Es también el
-// destino del botón "volver a inicio" de las páginas de error/404 (§6).
+func validSpaceType(v string) bool {
+	for _, st := range spaceTypes {
+		if st.Key == v {
+			return true
+		}
+	}
+	return false
+}
+
+// leadForm son los campos del formulario B2B de la landing (landing-v2 §5):
+// nombre, tipo de espacio, ciudad y WhatsApp, todos obligatorios. Reemplaza el
+// formulario de correo+celular de landing-v1 §3: el canal real es WhatsApp.
+type leadForm struct {
+	Name      string
+	SpaceType string
+	City      string
+	Phone     string
+}
+
+// SpaceTypeLabel devuelve la etiqueta legible del tipo elegido (para el log y,
+// cuando exista la tabla, para el panel).
+func (f leadForm) SpaceTypeLabel() string {
+	for _, st := range spaceTypes {
+		if st.Key == f.SpaceType {
+			return st.Label
+		}
+	}
+	return f.SpaceType
+}
+
+// handleLanding sirve la home pública de la marca (landing-v2 §1). Es también el
+// destino del botón "volver a inicio" de las páginas de error/404.
 func (s *Server) handleLanding(w http.ResponseWriter, r *http.Request) {
 	// ?gracias=1 es el destino del POST tras guardar (patrón POST→redirect→GET,
 	// así un refresco no reenvía el formulario).
@@ -68,32 +94,40 @@ func (s *Server) renderLanding(w http.ResponseWriter, r *http.Request, status in
 		Title:   "GRABI · Escanea, paga, agárralo.",
 		Landing: true,
 		Data: struct {
-			Form   leadForm
-			Error  string
-			Sent   bool
-			Year   int
-			DemoQR template.URL
-		}{f, errMsg, sent, time.Now().In(bogota).Year(), demoQR},
+			Form        leadForm
+			Error       string
+			Sent        bool
+			Year        int
+			DemoQR      template.URL
+			SpaceTypes  []struct{ Key, Label string }
+			WhatsApp    string // "" ⇒ no se muestra el botón de WhatsApp
+			WhatsAppMsg string
+		}{
+			Form: f, Error: errMsg, Sent: sent, Year: time.Now().In(bogota).Year(),
+			DemoQR: demoQR, SpaceTypes: spaceTypes,
+			WhatsApp:    config.WhatsApp(),
+			WhatsAppMsg: url.QueryEscape("Hola, quiero saber más sobre tener una máquina GRABI"),
+		},
 	})
 }
 
-// handleInteresado recibe el formulario de la landing (landing-v1 §3).
+// handleInteresado recibe el formulario B2B de la landing (landing-v2 §5).
 //
-// TODO(leads): la tabla `leads` (spec §5) y la sección "Interesados" del panel
-// (§4) llegan en el commit siguiente. Hasta entonces el lead NO se persiste en
-// la base: se registra en el log del servidor para no perderlo (revisar con
-// `docker compose logs app`). Al existir la tabla, basta reemplazar el log por
-// el insert; el resto del flujo (validación, honeypot, rate-limit) ya está.
+// TODO(leads): la tabla `leads` y la sección "Interesados" del panel llegan en el
+// commit siguiente. Hasta entonces el lead NO se persiste en la base: se registra
+// en el log del servidor para no perderlo (revisar con `docker compose logs app`).
+// Al existir la tabla, basta reemplazar el log por el insert; el resto del flujo
+// (validación, honeypot, rate-limit) ya está.
 func (s *Server) handleInteresado(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		s.renderLanding(w, r, http.StatusBadRequest, leadForm{}, "No pudimos leer el formulario. Inténtalo de nuevo.", false)
 		return
 	}
 	f := leadForm{
-		Name:    clip(r.FormValue("name"), maxLeadName),
-		Email:   clip(r.FormValue("email"), maxLeadEmail),
-		Phone:   clip(r.FormValue("phone"), maxLeadPhone),
-		Message: clip(r.FormValue("message"), maxLeadMessage),
+		Name:      clip(r.FormValue("name"), maxLeadName),
+		SpaceType: strings.TrimSpace(r.FormValue("space_type")),
+		City:      clip(r.FormValue("city"), maxLeadCity),
+		Phone:     clip(r.FormValue("phone"), maxLeadPhone),
 	}
 
 	// Honeypot: solo un bot rellena un campo que las personas no ven. Se responde
@@ -103,12 +137,20 @@ func (s *Server) handleInteresado(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !emailRe.MatchString(f.Email) {
-		s.renderLanding(w, r, http.StatusBadRequest, f, "Revisa el correo: debe tener el formato tu@correo.com.", false)
+	if len([]rune(f.Name)) < 2 {
+		s.renderLanding(w, r, http.StatusBadRequest, f, "Escribe tu nombre para saber cómo llamarte.", false)
+		return
+	}
+	if !validSpaceType(f.SpaceType) {
+		s.renderLanding(w, r, http.StatusBadRequest, f, "Elige el tipo de espacio donde iría la máquina.", false)
+		return
+	}
+	if len([]rune(f.City)) < 2 {
+		s.renderLanding(w, r, http.StatusBadRequest, f, "Escribe la ciudad del espacio.", false)
 		return
 	}
 	if n := len(digitsOf(f.Phone)); n < 7 || n > 15 {
-		s.renderLanding(w, r, http.StatusBadRequest, f, "Revisa el celular: escríbelo con al menos 7 dígitos.", false)
+		s.renderLanding(w, r, http.StatusBadRequest, f, "Revisa el WhatsApp: escríbelo con al menos 7 dígitos.", false)
 		return
 	}
 	if !s.allowLead(clientIP(r), time.Now()) {
@@ -117,9 +159,9 @@ func (s *Server) handleInteresado(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// PII: se registra lo mínimo para poder contactar (landing-v1 §3).
-	log.Printf("interesado (landing) source=landing email=%q phone=%q name=%q message=%q",
-		f.Email, f.Phone, f.Name, f.Message)
+	// PII: se registra lo mínimo para poder contactar (landing-v2 §5).
+	log.Printf("interesado (landing) source=landing name=%q space_type=%q city=%q whatsapp=%q",
+		f.Name, f.SpaceType, f.City, f.Phone)
 
 	http.Redirect(w, r, "/?gracias=1#contacto", http.StatusSeeOther)
 }

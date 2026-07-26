@@ -1,11 +1,12 @@
 {{define "content"}}
 {{/* Sin JS no hay observador que revele las secciones: se muestran de una. */}}
-<noscript><style>.reveal{opacity:1 !important; transform:none !important;}</style></noscript>
+<noscript><style>.reveal{opacity:1 !important; transform:none !important;} .lstepx{opacity:1 !important;}</style></noscript>
 <nav class="lnav" id="lnav">
   <div class="lwrap">
     <a class="brand" href="#top" style="text-decoration:none">GRABI<span class="dot">.</span></a>
     <div class="lnav-links">
       <a class="lnl" href="#como">Cómo funciona</a>
+      <a class="lnl" href="#negocio">Para tu negocio</a>
       <a class="lnl" href="#porque">Por qué GRABI</a>
       <a class="lchip" href="#contacto">Contacto</a>
     </div>
@@ -18,108 +19,160 @@
       <div class="lhero-copy">
         <span class="leyebrow reveal">Vending sin efectivo · Colombia</span>
         <h1 class="lh1 reveal">Escanea, paga,<br><span class="accent">agárralo.</span></h1>
-        <p class="lh-sub reveal">Máquinas sin efectivo ni datáfono. Pagas por Bre-B desde tu celular y agárralo.</p>
+        <p class="lh-sub reveal">Pagas con <span class="lbreb" title="Sistema de pagos inmediatos del Banco de la República.">Bre-B</span>
+          desde tu celular en segundos. Sin monedas, sin billetes, sin datáfono.</p>
+        <p class="lbreb-note reveal">Bre-B: sistema de pagos inmediatos del Banco de la República.</p>
         <div class="lhero-cta reveal">
-          <a class="lbtn" href="#contacto">Quiero saber más ↓</a>
-          <span class="lpilot"><span class="on">●</span> Piloto activo en Cali</span>
+          <a class="lbtn" href="#negocio">Quiero una máquina →</a>
+          <a class="lbtn ghost" href="#como">Ver cómo funciona ↓</a>
         </div>
         <div class="lstats reveal">
-          <span><b>0</b> billeteros</span>
-          <span><b>0</b> datáfonos</span>
-          <span><b>0</b> filas</span>
-          <span><span class="on">100%</span> Bre-B</span>
+          <span class="s">Sin billeteros</span>
+          <span class="s">Sin datáfonos</span>
+          <span class="s">Sin filas</span>
+          <span class="s on">100% Bre-B</span>
         </div>
       </div>
-      {{/* Maqueta 3D de la pantalla de compra (flota y sigue al cursor).
-           El QR es real: apunta a esta misma web, no es un token de dispensado. */}}
-      <div class="lstage reveal" aria-hidden="true">
-        <div class="lfloat">
-          <div class="ltilt" id="lphone">
+
+      {{/* Composición de dos teléfonos: detrás la tienda (atenuada), delante el QR
+           firmado. Son las pantallas reales del producto, no dibujos. */}}
+      <div class="lhero-art reveal" aria-hidden="true">
+        <div class="lart-back">
+          <div class="lstage"><div class="lphone">{{template "phone_shell" dict "Screen" "tienda" "Data" .}}</div></div>
+        </div>
+        <div class="lart-front">
+          <div class="lstage"><div class="lfloat"><div class="ltilt" id="lphone">
+            <div class="lphone">{{template "phone_shell" dict "Screen" "qr" "Data" .}}</div>
+          </div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {{/* ---------- Cómo funciona: 4 pasos + teléfono sticky ---------- */}}
+  <section class="lsec lhow" id="como">
+    <div class="lwrap">
+      <span class="leyebrow reveal">Cómo funciona</span>
+      <h2 class="ltitle reveal">Cuatro pasos y listo</h2>
+      <p class="lintro reveal">Sin apps y sin registro: todo pasa en el navegador de tu celular.
+        Ojo con los <b>dos QR</b>: el de la máquina <b>abre la tienda</b>; el que tú recibes, firmado, <b>retira el producto</b>.</p>
+
+      <div class="lhow-grid">
+        <ol class="lhow-steps">
+          <li class="lstepx" data-screen="camara">
+            <span class="n">1</span>
+            <div class="st">Escanea el QR de la máquina</div>
+            <div class="sd">El QR pegado en la máquina <b>solo abre su tienda</b> en tu navegador: no es un comprobante ni sirve para retirar. También puedes escribir la dirección a mano.</div>
+            <div class="lshot">{{template "phone_screen_only" dict "Screen" "camara" "Data" .}}</div>
+          </li>
+          <li class="lstepx" data-screen="tienda">
+            <span class="n">2</span>
+            <div class="st">Elige tus productos</div>
+            <div class="sd">Ves lo que hay <b>en esa máquina</b> con precio y unidades disponibles. Sumas cantidades y el total se calcula solo.</div>
+            <div class="lshot">{{template "phone_screen_only" dict "Screen" "tienda" "Data" .}}</div>
+          </li>
+          <li class="lstepx" data-screen="pago">
+            <span class="n">3</span>
+            <div class="st">Paga con Bre-B desde tu app bancaria</div>
+            <div class="sd">La página te muestra el <b>monto exacto</b> y la <b>llave Bre-B</b> de la máquina. Transfieres desde tu banco y vuelves: nosotros esperamos la confirmación.</div>
+            <div class="lshot">{{template "phone_screen_only" dict "Screen" "pago" "Data" .}}</div>
+          </li>
+          <li class="lstepx" data-screen="qr">
+            <span class="n">4</span>
+            <div class="st">Recibe tu QR firmado, acércalo al lector y agárralo</div>
+            <div class="sd">Este QR <b>sí es tuyo</b>: va firmado digitalmente, sirve <b>una sola vez</b> y es el que la máquina lee para entregarte el producto.</div>
+            <div class="lsafe">El QR de retiro aparece <b>solo cuando el banco confirma tu pago</b>. Nunca por pantallazo.</div>
+            <div class="lshot">{{template "phone_screen_only" dict "Screen" "qr" "Data" .}}</div>
+          </li>
+        </ol>
+
+        {{/* Teléfono sticky: las 4 pantallas apiladas, se cruzan según el paso. */}}
+        <div class="lhow-phone" aria-hidden="true">
+          <div class="lstage"><div class="ltilt">
             <div class="lphone">
               <div class="lphone-screen">
                 <span class="lphone-island"></span>
                 <span class="lphone-glare"></span>
-                <div class="lph-status">
-                  <span>9:41</span>
-                  <span class="lph-ind">
-                    <i class="lph-bars"><b></b><b></b><b></b><b></b></i>
-                    <i class="lph-bat"></i>
-                  </span>
-                </div>
-                <div class="lphone-top">
-                  <span class="brand">GRABI<span class="dot">.</span></span>
-                  <span class="lphone-tag">✓ PAGO CONFIRMADO</span>
-                </div>
-                <div class="lphone-body">
-                  <span class="mid">MÁQUINA M001</span>
-                  <span class="t">Tu QR está listo</span>
-                  {{if .DemoQR}}<div class="qrbox"><img src="{{.DemoQR}}" alt=""></div>{{end}}
-                  <span class="exp">Vence en 4:52</span>
-                  <div class="lph-items">
-                    <span class="r"><span>2× Papas limón</span><span>$2.000</span></span>
-                    <span class="r"><span>1× Agua 600 ml</span><span>$1.500</span></span>
-                    <span class="r tot"><span>Total</span><span>$3.500</span></span>
-                  </div>
-                  <span class="rd">Acércalo al <b>lector de la máquina</b> y agárralo.</span>
-                  <span class="lph-btn">← Volver a la máquina</span>
+                {{template "ph_status" .}}
+                <div class="lph-canvas" id="howCanvas">
+                  <div class="lscr is-on" data-screen="camara">{{template "scr_camara" .}}</div>
+                  <div class="lscr" data-screen="tienda">{{template "scr_tienda" .}}</div>
+                  <div class="lscr" data-screen="pago">{{template "scr_pago" .}}</div>
+                  <div class="lscr" data-screen="qr">{{template "scr_qr" .}}</div>
                 </div>
                 <span class="lph-home"></span>
               </div>
             </div>
-          </div>
+          </div></div>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="lsec" id="como">
+  {{/* ---------- Puente ---------- */}}
+  <section class="lsec lbridge">
     <div class="lwrap">
-      <span class="leyebrow reveal">Cómo funciona</span>
-      <h2 class="ltitle reveal">Tres pasos y listo</h2>
-      <div class="lsteps">
-        <div class="lstep reveal">
-          <div class="n">1</div>
-          <div>
-            <div class="t">Escanea el QR de la máquina</div>
-            <div class="d">O entra directo a la dirección de la máquina desde tu navegador. Sin apps, sin registro.</div>
-          </div>
+      <p class="q reveal">¿Y si esta máquina estuviera en <span class="accent">tu edificio</span>?</p>
+      <p class="a reveal">Lo mismo que hace fácil comprar hace fácil tenerla: sin efectivo que cuadrar,
+        sin datáfono que alquilar y sin depender de que el punto tenga buen internet.</p>
+    </div>
+  </section>
+
+  {{/* ---------- B2B ---------- */}}
+  <section class="lsec" id="negocio">
+    <div class="lwrap">
+      <span class="leyebrow reveal">Para tu negocio</span>
+      <h2 class="ltitle reveal">Ten tu propia GRABI</h2>
+      <p class="lintro reveal">Una máquina que cobra sola, no guarda plata adentro y no te obliga a
+        montar infraestructura de pagos.</p>
+      <div class="lb2b-grid">
+        <div class="lb2b reveal">
+          <div class="k">SIN EFECTIVO</div>
+          <div class="d">No hay monedas ni billetes dentro: <b>nada que robar y nada que cuadrar</b>. Cada venta queda registrada con su hora y su monto.</div>
         </div>
-        <div class="lstep reveal">
-          <div class="n">2</div>
-          <div>
-            <div class="t">Paga por Bre-B el monto exacto</div>
-            <div class="d">Transferencia instantánea desde tu banco colombiano. Sin efectivo, sin tarjeta, sin datáfono.</div>
-          </div>
+        <div class="lb2b reveal">
+          <div class="k">SIN DATÁFONO</div>
+          <div class="d">El cobro es una transferencia Bre-B directa a la cuenta: <b>sin alquiler de datáfono ni comisiones de adquirencia</b>.</div>
         </div>
-        <div class="lstep reveal">
-          <div class="n">3</div>
-          <div>
-            <div class="t">Muestra tu QR y agárralo</div>
-            <div class="d">Al confirmarse el pago recibes un QR firmado. Acércalo al lector y la máquina dispensa.</div>
-          </div>
+        <div class="lb2b reveal">
+          <div class="k">QR FIRMADO DE UN SOLO USO</div>
+          <div class="d">La máquina <b>valida el QR sin internet</b> en el punto y lo consume al dispensar: no se falsifica ni se pasa por pantallazo.</div>
+        </div>
+        <div class="lb2b reveal">
+          <div class="k">INSTALACIÓN Y SOPORTE</div>
+          <div class="d">Durante el piloto, <b>instalación y soporte incluidos</b>: nosotros la ponemos a punto y respondemos si algo falla.</div>
+        </div>
+        <div class="lb2b reveal">
+          <div class="k">DONDE NO LLEGAN LOS GRANDES</div>
+          <div class="d">Pensada para <b>conjuntos residenciales, oficinas y espacios pequeños</b> que los operadores grandes no atienden.</div>
+        </div>
+        <div class="lb2b reveal">
+          <div class="k">TU PUNTO, TUS PRODUCTOS</div>
+          <div class="d">Definimos juntos el surtido de los canales según lo que <b>se vende en tu espacio</b>.</div>
         </div>
       </div>
     </div>
   </section>
 
+  {{/* ---------- Por qué GRABI (confianza del comprador) ---------- */}}
   <section class="lsec" id="porque">
     <div class="lwrap">
       <span class="leyebrow reveal">Por qué GRABI</span>
       <h2 class="ltitle reveal">Hecho para confiar</h2>
-      <div class="lcards">
-        <div class="lcard reveal">
+      <div class="lb2b-grid">
+        <div class="lb2b reveal">
           <div class="k">SIN EFECTIVO NI TARJETA</div>
           <div class="d">La máquina no tiene billetero, monedero ni datáfono. Menos costo, menos fallas, menos robos.</div>
         </div>
-        <div class="lcard reveal">
+        <div class="lb2b reveal">
           <div class="k">PAGO POR BRE-B</div>
           <div class="d">Transferencia instantánea entre bancos colombianos, directa desde tu celular.</div>
         </div>
-        <div class="lcard reveal">
+        <div class="lb2b reveal">
           <div class="k">QR SOLO CON PAGO REAL</div>
           <div class="d">Tu QR de retiro solo aparece cuando el banco confirma el pago. Nunca por pantallazo.</div>
         </div>
-        <div class="lcard reveal">
+        <div class="lb2b reveal">
           <div class="k">FUNCIONA SIN INTERNET</div>
           <div class="d">La máquina verifica tu QR sin conexión: está firmado digitalmente y es de un solo uso.</div>
         </div>
@@ -127,12 +180,13 @@
     </div>
   </section>
 
+  {{/* ---------- Captura de lead B2B ---------- */}}
   <section class="lsec lcontact" id="contacto">
     <div class="lwrap">
       <div class="lcontact-copy reveal">
         <span class="leyebrow">Contacto</span>
-        <h2 class="ltitle">¿Quieres saber más o una GRABI en tu punto?</h2>
-        <p>Déjanos tu correo y celular. Te contamos costos, requisitos del punto y fechas del piloto.</p>
+        <h2 class="ltitle">¿Quieres una GRABI en tu espacio?</h2>
+        <p>Déjanos cuatro datos y te escribimos por WhatsApp.</p>
         <ul class="lqa">
           <li>Costos y qué incluye la máquina</li>
           <li>Requisitos del punto: espacio y toma de luz</li>
@@ -144,56 +198,95 @@
         <div class="lthanks">
           <div class="tick">✓</div>
           <div class="t">¡Gracias! Te contactamos pronto.</div>
-          <div class="d">Te escribimos al correo o al celular que nos dejaste.</div>
+          <div class="d">Te escribimos por WhatsApp al número que nos dejaste.</div>
         </div>
         {{else}}
         <form class="lform" method="post" action="/interesados" id="leadForm" novalidate>
           {{if .Error}}<div class="flash err">{{.Error}}</div>{{end}}
-          {{/* Honeypot anti-spam (landing-v1 §3): invisible para personas, tentador para bots. */}}
+          {{/* Honeypot anti-spam: invisible para personas, tentador para bots. */}}
           <div class="lhoney" aria-hidden="true">
             <label for="l-web">Sitio web</label>
             <input id="l-web" type="text" name="website" tabindex="-1" autocomplete="off">
           </div>
-          <div class="lfield" data-check="email">
-            <label for="l-mail">Correo *</label>
-            <input id="l-mail" type="email" name="email" required autocomplete="email"
-                   placeholder="tu@correo.com" value="{{.Form.Email}}"
-                   aria-describedby="l-mail-msg">
+          <div class="lfield" data-check="text">
+            <label for="l-name">Nombre *</label>
+            <input id="l-name" type="text" name="name" required autocomplete="name"
+                   placeholder="Cómo te llamamos" value="{{.Form.Name}}" aria-describedby="l-name-msg">
             <span class="ltick" aria-hidden="true">✓</span>
-            <p class="lmsg" id="l-mail-msg">Escribe un correo con el formato tu@correo.com.</p>
+            <p class="lmsg" id="l-name-msg">Escribe tu nombre.</p>
+          </div>
+          <div class="lfield sel" data-check="pick">
+            <label for="l-space">Tipo de espacio *</label>
+            <select id="l-space" name="space_type" required aria-describedby="l-space-msg">
+              <option value="">Elige una opción…</option>
+              {{range .SpaceTypes}}
+              <option value="{{.Key}}"{{if eq $.Form.SpaceType .Key}} selected{{end}}>{{.Label}}</option>
+              {{end}}
+            </select>
+            <span class="ltick" aria-hidden="true">✓</span>
+            <p class="lmsg" id="l-space-msg">Elige dónde iría la máquina.</p>
+          </div>
+          <div class="lfield" data-check="text">
+            <label for="l-city">Ciudad *</label>
+            <input id="l-city" type="text" name="city" required autocomplete="address-level2"
+                   placeholder="Cali" value="{{.Form.City}}" aria-describedby="l-city-msg">
+            <span class="ltick" aria-hidden="true">✓</span>
+            <p class="lmsg" id="l-city-msg">Escribe la ciudad del espacio.</p>
           </div>
           <div class="lfield" data-check="phone">
-            <label for="l-cel">Celular *</label>
-            <input id="l-cel" type="tel" name="phone" required inputmode="tel" autocomplete="tel"
-                   placeholder="300 123 4567" value="{{.Form.Phone}}"
-                   aria-describedby="l-cel-msg">
+            <label for="l-wa">WhatsApp *</label>
+            <input id="l-wa" type="tel" name="phone" required inputmode="tel" autocomplete="tel"
+                   placeholder="300 123 4567" value="{{.Form.Phone}}" aria-describedby="l-wa-msg">
             <span class="ltick" aria-hidden="true">✓</span>
-            <p class="lmsg" id="l-cel-msg">Escribe tu celular: al menos 7 dígitos.</p>
+            <p class="lmsg" id="l-wa-msg">Escribe tu WhatsApp: al menos 7 dígitos.</p>
           </div>
-          <div>
-            <label for="l-name">Nombre <span class="opt">(opcional)</span></label>
-            <input id="l-name" type="text" name="name" autocomplete="name"
-                   placeholder="Cómo te llamamos" value="{{.Form.Name}}">
-          </div>
-          <div>
-            <label for="l-msg">Mensaje <span class="opt">(opcional)</span></label>
-            <textarea id="l-msg" name="message" placeholder="Cuéntanos de tu punto: barrio, tipo de local, flujo de gente…">{{.Form.Message}}</textarea>
-          </div>
-          <button class="lbtn" type="submit" id="leadBtn">Enviar →</button>
+          <button class="lbtn" type="submit" id="leadBtn">Quiero una GRABI en mi espacio</button>
           <p class="lform-hint" id="leadHint"></p>
+          {{if .WhatsApp}}
+          <div class="lform-or">o</div>
+          <a class="lbtn wa" href="https://wa.me/{{.WhatsApp}}?text={{.WhatsAppMsg}}" target="_blank" rel="noopener">
+            Escríbenos por WhatsApp
+          </a>
+          {{end}}
           <p class="lprivacy">Usamos tus datos solo para contactarte, no los compartimos. Nada de spam.</p>
         </form>
         {{end}}
       </div>
     </div>
   </section>
+
+  {{/* ---------- Estado del piloto ---------- */}}
+  <section class="lsec">
+    <div class="lwrap">
+      <span class="leyebrow reveal">Estado del proyecto</span>
+      <h2 class="ltitle reveal">Piloto activo en Cali</h2>
+      <div class="lpilot-card reveal">
+        <span class="lpilot-live"><span class="dotlive"></span>Piloto en marcha</span>
+        <p class="lintro" style="margin-bottom:0">Estamos operando la <b>primera máquina</b> en Cali para afinar
+          el surtido, el flujo de pago y el soporte antes de instalar más. Si tu espacio entra en esta
+          etapa, trabajamos contigo de cerca.</p>
+        <ul class="lpilot-facts">
+          <li><b>Una máquina, cuatro canales</b>Snacks y bebidas a temperatura ambiente, sin refrigeración.</li>
+          <li><b>Pago por Bre-B conciliado</b>El QR de retiro se emite cuando el banco confirma el abono.</li>
+          <li><b>Verificación sin internet</b>La máquina valida el QR firmado offline y lo consume al dispensar.</li>
+        </ul>
+        <p class="lpilot-photo">Aquí irá la foto real de la máquina instalada. Preferimos no poner
+          imágenes de relleno: cuando esté en su punto, la publicamos.</p>
+      </div>
+    </div>
+  </section>
 </main>
 
-<footer class="lfoot">
+<footer class="lfoot" id="footer">
   <div class="lwrap">
     <div class="bw">
       <span class="brand">GRABI<span class="dot">.</span></span>
       <span class="tag">Escanea, paga, agárralo.</span>
+    </div>
+    <div class="flinks">
+      <a href="#como">Cómo funciona</a>
+      <a href="#negocio">Para tu negocio</a>
+      <a href="#contacto">Contacto</a>
     </div>
     <span class="cr">© {{.Year}} GRABI · Cali, Colombia</span>
   </div>
@@ -201,22 +294,23 @@
 
 <script>
 // JS vanilla mínimo de la landing (ADR-011bis): validación en vivo, aparición al
-// hacer scroll, nav activo y el celular 3D. Todo es progresivo: sin JS la página
-// sigue completa y el servidor valida igual.
+// hacer scroll, nav activo, teléfono sticky y parallax del hero. Todo progresivo:
+// sin JS la página sigue completa y el servidor valida igual.
 (function(){
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // --- 1. Validación en tiempo real + botón Enviar condicional ---
+  // --- 1. Validación en tiempo real + botón de envío condicional ---
   var f = document.getElementById('leadForm');
   if(f){
     var btn = document.getElementById('leadBtn'),
         hint = document.getElementById('leadHint'),
         checks = {
-          email: function(v){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim()); },
+          text:  function(v){ return v.trim().length >= 2; },
+          pick:  function(v){ return v !== ''; },
           phone: function(v){ var d = v.replace(/\D/g,''); return d.length >= 7 && d.length <= 15; }
         },
         fields = [].slice.call(f.querySelectorAll('.lfield[data-check]')).map(function(w){
-          return { wrap:w, input:w.querySelector('input'), ok:checks[w.dataset.check] };
+          return { wrap:w, input:w.querySelector('input,select'), ok:checks[w.dataset.check] };
         });
 
     function paint(fd, showErr){
@@ -232,19 +326,20 @@
       var faltan = 0;
       fields.forEach(function(fd){ if(!paint(fd, fd.touched)) faltan++; });
       btn.disabled = faltan > 0;
-      hint.textContent = faltan > 0 ? 'Completa correo y celular para enviar.' : '';
+      hint.textContent = faltan > 0 ? 'Completa los cuatro datos para enviar.' : '';
     }
     fields.forEach(function(fd){
       // Mientras escribe: solo feedback positivo. El error aparece al salir del
       // campo (o si ya lo había visto), para no regañar a media palabra.
       fd.input.addEventListener('input', sync);
+      fd.input.addEventListener('change', function(){ fd.touched = true; sync(); });
       fd.input.addEventListener('blur', function(){ fd.touched = true; sync(); });
       if(fd.input.value.trim() !== '') fd.touched = true; // vino del servidor con datos
     });
     sync();
   }
 
-  // --- 2. Navegación fluida: aparición al hacer scroll + enlace activo + nav pegajoso ---
+  // --- 2. Navegación fluida: nav pegajoso, aparición al scroll y enlace activo ---
   var nav = document.getElementById('lnav');
   if(nav){
     var onScroll = function(){ nav.classList.toggle('stuck', window.scrollY > 8); };
@@ -256,7 +351,6 @@
   if(!('IntersectionObserver' in window) || reduce){
     revs.forEach(function(el){ el.classList.add('in'); });
   } else {
-    // Escalonado por posición dentro de su contenedor: entran en cascada.
     revs.forEach(function(el){
       var i = [].indexOf.call(el.parentNode.children, el);
       el.style.transitionDelay = Math.min(i, 5) * 70 + 'ms';
@@ -269,20 +363,21 @@
     revs.forEach(function(el){ io.observe(el); });
   }
 
-  // Enlace del nav resaltado según la sección visible.
-  var links = [].slice.call(document.querySelectorAll('.lnav-links a[href^="#"]'));
-  if(links.length && 'IntersectionObserver' in window){
-    var secs = links.map(function(a){ return document.querySelector(a.getAttribute('href')); });
-    var spy = new IntersectionObserver(function(entries){
-      entries.forEach(function(e){
-        if(!e.isIntersecting) return;
-        links.forEach(function(a, i){ a.classList.toggle('on', secs[i] === e.target); });
-      });
-    }, {rootMargin:'-45% 0px -50% 0px'});
-    secs.forEach(function(s){ if(s) spy.observe(s); });
+  // Elemento "activo" = el que cruza la línea de lectura (42% del alto). Se calcula
+  // en cada scroll en vez de con bandas de IntersectionObserver: así el paso y el
+  // enlace del nav nunca quedan desfasados por el orden en que entran las entradas.
+  function activo(list){
+    var linea = window.innerHeight * 0.42, best = null, bestD = Infinity;
+    for(var i=0; i<list.length; i++){
+      var el = list[i]; if(!el) continue;
+      var r = el.getBoundingClientRect();
+      if(r.bottom < 0 || r.top > window.innerHeight) continue;
+      var d = (r.top <= linea && r.bottom >= linea) ? -1 : Math.abs(r.top + r.height/2 - linea);
+      if(d < bestD){ bestD = d; best = el; }
+    }
+    return best;
   }
 
-  // Respaldo del scroll suave para navegadores sin scroll-behavior (Safari viejo).
   if(!('scrollBehavior' in document.documentElement.style) && !reduce){
     document.querySelectorAll('a[href^="#"]').forEach(function(a){
       a.addEventListener('click', function(e){
@@ -294,10 +389,42 @@
     });
   }
 
-  // --- 3. Celular 3D: sigue al cursor dentro del hero (solo con ratón) ---
+  // --- 3. "Cómo funciona": el paso visible manda la pantalla del teléfono sticky,
+  //        y la sección visible manda el enlace resaltado del nav ---
+  var steps = [].slice.call(document.querySelectorAll('.lstepx')),
+      canvas = document.getElementById('howCanvas'),
+      layers = canvas ? [].slice.call(canvas.querySelectorAll('.lscr')) : [],
+      navLinks = [].slice.call(document.querySelectorAll('.lnav-links a[href^="#"]')),
+      navSecs = navLinks.map(function(a){ return document.querySelector(a.getAttribute('href')); });
+
+  function sincronizar(){
+    if(steps.length){
+      var paso = activo(steps);
+      if(paso){
+        var name = paso.dataset.screen;
+        steps.forEach(function(s){ s.classList.toggle('on', s === paso); });
+        layers.forEach(function(l){ l.classList.toggle('is-on', l.dataset.screen === name); });
+      }
+    }
+    if(navLinks.length){
+      var sec = activo(navSecs);
+      navLinks.forEach(function(a, i){ a.classList.toggle('on', !!sec && navSecs[i] === sec); });
+    }
+  }
+  var syncRaf = null;
+  function pedirSync(){
+    if(syncRaf) return;
+    syncRaf = requestAnimationFrame(function(){ syncRaf = null; sincronizar(); });
+  }
+  window.addEventListener('scroll', pedirSync, {passive:true});
+  window.addEventListener('resize', pedirSync);
+  window.addEventListener('load', pedirSync);
+  sincronizar();
+
+  // --- 4. Teléfono del hero: inclinación suave con el cursor (máx ~5°) ---
   var phone = document.getElementById('lphone'), hero = document.querySelector('.lhero');
   if(phone && hero && !reduce && window.matchMedia('(hover: hover) and (min-width: 820px)').matches){
-    var raf = null, base = {ry:-17, rx:7};
+    var raf = null, base = {ry:-5, rx:3};
     hero.addEventListener('pointermove', function(ev){
       if(raf) return;
       raf = requestAnimationFrame(function(){
@@ -305,12 +432,167 @@
         var r = hero.getBoundingClientRect(),
             px = (ev.clientX - r.left) / r.width - 0.5,
             py = (ev.clientY - r.top) / r.height - 0.5;
-        phone.style.transform = 'rotateY(' + (base.ry + px * 20).toFixed(2) + 'deg) ' +
-                                'rotateX(' + (base.rx - py * 16).toFixed(2) + 'deg)';
+        phone.style.transform = 'rotateY(' + (base.ry + px * 8).toFixed(2) + 'deg) ' +
+                                'rotateX(' + (base.rx - py * 6).toFixed(2) + 'deg)';
       });
     });
     hero.addEventListener('pointerleave', function(){ phone.style.transform = ''; });
   }
 })();
 </script>
+{{end}}
+
+
+{{/* ==================================================================
+     Pantallas del teléfono. Son réplicas de las pantallas REALES del
+     producto (machine_public / machine_pago / machine_qr) reducidas al
+     tamaño del dispositivo: mismo copy, mismos elementos, mismo orden.
+     Todas las medidas van en `em` sobre el tamaño base de .lphone-screen.
+     ================================================================== */}}
+
+{{/* Barra de estado del sistema (común a todas las pantallas). */}}
+{{define "ph_status"}}
+<div class="lph-status">
+  <span>9:41</span>
+  <span class="lph-ind">
+    <i class="lph-bars"><b></b><b></b><b></b><b></b></i>
+    <i class="lph-bat"></i>
+  </span>
+</div>
+{{end}}
+
+{{/* Marco completo con UNA pantalla. Recibe {Screen, Data}. */}}
+{{define "phone_shell"}}
+<div class="lphone-screen">
+  <span class="lphone-island"></span>
+  <span class="lphone-glare"></span>
+  {{template "ph_status" .Data}}
+  <div class="lph-canvas">
+    <div class="lscr is-on">
+      {{if eq .Screen "camara"}}{{template "scr_camara" .Data}}
+      {{else if eq .Screen "tienda"}}{{template "scr_tienda" .Data}}
+      {{else if eq .Screen "pago"}}{{template "scr_pago" .Data}}
+      {{else}}{{template "scr_qr" .Data}}{{end}}
+    </div>
+  </div>
+  <span class="lph-home"></span>
+</div>
+{{end}}
+
+{{/* Solo la pantalla (captura estática de móvil, sin marco). */}}
+{{define "phone_screen_only"}}
+{{template "phone_shell" .}}
+{{end}}
+
+{{/* Paso 1 — la cámara del celular sobre el QR pegado en la máquina. */}}
+{{define "scr_camara"}}
+<div class="scr scr-cam">
+  <div class="cam-view">
+    <span class="cam-frame"></span>
+    <div class="cam-sticker">
+      <span class="cs-brand">GRABI<span class="dot">.</span></span>
+      {{if .DemoQR}}<img src="{{.DemoQR}}" alt="">{{end}}
+      <span class="cs-mid">MÁQUINA M001</span>
+    </div>
+  </div>
+  <div class="cam-foot">Apunta al QR pegado en la máquina</div>
+</div>
+{{end}}
+
+{{/* Paso 2 — la tienda de la máquina (réplica de GET /m/{id}). */}}
+{{define "scr_tienda"}}
+<div class="scr scr-shop">
+  <div class="shop-head">
+    <div>
+      <span class="brand">GRABI<span class="dot">.</span></span>
+      <span class="sh-tag">Escanea, paga, agárralo.</span>
+    </div>
+    <span class="sh-chip">M001</span>
+  </div>
+  <div class="shop-list">
+    <div class="shop-row sel">
+      <div class="th"><svg viewBox="0 0 40 40" aria-hidden="true"><rect x="9" y="7" width="22" height="27" rx="4" fill="#F2C94C"/><path d="M9 13h22" stroke="#05130B" stroke-width="1.4" opacity=".3"/><circle cx="20" cy="24" r="5.5" fill="#05130B" opacity=".16"/></svg></div>
+      <div class="info">
+        <div class="ch">CANAL #1</div>
+        <div class="nm">Papas limón</div>
+        <div class="mt"><span class="pr">$1.000</span> · 8 disp.</div>
+      </div>
+      <div class="shop-step"><span>−</span><span class="q on">2</span><span class="pl">+</span></div>
+    </div>
+    <div class="shop-row sel">
+      <div class="th"><svg viewBox="0 0 40 40" aria-hidden="true"><rect x="17" y="5" width="6" height="5" rx="1.5" fill="#7FD4E8"/><path d="M15 11h10v21a3 3 0 0 1-3 3h-4a3 3 0 0 1-3-3z" fill="#7FD4E8"/><rect x="15" y="19" width="10" height="6" fill="#05130B" opacity=".18"/></svg></div>
+      <div class="info">
+        <div class="ch">CANAL #2</div>
+        <div class="nm">Agua 600 ml</div>
+        <div class="mt"><span class="pr">$1.500</span> · 6 disp.</div>
+      </div>
+      <div class="shop-step"><span>−</span><span class="q on">1</span><span class="pl">+</span></div>
+    </div>
+    <div class="shop-row">
+      <div class="th"><svg viewBox="0 0 40 40" aria-hidden="true"><rect x="7" y="11" width="26" height="18" rx="3" fill="#EB7A6B"/><path d="M14 11v18M20 11v18M26 11v18" stroke="#05130B" stroke-width="1.2" opacity=".22"/></svg></div>
+      <div class="info">
+        <div class="ch">CANAL #3</div>
+        <div class="nm">Chocolatina</div>
+        <div class="mt"><span class="pr">$2.500</span> · 9 disp.</div>
+      </div>
+      <div class="shop-step"><span>−</span><span class="q">0</span><span class="pl">+</span></div>
+    </div>
+  </div>
+  <div class="shop-bar">
+    <div>
+      <div class="t">$3.500</div>
+      <div class="c">3 producto(s)</div>
+    </div>
+    <span class="b">Pagar con Bre-B →</span>
+  </div>
+</div>
+{{end}}
+
+{{/* Paso 3 — esperando la confirmación del banco (réplica de la pantalla de pago). */}}
+{{define "scr_pago"}}
+<div class="scr scr-pay">
+  <div class="pay-top">
+    <span class="spin"></span>
+    <div>
+      <div class="t">Esperando tu pago…</div>
+      <div class="d">Verificamos cada 5 segundos</div>
+    </div>
+  </div>
+  <div class="pay-card">
+    <div class="l">Transfiere exactamente</div>
+    <div class="v">$3.500</div>
+    <div class="l">Llave Bre-B de la máquina</div>
+    <div class="pay-key">
+      <span class="k">GRABI M001</span>
+      <span class="cp">Copiar</span>
+    </div>
+  </div>
+  <div class="pay-time">
+    <div class="row"><span>Tiempo para pagar</span><b>12:40</b></div>
+    <div class="progress"><i style="width:84%"></i></div>
+  </div>
+  <div class="pay-note">El <b>QR de retiro</b> aparece solo cuando el banco confirma tu pago. Nunca por pantallazo.</div>
+</div>
+{{end}}
+
+{{/* Paso 4 — el QR firmado ya emitido (réplica de machine_qr). */}}
+{{define "scr_qr"}}
+<div class="scr scr-qr">
+  <div class="qr-head">
+    <span class="brand">GRABI<span class="dot">.</span></span>
+    <span class="tag">✓ PAGO CONFIRMADO</span>
+  </div>
+  <div class="qr-body">
+    <span class="mid">MÁQUINA M001</span>
+    <span class="t">Tu QR está listo</span>
+    {{if .DemoQR}}<div class="qrbox"><img src="{{.DemoQR}}" alt=""></div>{{end}}
+    <span class="exp">Expira en 4:52</span>
+    <div class="qr-tk">
+      <span class="r"><span>2× Papas limón</span><span>$2.000</span></span>
+      <span class="r"><span>1× Agua 600 ml</span><span>$1.500</span></span>
+      <span class="r tot"><span>Total</span><span>$3.500</span></span>
+    </div>
+    <span class="rd">Acércalo al <b>lector de la máquina</b> y agárralo.</span>
+  </div>
+</div>
 {{end}}

@@ -1,6 +1,6 @@
 package web
 
-// Pruebas de la landing pública (landing-v1). No tocan la base de datos: la
+// Pruebas de la landing pública (landing-v2). No tocan la base de datos: la
 // home y el formulario de interesados no consultan el store, así que el
 // servidor se construye con store nil.
 
@@ -40,10 +40,32 @@ func TestLandingEsLaHome(t *testing.T) {
 		t.Fatalf("GET / = %d, se esperaba 200 (¿sigue redirigiendo a /admin?)", res.StatusCode)
 	}
 	body := readAll(t, res)
-	for _, want := range []string{"Escanea, paga,", "agárralo.", "Tres pasos y listo", "Hecho para confiar", `action="/interesados"`} {
+	for _, want := range []string{
+		"Escanea, paga,", "agárralo.",
+		"Cuatro pasos y listo",  // cómo funciona (teléfono sticky)
+		"Ten tu propia GRABI",   // sección B2B
+		"Hecho para confiar",    // por qué GRABI
+		"Piloto activo en Cali", // estado del piloto
+		"Quiero una máquina →",  // CTA primario del hero
+		"Ver cómo funciona ↓",   // CTA secundario del hero
+		`href="#negocio"`,       // enlace del nav a la sección B2B
+		`action="/interesados"`, // formulario de leads
+		`name="space_type"`,     // select de tipo de espacio
+	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("la landing no contiene %q", want)
 		}
+	}
+	// Las cuatro pantallas del recorrido deben estar en la página (sticky + móvil).
+	for _, want := range []string{"Apunta al QR pegado en la máquina", "Pagar con Bre-B →",
+		"Esperando tu pago…", "Tu QR está listo"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("falta la pantalla con %q", want)
+		}
+	}
+	// Sin GRABI_WHATSAPP configurado no se publica ningún contacto inventado.
+	if strings.Contains(body, "wa.me/") {
+		t.Error("se muestra el botón de WhatsApp sin número configurado")
 	}
 }
 
@@ -82,25 +104,44 @@ func TestInteresadoValidaYAcepta(t *testing.T) {
 		return res
 	}
 
-	// Correo inválido → 400 y la landing con el aviso, conservando el celular.
-	res := post(url.Values{"email": {"no-es-correo"}, "phone": {"3001234567"}})
-	if res.StatusCode != http.StatusBadRequest {
-		t.Errorf("correo inválido: status = %d, se esperaba 400", res.StatusCode)
+	ok := url.Values{"name": {"Ana"}, "space_type": {"conjunto"}, "city": {"Cali"}, "phone": {"300 123 4567"}}
+	with := func(k, v string) url.Values {
+		out := url.Values{}
+		for key, vals := range ok {
+			out[key] = vals
+		}
+		out.Set(k, v)
+		return out
 	}
-	if body := readAll(t, res); !strings.Contains(body, "Revisa el correo") || !strings.Contains(body, "3001234567") {
-		t.Error("correo inválido: falta el aviso o se perdió lo escrito")
+
+	// Tipo de espacio fuera de la lista → 400 (el select no es una promesa).
+	res := post(with("space_type", "casa-del-arbol"))
+	if res.StatusCode != http.StatusBadRequest {
+		t.Errorf("tipo inválido: status = %d, se esperaba 400", res.StatusCode)
+	}
+	if body := readAll(t, res); !strings.Contains(body, "Elige el tipo de espacio") || !strings.Contains(body, "300 123 4567") {
+		t.Error("tipo inválido: falta el aviso o se perdió lo escrito")
 	}
 	res.Body.Close()
 
-	// Celular demasiado corto → 400.
-	res = post(url.Values{"email": {"ana@ejemplo.com"}, "phone": {"300"}})
+	// WhatsApp demasiado corto → 400.
+	res = post(with("phone", "300"))
 	if res.StatusCode != http.StatusBadRequest {
-		t.Errorf("celular corto: status = %d, se esperaba 400", res.StatusCode)
+		t.Errorf("WhatsApp corto: status = %d, se esperaba 400", res.StatusCode)
 	}
 	res.Body.Close()
+
+	// Nombre y ciudad son obligatorios.
+	for _, campo := range []string{"name", "city"} {
+		res = post(with(campo, ""))
+		if res.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s vacío: status = %d, se esperaba 400", campo, res.StatusCode)
+		}
+		res.Body.Close()
+	}
 
 	// Válido → redirección al estado de éxito.
-	res = post(url.Values{"email": {"ana@ejemplo.com"}, "phone": {"300 123 4567"}, "name": {"Ana"}})
+	res = post(ok)
 	if res.StatusCode != http.StatusSeeOther {
 		t.Errorf("lead válido: status = %d, se esperaba 303", res.StatusCode)
 	}
@@ -110,7 +151,7 @@ func TestInteresadoValidaYAcepta(t *testing.T) {
 	res.Body.Close()
 
 	// El honeypot lleno se acepta en silencio (no se avisa al bot).
-	res = post(url.Values{"email": {"bot@spam.com"}, "phone": {"3001234567"}, "website": {"http://spam"}})
+	res = post(with("website", "http://spam"))
 	if res.StatusCode != http.StatusSeeOther {
 		t.Errorf("honeypot: status = %d, se esperaba 303", res.StatusCode)
 	}
@@ -129,7 +170,7 @@ func TestGraciasMuestraElEstadoDeExito(t *testing.T) {
 	if !strings.Contains(body, "¡Gracias! Te contactamos pronto.") {
 		t.Error("no se muestra el estado de éxito con ?gracias=1")
 	}
-	if strings.Contains(body, `name="email"`) {
+	if strings.Contains(body, `name="space_type"`) {
 		t.Error("el formulario sigue visible tras enviar")
 	}
 }

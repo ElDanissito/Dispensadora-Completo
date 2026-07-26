@@ -93,11 +93,15 @@ ADMIN_PASS=algo-seguro ./dispensadoras-web -seed   # -seed carga datos de demo
 - El panel `/admin` va protegido con **Basic Auth** (`ADMIN_USER`/`ADMIN_PASS`, por defecto
   `admin`/`changeme` con aviso — define `ADMIN_PASS` antes de exponerlo).
 - Rutas públicas: `GET /` (landing) · `POST /interesados` · `GET /m/{id}` · `POST /m/{id}/pagar`
-  · `GET /m/{id}/orden/{jti}/estado` · `POST /m/{id}/simular-pago` (solo con `-allow-sim`).
-- **Interesados (landing-v1):** `POST /interesados` valida correo/celular, filtra bots (honeypot +
-  tope de 5 envíos por IP cada 10 min) y redirige a `/?gracias=1`. ⚠️ **Todavía no hay tabla `leads`**:
-  el lead se escribe en el **log del servidor** (`docker compose logs app`) hasta el commit que cree
-  el esquema y la sección "Interesados" del panel.
+  · `GET /m/{id}/orden/{jti}/estado` · `POST /m/{id}/orden/{jti}/reemitir`
+  · `POST /m/{id}/simular-pago` (solo con `-allow-sim`).
+- **Interesados (landing-v2):** `POST /interesados` valida nombre/tipo de espacio/ciudad/WhatsApp,
+  filtra bots (honeypot + tope de 5 envíos por IP cada 10 min) y redirige a `/?gracias=1`.
+  ⚠️ **Todavía no hay tabla `leads`**: el lead se escribe en el **log del servidor**
+  (`docker compose logs app`) hasta el commit que cree el esquema y la sección "Interesados" del panel.
+- **Re-emitir el QR:** `POST /m/{id}/orden/{jti}/reemitir` vuelve a firmar el token de una orden ya
+  pagada cuyo QR venció sin dispensar. Conserva el `jti` (un solo uso, contrato §3) y solo renueva
+  `exp`; no aplica a órdenes pendientes, dispensadas ni canceladas.
 - Rutas admin: `GET /admin`, `POST /admin/machines`, `POST /admin/products`, `GET /admin/m/{id}`,
   `POST /admin/m/{id}/slot`, `GET /admin/orders`.
 
@@ -206,6 +210,7 @@ El backend corre en **contenedor** con **PostgreSQL** (antes SQLite). Config por
 | `GRABI_IMAP_HOST/PORT/USER/PASS` | Conciliación por correo | `imap.gmail.com` / `993` / `grabibot@gmail.com` / *(App Password)* |
 | `GRABI_BREB_KEY_M001` | Llave Bre-B de cobro de la máquina | `009...` |
 | `GRABI_MATCH_MODE` | `unique_amount` = fallback legado (opcional) | *(vacío = modo nombre, ADR-018)* |
+| `GRABI_WHATSAPP` | Nº público de WhatsApp de la landing (opcional) | `573001234567` · *(vacío = no se muestra el botón)* |
 
 ### Correr local (Docker)
 

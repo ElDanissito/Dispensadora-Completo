@@ -1,5 +1,10 @@
 # Especificación — Landing pública + captura de interesados (v1)
 
+> ⚠️ **Superada por [`landing-v2.md`](./landing-v2.md)** (ADR-024) en lo que toca a estructura de
+> secciones (§2), campos del formulario (§3) y hero. Siguen vigentes de este documento: §4
+> (sección "Interesados" del admin), §5 (tabla `leads`), §6 (errores/404) y §7 (notas técnicas),
+> que aún están **pendientes de implementar**.
+
 > Requisitos para el agente de **Software (02)**. Implementar sobre lo que ya existe,
 > **server-rendered** (Go templates + JS mínimo, **sin SPA**, ADR-011bis) y **reutilizando el
 > design system** de `internal/web/templates/base.html` (variables CSS, tema kiosko oscuro/neón,
