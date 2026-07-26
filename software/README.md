@@ -78,7 +78,8 @@ en `especificaciones/vectores-prueba/`.
 
 ## Servidor web (`cmd/server`)
 
-Sirve la **página pública por máquina** (`GET /m/{id}`) con catálogo, precios y stock, y un
+Sirve la **landing pública de la marca** en la raíz (`GET /`, ADR-023), la **página pública por
+máquina** (`GET /m/{id}`) con catálogo, precios y stock, y un
 **panel de administración** en `/admin` (crear máquinas, cargar productos, asignar
 slot→producto/precio/stock, ver órdenes). Front server-rendered con `html/template`, sin JS
 pesado (ADR-002). Datos en **SQLite** (pura-Go, sin cgo).
@@ -91,8 +92,12 @@ ADMIN_PASS=algo-seguro ./dispensadoras-web -seed   # -seed carga datos de demo
 - `-db dispensadoras.db` ruta del archivo SQLite · `-addr :8080` dirección · `-seed` datos demo.
 - El panel `/admin` va protegido con **Basic Auth** (`ADMIN_USER`/`ADMIN_PASS`, por defecto
   `admin`/`changeme` con aviso — define `ADMIN_PASS` antes de exponerlo).
-- Rutas públicas: `GET /m/{id}` · `POST /m/{id}/pagar` · `GET /m/{id}/orden/{jti}/estado`
-  · `POST /m/{id}/simular-pago` (solo con `-allow-sim`).
+- Rutas públicas: `GET /` (landing) · `POST /interesados` · `GET /m/{id}` · `POST /m/{id}/pagar`
+  · `GET /m/{id}/orden/{jti}/estado` · `POST /m/{id}/simular-pago` (solo con `-allow-sim`).
+- **Interesados (landing-v1):** `POST /interesados` valida correo/celular, filtra bots (honeypot +
+  tope de 5 envíos por IP cada 10 min) y redirige a `/?gracias=1`. ⚠️ **Todavía no hay tabla `leads`**:
+  el lead se escribe en el **log del servidor** (`docker compose logs app`) hasta el commit que cree
+  el esquema y la sección "Interesados" del panel.
 - Rutas admin: `GET /admin`, `POST /admin/machines`, `POST /admin/products`, `GET /admin/m/{id}`,
   `POST /admin/m/{id}/slot`, `GET /admin/orders`.
 

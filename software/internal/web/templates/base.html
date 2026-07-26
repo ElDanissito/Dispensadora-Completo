@@ -279,6 +279,105 @@
   .btn-secondary{background:transparent; border:1px solid var(--line); color:var(--fg); font-weight:600; padding:14px 22px; border-radius:var(--r-sm); text-decoration:none; font-family:var(--font);}
   .btn-primary:hover{filter:brightness(1.06);} .btn-secondary:hover{background:var(--surface-2);}
 
+  /* ===== Landing pública (home, landing-v1) ===== */
+  .lwrap{max-width:1160px; margin:0 auto; padding:0 24px;}
+  .lnav{position:sticky; top:0; z-index:30; background:var(--surface); border-bottom:1px solid var(--line);}
+  .lnav > .lwrap{display:flex; align-items:center; justify-content:space-between; gap:16px; padding-top:15px; padding-bottom:15px;}
+  .lnav .brand{font-size:1.35rem; letter-spacing:1px;}
+  .lnav-links{display:flex; align-items:center; gap:24px;}
+  .lnl{display:none; font-size:.88rem; font-weight:500; color:var(--muted); text-decoration:none;}
+  .lnl:hover{color:var(--fg);}
+  .lchip{font-family:var(--mono); font-size:.75rem; font-weight:600; color:var(--accent); border:1px solid var(--accent-line); border-radius:999px; padding:6px 14px; text-decoration:none;}
+  .lchip:hover{background:var(--accent-soft);}
+
+  .lsec{border-bottom:1px solid var(--line);}
+  .lsec > .lwrap{padding-top:40px; padding-bottom:40px;}
+  .leyebrow{font-family:var(--mono); font-size:.7rem; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--accent);}
+  .ltitle{font-family:var(--display); font-weight:900; font-size:1.6rem; line-height:1.15; margin:10px 0 22px; text-wrap:balance;}
+  .lbtn{display:inline-flex; align-items:center; justify-content:center; gap:8px; background:var(--accent); color:var(--accent-ink); font-family:var(--font); font-weight:700; font-size:1rem; text-decoration:none; border:none; border-radius:var(--radius); padding:16px 24px; cursor:pointer;}
+  .lbtn:hover{background:var(--accent-2);}
+
+  /* Hero */
+  .lhero > .lwrap{padding-top:44px; padding-bottom:38px; display:flex; gap:56px; align-items:center;}
+  .lhero-copy{flex:1; min-width:0; display:flex; flex-direction:column; gap:18px;}
+  .lh1{font-family:var(--display); font-weight:900; font-size:clamp(2.4rem,10vw,4.2rem); line-height:1.03; margin:0;}
+  .lh1 .accent{color:var(--accent);}
+  .lh-sub{font-size:1rem; line-height:1.6; color:var(--muted); max-width:480px;}
+  .lhero-cta{display:flex; flex-direction:column; gap:14px; align-items:stretch;}
+  .lpilot{font-family:var(--mono); font-size:.8rem; color:var(--muted);}
+  .lpilot .on{color:var(--accent);}
+  .lstats{display:flex; flex-wrap:wrap; gap:16px; font-family:var(--mono); font-size:.78rem; color:var(--muted);}
+  .lstats b{color:var(--fg); font-weight:600;}
+  .lstats .on{color:var(--accent); font-weight:600;}
+  /* Maqueta de celular del hero (solo escritorio, como en el mock) */
+  .lphone{display:none; width:280px; flex:none; background:var(--surface); border:1px solid var(--line); border-radius:24px; padding:14px; box-shadow:0 24px 60px rgba(0,0,0,.5);}
+  .lphone-in{background:var(--bg); border:1px solid var(--line); border-radius:16px; overflow:hidden;}
+  .lphone-top{display:flex; justify-content:space-between; align-items:center; gap:8px; padding:12px 14px; border-bottom:1px solid var(--line);}
+  .lphone-top .brand{font-size:.9rem;}
+  .lphone-tag{font-family:var(--mono); font-size:.55rem; font-weight:600; letter-spacing:.04em; color:var(--accent-ink); background:var(--accent); padding:3px 7px; border-radius:3px;}
+  .lphone-body{padding:18px 14px; display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;}
+  .lphone-body .t{font-weight:700; font-size:.85rem;}
+  .lphone-body .qrbox{padding:8px; border-radius:8px;}
+  .lphone-body .qrbox img{width:120px; max-width:120px;}
+  .lphone-body .c{font-family:var(--mono); font-size:.66rem; color:var(--muted);}
+  .lphone-body .c b{color:var(--fg); font-weight:600;}
+
+  /* Cómo funciona / Por qué */
+  .lsteps,.lcards{display:grid; grid-template-columns:1fr; gap:14px;}
+  .lstep{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px; display:flex; gap:16px; align-items:flex-start;}
+  .lstep .n{width:44px; height:44px; flex:none; border-radius:10px; background:var(--surface-2); border:1px solid var(--accent); display:grid; place-items:center; font-family:var(--mono); font-weight:700; font-size:1.1rem; color:var(--accent);}
+  .lstep .t{font-weight:700; font-size:1rem;}
+  .lstep .d{font-size:.86rem; line-height:1.5; color:var(--muted); margin-top:4px;}
+  .lcard{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:18px;}
+  .lcard .k{font-family:var(--mono); font-size:.8rem; font-weight:700; color:var(--accent); margin-bottom:6px;}
+  .lcard .d{font-size:.9rem; line-height:1.6;}
+
+  /* Contacto (interesados) */
+  .lcontact > .lwrap{display:flex; flex-direction:column; gap:22px; align-items:flex-start;}
+  .lcontact-copy{flex:1; min-width:0;}
+  .lcontact-copy .ltitle{margin-bottom:12px;}
+  .lcontact-copy p{font-size:.95rem; line-height:1.6; color:var(--muted); max-width:420px;}
+  .lformcard{width:100%; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:22px;}
+  .lform{display:flex; flex-direction:column; gap:14px;}
+  .lform label .opt{font-weight:500; color:var(--faint); letter-spacing:0; text-transform:none;}
+  .lform textarea{min-height:84px; resize:vertical; line-height:1.5;}
+  .lform .lbtn{width:100%;}
+  .lprivacy{font-family:var(--mono); font-size:.7rem; line-height:1.6; color:var(--faint);}
+  .lhoney{position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;}
+  .lthanks{text-align:center; display:flex; flex-direction:column; gap:8px; padding:8px 0;}
+  .lthanks .tick{font-family:var(--mono); font-weight:700; font-size:1.9rem; color:var(--accent);}
+  .lthanks .t{font-weight:700; font-size:1.1rem;}
+  .lthanks .d{font-size:.88rem; line-height:1.5; color:var(--muted);}
+
+  /* Footer */
+  .lfoot{background:var(--surface);}
+  .lfoot > .lwrap{padding-top:28px; padding-bottom:28px; display:flex; flex-direction:column; gap:12px;}
+  .lfoot .brand{font-size:1.15rem;}
+  .lfoot .tag{font-family:var(--mono); font-size:.72rem; color:var(--muted);}
+  .lfoot .cr{font-family:var(--mono); font-size:.7rem; color:var(--faint);}
+
+  @media (min-width:820px){
+    .lnl{display:inline;}
+    .lsec > .lwrap{padding-top:60px; padding-bottom:60px;}
+    .ltitle{font-size:2.1rem; margin-bottom:28px;}
+    .lhero > .lwrap{padding-top:76px; padding-bottom:76px;}
+    .lh-sub{font-size:1.1rem;}
+    .lhero-cta{flex-direction:row; align-items:center; gap:16px;}
+    .lstats{gap:24px; border-top:1px solid var(--line); padding-top:18px; font-size:.82rem;}
+    .lphone{display:block;}
+    .lsteps{grid-template-columns:repeat(3,1fr); gap:20px;}
+    .lstep{flex-direction:column; padding:26px; gap:14px;}
+    .lstep .n{width:52px; height:52px; border-radius:12px; font-size:1.3rem;}
+    .lstep .t{font-size:1.15rem;}
+    .lstep .d{font-size:.9rem;}
+    .lcards{grid-template-columns:repeat(2,1fr); gap:20px;}
+    .lcard{padding:24px;}
+    .lcontact > .lwrap{flex-direction:row; gap:56px; align-items:flex-start;}
+    .lformcard{width:440px; flex:none; padding:26px;}
+    .lfoot > .lwrap{flex-direction:row; justify-content:space-between; align-items:center; padding-top:32px; padding-bottom:32px;}
+    .lfoot .bw{display:flex; align-items:baseline; gap:14px;}
+  }
+
   /* Login */
   .login-wrap{min-height:72vh; display:flex; align-items:center; justify-content:center;}
   .login-card{width:100%; max-width:380px;}
@@ -354,7 +453,10 @@
 </style>
 </head>
 <body>
-{{if .Admin}}
+{{if .Landing}}
+{{/* La landing controla su propio layout (secciones a todo el ancho): no va dentro de .pubwrap. */}}
+{{template "content" .Data}}
+{{else if .Admin}}
 <div class="ashell">
   <aside class="side">
     <div class="logo">GRABI<span class="dot">.</span></div>

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;family=IBM+Plex+Mono:wght@400;500;600;700&amp;family=Archivo:wght@400;600;800;900&amp;display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#1A1D1B; font-family:'Space Grotesk',system-ui,sans-serif; }
+  a { color:#3BE87F; } a:hover { color:#7FF2AC; }
+  input:focus, button:focus-visible { outline:3px solid #3BE87F; outline-offset:2px; }
+  input::placeholder { color:#5C6E64; }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:.35 } }
+  @media (prefers-reduced-motion: reduce) { * { animation:none !important; transition:none !important } }
+</style>
+</helmet>
+
+<section style="padding:48px; display:flex; flex-direction:column; gap:24px;">
+  <div style="display:flex; align-items:center; gap:14px;">
+    <span id="3a" style="background:#3BE87F; color:#05130B; font:700 14px 'IBM Plex Mono',monospace; padding:4px 10px; border-radius:4px;">3a</span>
+    <h2 style="margin:0; color:#EAF4EE; font:700 22px 'Space Grotesk',sans-serif;">Landing GRABI <span style="color:#8FA79A; font-weight:400;">— móvil y desktop (el formulario funciona: pruébalo)</span></h2>
+  </div>
+
+  <div style="display:flex; gap:40px; align-items:flex-start;">
+
+    <!-- ==================== MÓVIL ==================== -->
+    <div style="width:390px; flex:none; background:#0A0E0C; border:1px solid #26332B; border-radius:20px; overflow:hidden;">
+      <!-- nav -->
+      <div style="padding:16px 20px; border-bottom:1px solid #26332B; display:flex; justify-content:space-between; align-items:center; background:#0D1210;">
+        <span style="font:900 22px 'Archivo',sans-serif; letter-spacing:1px; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></span>
+        <span style="font:600 12px 'IBM Plex Mono',monospace; color:#3BE87F; border:1px solid #3BE87F; padding:6px 12px; border-radius:99px;">Contacto</span>
+      </div>
+      <!-- hero -->
+      <div style="padding:48px 24px 40px; display:flex; flex-direction:column; gap:18px; border-bottom:1px solid #26332B;">
+        <div style="font:600 11px 'IBM Plex Mono',monospace; color:#3BE87F; letter-spacing:1px;">VENDING SIN EFECTIVO · COLOMBIA</div>
+        <div style="font:900 40px/1.05 'Archivo',sans-serif; color:#EAF4EE;">Escanea, paga,<br><span style="color:#3BE87F;">agárralo.</span></div>
+        <div style="font:400 16px/1.6 'Space Grotesk',sans-serif; color:#8FA79A;">Máquinas sin efectivo ni datáfono. Pagas por Bre-B desde tu celular y agárralo.</div>
+        <button style="height:54px; border:none; border-radius:12px; background:#3BE87F; color:#05130B; font:700 16px 'Space Grotesk',sans-serif; cursor:pointer;" style-hover="background:#7FF2AC;">Quiero saber más ↓</button>
+        <div style="display:flex; gap:16px; font:500 12px 'IBM Plex Mono',monospace; color:#8FA79A;">
+          <span><span style="color:#EAF4EE;">0</span> billeteros</span>
+          <span><span style="color:#EAF4EE;">0</span> datáfonos</span>
+          <span><span style="color:#3BE87F;">100%</span> Bre-B</span>
+        </div>
+      </div>
+      <!-- cómo funciona -->
+      <div style="padding:40px 24px; border-bottom:1px solid #26332B; display:flex; flex-direction:column; gap:20px;">
+        <div style="font:600 11px 'IBM Plex Mono',monospace; color:#3BE87F; letter-spacing:1px;">CÓMO FUNCIONA</div>
+        <div style="font:900 26px/1.15 'Archivo',sans-serif; color:#EAF4EE;">Tres pasos y listo</div>
+        <sc-for list="{{ pasos }}" as="p" hint-placeholder-count="3">
+          <div style="background:#0D1210; border:1px solid #26332B; border-radius:12px; padding:18px; display:flex; gap:16px; align-items:flex-start;">
+            <div style="width:44px; height:44px; flex:none; border-radius:10px; background:#121814; border:1px solid #3BE87F; display:flex; align-items:center; justify-content:center; font:700 18px 'IBM Plex Mono',monospace; color:#3BE87F;">{{ p.n }}</div>
+            <div>
+              <div style="font:700 16px 'Space Grotesk',sans-serif; color:#EAF4EE;">{{ p.t }}</div>
+              <div style="font:400 13px/1.5 'Space Grotesk',sans-serif; color:#8FA79A; margin-top:4px;">{{ p.d }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      <!-- confianza -->
+      <div style="padding:40px 24px; border-bottom:1px solid #26332B; display:flex; flex-direction:column; gap:20px;">
+        <div style="font:600 11px 'IBM Plex Mono',monospace; color:#3BE87F; letter-spacing:1px;">POR QUÉ GRABI</div>
+        <div style="font:900 26px/1.15 'Archivo',sans-serif; color:#EAF4EE;">Hecho para confiar</div>
+        <div style="display:grid; grid-template-columns:1fr; gap:12px;">
+          <sc-for list="{{ cards }}" as="c" hint-placeholder-count="4">
+            <div style="background:#0D1210; border:1px solid #26332B; border-radius:12px; padding:18px;">
+              <div style="font:700 13px 'IBM Plex Mono',monospace; color:#3BE87F; margin-bottom:6px;">{{ c.k }}</div>
+              <div style="font:400 14px/1.6 'Space Grotesk',sans-serif; color:#EAF4EE;">{{ c.d }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <!-- formulario -->
+      <div style="padding:40px 24px; border-bottom:1px solid #26332B; display:flex; flex-direction:column; gap:16px;">
+        <div style="font:600 11px 'IBM Plex Mono',monospace; color:#3BE87F; letter-spacing:1px;">CONTACTO</div>
+        <div style="font:900 26px/1.15 'Archivo',sans-serif; color:#EAF4EE;">¿Quieres saber más o una GRABI en tu punto?</div>
+        <sc-if value="{{ notSentM }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; flex-direction:column; gap:14px;">
+            <div>
+              <label for="lm-mail" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">CORREO *</label>
+              <input id="lm-mail" type="email" value="{{ email }}" onChange="{{ setEmail }}" placeholder="tu@correo.com" style="width:100%; box-sizing:border-box; height:50px; background:#121814; border:1px solid #26332B; border-radius:12px; color:#EAF4EE; font:500 15px 'Space Grotesk',sans-serif; padding:0 14px;">
+            </div>
+            <div>
+              <label for="lm-cel" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">CELULAR *</label>
+              <input id="lm-cel" type="tel" inputMode="tel" value="{{ phone }}" onChange="{{ setPhone }}" placeholder="300 123 4567" style="width:100%; box-sizing:border-box; height:50px; background:#121814; border:1px solid #26332B; border-radius:12px; color:#EAF4EE; font:500 15px 'Space Grotesk',sans-serif; padding:0 14px;">
+            </div>
+            <button onClick="{{ send }}" disabled="{{ notReady }}" style="height:54px; border:none; border-radius:12px; background:#3BE87F; color:#05130B; font:700 16px 'Space Grotesk',sans-serif; cursor:pointer; opacity:{{ sendOp }};">Enviar →</button>
+            <div style="font:400 11px/1.6 'IBM Plex Mono',monospace; color:#5C6E64;">Usamos tus datos solo para contactarte. Nada de spam.</div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ sent }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#0D1210; border:1px solid #3BE87F; border-radius:12px; padding:26px; text-align:center; display:flex; flex-direction:column; gap:8px;">
+            <div style="font:700 28px 'IBM Plex Mono',monospace; color:#3BE87F;">✓</div>
+            <div style="font:700 18px 'Space Grotesk',sans-serif; color:#EAF4EE;">¡Gracias! Te contactamos pronto.</div>
+            <div style="font:400 13px/1.5 'Space Grotesk',sans-serif; color:#8FA79A;">Te escribimos a {{ email }} o al {{ phone }}.</div>
+          </div>
+        </sc-if>
+      </div>
+      <!-- footer -->
+      <div style="padding:28px 24px; background:#0D1210; display:flex; flex-direction:column; gap:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font:900 18px 'Archivo',sans-serif; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></span>
+          <span style="font:500 11px 'IBM Plex Mono',monospace; color:#8FA79A;">Escanea, paga, agárralo.</span>
+        </div>
+        <div style="display:flex; gap:16px; font:600 12px 'IBM Plex Mono',monospace;">
+          <a href="#" style="text-decoration:none;">WhatsApp</a>
+          <a href="#" style="text-decoration:none;">Instagram</a>
+          <a href="#" style="text-decoration:none;">hola@grabi.co</a>
+        </div>
+        <div style="font:400 11px 'IBM Plex Mono',monospace; color:#5C6E64;">© 2026 GRABI · Cali, Colombia</div>
+      </div>
+    </div>
+
+    <!-- ==================== DESKTOP ==================== -->
+    <div style="width:1280px; flex:none; background:#0A0E0C; border:1px solid #26332B; border-radius:16px; overflow:hidden;">
+      <!-- nav -->
+      <div style="padding:18px 48px; border-bottom:1px solid #26332B; display:flex; justify-content:space-between; align-items:center; background:#0D1210;">
+        <span style="font:900 24px 'Archivo',sans-serif; letter-spacing:1px; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></span>
+        <div style="display:flex; gap:28px; align-items:center;">
+          <a href="#" style="font:500 14px 'Space Grotesk',sans-serif; color:#8FA79A; text-decoration:none;">Cómo funciona</a>
+          <a href="#" style="font:500 14px 'Space Grotesk',sans-serif; color:#8FA79A; text-decoration:none;">Por qué GRABI</a>
+          <button style="height:44px; padding:0 20px; border:none; border-radius:10px; background:#3BE87F; color:#05130B; font:700 14px 'Space Grotesk',sans-serif; cursor:pointer;" style-hover="background:#7FF2AC;">Quiero saber más</button>
+        </div>
+      </div>
+      <!-- hero -->
+      <div style="padding:80px 48px; border-bottom:1px solid #26332B; display:flex; gap:64px; align-items:center;">
+        <div style="flex:1; display:flex; flex-direction:column; gap:20px;">
+          <div style="font:600 12px 'IBM Plex Mono',monospace; color:#3BE87F; letter-spacing:1px;">VENDING SIN EFECTIVO · COLOMBIA</div>
+          <div style="font:900 68px/1.02 'Archivo',sans-serif; color:#EAF4EE;">Escanea, paga,<br><span style="color:#3BE87F;">agárralo.</span></div>
+          <div style="font:400 18px/1.6 'Space Grotesk',sans-serif; color:#8FA79A; max-width:480px;">Máquinas sin efectivo ni datáfono. Pagas por Bre-B desde tu celular y agárralo.</div>
+          <div style="display:flex; gap:14px; align-items:center;">
+            <button style="height:54px; padding:0 26px; border:none; border-radius:12px; background:#3BE87F; color:#05130B; font:700 16px 'Space Grotesk',sans-serif; cursor:pointer;" style-hover="background:#7FF2AC;">Quiero saber más ↓</button>
+            <span style="font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A;"><span style="color:#3BE87F;">●</span> Piloto activo en Cali</span>
+          </div>
+          <div style="display:flex; gap:24px; font:500 13px 'IBM Plex Mono',monospace; color:#8FA79A; border-top:1px solid #26332B; padding-top:18px;">
+            <span><span style="color:#EAF4EE;">0</span> billeteros</span>
+            <span><span style="color:#EAF4EE;">0</span> datáfonos</span>
+            <span><span style="color:#EAF4EE;">0</span> filas</span>
+            <span><span style="color:#3BE87F;">100%</span> Bre-B</span>
+          </div>
+        </div>
+        <!-- mock teléfono en el hero -->
+        <div style="width:280px; flex:none; background:#0D1210; border:1px solid #26332B; border-radius:24px; padding:14px; box-shadow:0 24px 60px rgba(0,0,0,.5);">
+          <div style="background:#0A0E0C; border:1px solid #26332B; border-radius:16px; overflow:hidden;">
+            <div style="padding:12px 14px; border-bottom:1px solid #26332B; display:flex; justify-content:space-between; align-items:center;">
+              <span style="font:900 14px 'Archivo',sans-serif; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></span>
+              <span style="font:600 8px 'IBM Plex Mono',monospace; color:#05130B; background:#3BE87F; padding:3px 7px; border-radius:3px;">PAGO CONFIRMADO</span>
+            </div>
+            <div style="padding:18px 14px; display:flex; flex-direction:column; gap:10px; align-items:center; text-align:center;">
+              <div style="font:700 13px 'Space Grotesk',sans-serif; color:#EAF4EE;">Tu QR está listo</div>
+              <div style="background:#FFFFFF; border-radius:8px; padding:8px;">{{ qrEl }}</div>
+              <div style="font:500 10px 'IBM Plex Mono',monospace; color:#8FA79A;">Total <span style="color:#EAF4EE;">$3.500</span> · muéstralo al lector</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- cómo funciona -->
+      <div style="padding:64px 48px; border-bottom:1px solid #26332B;">
+        <div style="font:600 12px 'IBM Plex Mono',monospace; color:#3BE87F; letter-spacing:1px; margin-bottom:10px;">CÓMO FUNCIONA</div>
+        <div style="font:900 36px 'Archivo',sans-serif; color:#EAF4EE; margin-bottom:28px;">Tres pasos y listo</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px;">
+          <sc-for list="{{ pasos }}" as="p" hint-placeholder-count="3">
+            <div style="background:#0D1210; border:1px solid #26332B; border-radius:12px; padding:26px; display:flex; flex-direction:column; gap:14px;">
+              <div style="width:52px; height:52px; border-radius:12px; background:#121814; border:1px solid #3BE87F; display:flex; align-items:center; justify-content:center; font:700 22px 'IBM Plex Mono',monospace; color:#3BE87F;">{{ p.n }}</div>
+              <div style="font:700 19px 'Space Grotesk',sans-serif; color:#EAF4EE;">{{ p.t }}</div>
+              <div style="font:400 14px/1.6 'Space Grotesk',sans-serif; color:#8FA79A;">{{ p.d }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <!-- confianza -->
+      <div style="padding:64px 48px; border-bottom:1px solid #26332B;">
+        <div style="font:600 12px 'IBM Plex Mono',monospace; color:#3BE87F; letter-spacing:1px; margin-bottom:10px;">POR QUÉ GRABI</div>
+        <div style="font:900 36px 'Archivo',sans-serif; color:#EAF4EE; margin-bottom:28px;">Hecho para confiar</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+          <sc-for list="{{ cards }}" as="c" hint-placeholder-count="4">
+            <div style="background:#0D1210; border:1px solid #26332B; border-radius:12px; padding:24px;">
+              <div style="font:700 14px 'IBM Plex Mono',monospace; color:#3BE87F; margin-bottom:8px;">{{ c.k }}</div>
+              <div style="font:400 15px/1.6 'Space Grotesk',sans-serif; color:#EAF4EE;">{{ c.d }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <!-- formulario -->
+      <div style="padding:64px 48px; border-bottom:1px solid #26332B; display:flex; gap:64px; align-items:flex-start;">
+        <div style="flex:1;">
+          <div style="font:600 12px 'IBM Plex Mono',monospace; color:#3BE87F; letter-spacing:1px; margin-bottom:10px;">CONTACTO</div>
+          <div style="font:900 36px/1.15 'Archivo',sans-serif; color:#EAF4EE; max-width:440px;">¿Quieres saber más o una GRABI en tu punto?</div>
+          <div style="font:400 15px/1.6 'Space Grotesk',sans-serif; color:#8FA79A; margin-top:14px; max-width:420px;">Déjanos tu correo y celular. Te contamos costos, requisitos del punto y fechas del piloto.</div>
+        </div>
+        <div style="width:440px; flex:none; background:#0D1210; border:1px solid #26332B; border-radius:12px; padding:28px;">
+          <sc-if value="{{ notSentM }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; flex-direction:column; gap:16px;">
+              <div>
+                <label for="ld-mail" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">CORREO *</label>
+                <input id="ld-mail" type="email" value="{{ email }}" onChange="{{ setEmail }}" placeholder="tu@correo.com" style="width:100%; box-sizing:border-box; height:50px; background:#121814; border:1px solid #26332B; border-radius:12px; color:#EAF4EE; font:500 15px 'Space Grotesk',sans-serif; padding:0 14px;">
+              </div>
+              <div>
+                <label for="ld-cel" style="display:block; font:600 11px 'IBM Plex Mono',monospace; color:#8FA79A; margin-bottom:6px;">CELULAR *</label>
+                <input id="ld-cel" type="tel" inputMode="tel" value="{{ phone }}" onChange="{{ setPhone }}" placeholder="300 123 4567" style="width:100%; box-sizing:border-box; height:50px; background:#121814; border:1px solid #26332B; border-radius:12px; color:#EAF4EE; font:500 15px 'Space Grotesk',sans-serif; padding:0 14px;">
+              </div>
+              <button onClick="{{ send }}" disabled="{{ notReady }}" style="height:54px; border:none; border-radius:12px; background:#3BE87F; color:#05130B; font:700 16px 'Space Grotesk',sans-serif; cursor:pointer; opacity:{{ sendOp }};" style-hover="background:#7FF2AC;">Enviar →</button>
+              <div style="font:400 11px/1.6 'IBM Plex Mono',monospace; color:#5C6E64;">Usamos tus datos solo para contactarte. Nada de spam.</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ sent }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center; display:flex; flex-direction:column; gap:8px; padding:12px 0;">
+              <div style="font:700 32px 'IBM Plex Mono',monospace; color:#3BE87F;">✓</div>
+              <div style="font:700 20px 'Space Grotesk',sans-serif; color:#EAF4EE;">¡Gracias! Te contactamos pronto.</div>
+              <div style="font:400 14px/1.5 'Space Grotesk',sans-serif; color:#8FA79A;">Te escribimos a {{ email }} o al {{ phone }}.</div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+      <!-- footer -->
+      <div style="padding:32px 48px; background:#0D1210; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; align-items:baseline; gap:14px;">
+          <span style="font:900 20px 'Archivo',sans-serif; color:#EAF4EE;">GRABI<span style="color:#3BE87F;">.</span></span>
+          <span style="font:500 12px 'IBM Plex Mono',monospace; color:#8FA79A;">Escanea, paga, agárralo.</span>
+        </div>
+        <div style="display:flex; gap:24px; font:600 13px 'IBM Plex Mono',monospace;">
+          <a href="#" style="text-decoration:none;">WhatsApp</a>
+          <a href="#" style="text-decoration:none;">Instagram</a>
+          <a href="#" style="text-decoration:none;">hola@grabi.co</a>
+        </div>
+        <div style="font:400 12px 'IBM Plex Mono',monospace; color:#5C6E64;">© 2026 GRABI · Cali, Colombia</div>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 1820 }
+}">
+class Component extends DCLogic {
+  state = { email: '', phone: '', sent: false };
+
+  makeQr(size) {
+    const n = 25, cell = size / n;
+    let seed = 42;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const rects = [];
+    const finder = (fx, fy) => {
+      for (let y = 0; y < 7; y++) for (let x = 0; x < 7; x++) {
+        const edge = x === 0 || x === 6 || y === 0 || y === 6;
+        const core = x >= 2 && x <= 4 && y >= 2 && y <= 4;
+        if (edge || core) rects.push([fx + x, fy + y]);
+      }
+    };
+    finder(0, 0); finder(n - 7, 0); finder(0, n - 7);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const inF = (x < 8 && y < 8) || (x >= n - 8 && y < 8) || (x < 8 && y >= n - 8);
+      if (!inF && rnd() > 0.55) rects.push([x, y]);
+    }
+    return React.createElement('svg', { width: size, height: size, viewBox: `0 0 ${size} ${size}`, role: 'img', 'aria-label': 'Código QR de retiro' },
+      rects.map((r, i) => React.createElement('rect', { key: i, x: r[0] * cell, y: r[1] * cell, width: cell + 0.4, height: cell + 0.4, fill: '#111' }))
+    );
+  }
+
+  renderVals() {
+    if (!this._qr) this._qr = this.makeQr(120);
+    const okMail = /.+@.+\..+/.test(this.state.email.trim());
+    const okPhone = this.state.phone.trim().replace(/\D/g, '').length >= 7;
+    const ready = okMail && okPhone;
+    return {
+      pasos: [
+        { n: '1', t: 'Escanea el QR de la máquina', d: 'O entra directo a la dirección de la máquina desde tu navegador. Sin apps, sin registro.' },
+        { n: '2', t: 'Paga por Bre-B el monto exacto', d: 'Transferencia instantánea desde tu banco colombiano. Sin efectivo, sin tarjeta, sin datáfono.' },
+        { n: '3', t: 'Muestra tu QR y agárralo', d: 'Al confirmarse el pago recibes un QR firmado. Acércalo al lector y la máquina dispensa.' }
+      ],
+      cards: [
+        { k: 'SIN EFECTIVO NI TARJETA', d: 'La máquina no tiene billetero, monedero ni datáfono. Menos costo, menos fallas, menos robos.' },
+        { k: 'PAGO POR BRE-B', d: 'Transferencia instantánea entre bancos colombianos, directa desde tu celular.' },
+        { k: 'QR SOLO CON PAGO REAL', d: 'Tu QR de retiro solo aparece cuando el banco confirma el pago. Nunca por pantallazo.' },
+        { k: 'FUNCIONA SIN INTERNET', d: 'La máquina verifica tu QR sin conexión: está firmado digitalmente y es de un solo uso.' }
+      ],
+      email: this.state.email, phone: this.state.phone,
+      setEmail: e => this.setState({ email: e.target.value }),
+      setPhone: e => this.setState({ phone: e.target.value }),
+      notReady: !ready,
+      sendOp: ready ? '1' : '0.4',
+      send: () => this.setState({ sent: true }),
+      sent: this.state.sent, notSentM: !this.state.sent,
+      qrEl: this._qr
+    };
+  }
+}
+</script>
+</body>
+</html>

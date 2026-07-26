@@ -7,6 +7,30 @@
 
 ---
 
+## ADR-023 · La landing pública es la home (`GET /`); el panel se queda en `/admin`
+- **Fecha:** 2026-07-26 · **Autor:** Agente de Software (02) + Daniel.
+- **Decisión:** `GET /` sirve la **landing pública de la marca** (spec [`especificaciones/landing-v1.md`](./especificaciones/landing-v1.md),
+  mock `software/mockups/GRABI Landing.dc.html`). Antes la raíz **redirigía al login del admin**:
+  cualquiera que entrara a `grabi.napi.lat` veía el panel. El panel sigue en `/admin` (sin cambios).
+- **Razón:** la raíz es la cara pública de la marca y el destino natural del "volver a inicio" de los
+  404. Exponer el login como home era confuso y regalaba superficie de ataque a quien no la busca.
+- **Implementación:** plantilla `landing.html` + clases nuevas en `base.html` (mismo sistema de
+  diseño "kiosko oscuro", ADR-022; **no** se introdujo un segundo stylesheet). Server-rendered con JS
+  vanilla mínimo (ADR-011bis). La landing controla su propio layout (secciones a todo el ancho): se
+  añadió el flag `page.Landing` para saltarse `.pubwrap`.
+- **Formulario de interesados:** los inputs (correo* / celular* / nombre / mensaje), el **honeypot**,
+  el **rate-limit por IP** (5 envíos / 10 min) y la validación viven ya en `POST /interesados`.
+- **⚠️ Pendiente inmediato (siguiente commit):** la **tabla `leads`** (spec §5) y la sección
+  **"Interesados"** del admin (§4). Hasta entonces el lead **no se persiste**: queda en el **log del
+  servidor** (`docker compose logs app`) para no perderlo. Al crear la tabla, se reemplaza ese log por
+  el insert — el resto del flujo ya está hecho.
+- **Botón "Volver a inicio" → `/`** añadido en `notfound.html` y `machine_notfound.html` (§6), y como
+  enlace secundario en `machine_expirada.html` y `machine_revision.html`.
+- **Datos de contacto:** el footer va **sin correo/WhatsApp/Instagram** (los del mock eran de relleno);
+  se publican cuando existan de verdad. El único canal de contacto es el formulario.
+
+---
+
 ## ADR-022 · Rediseño completo de UI (kiosko oscuro 1a) + canales, reabastecimiento y panel de Configuración (pendiente)
 - **Fecha:** 2026-07-25 · **Autor:** Agente de Software (02) + Daniel.
 - **Decisión:** se rediseñó **todo** el front al lenguaje visual **"kiosko oscuro / neón" (dir 1a)**,
@@ -375,4 +399,4 @@ Hoy varias cosas de la máquina no se pueden editar tras crearla o dependen del 
 - [~] **Legal / trámites** (RUT/DIAN/facturación/sanidad) → **diferidos** para 1 máquina (ADR-019); formalizar antes de escalar.
 - [ ] **Producto piloto concreto** (4 productos: qué snacks + bebidas) → define precios y surtido.
 - [ ] **Precios** por producto (salen del unit economics).
-- [ ] **Landing pública** (home en `/` de `grabi.napi.lat`) + **captura de interesados** que alimenta una sección "Interesados" en el admin (semilla de CRM). Spec: [`especificaciones/landing-v1.md`](./especificaciones/landing-v1.md). Objetivo: explicar la marca al público y servir de destino "volver a inicio" desde los 404.
+- [~] **Landing pública** (home en `/` de `grabi.napi.lat`) + **captura de interesados** que alimenta una sección "Interesados" en el admin (semilla de CRM). Spec: [`especificaciones/landing-v1.md`](./especificaciones/landing-v1.md). **Landing y formulario hechos (ADR-023)**; faltan la **tabla `leads`** y la sección **"Interesados"** del admin (mientras tanto los leads quedan en el log del servidor).

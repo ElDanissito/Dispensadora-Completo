@@ -1,0 +1,176 @@
+{{define "content"}}
+<nav class="lnav">
+  <div class="lwrap">
+    <span class="brand">GRABI<span class="dot">.</span></span>
+    <div class="lnav-links">
+      <a class="lnl" href="#como">Cómo funciona</a>
+      <a class="lnl" href="#porque">Por qué GRABI</a>
+      <a class="lchip" href="#contacto">Contacto</a>
+    </div>
+  </div>
+</nav>
+
+<main>
+  <section class="lsec lhero">
+    <div class="lwrap">
+      <div class="lhero-copy">
+        <span class="leyebrow">Vending sin efectivo · Colombia</span>
+        <h1 class="lh1">Escanea, paga,<br><span class="accent">agárralo.</span></h1>
+        <p class="lh-sub">Máquinas sin efectivo ni datáfono. Pagas por Bre-B desde tu celular y agárralo.</p>
+        <div class="lhero-cta">
+          <a class="lbtn" href="#contacto">Quiero saber más ↓</a>
+          <span class="lpilot"><span class="on">●</span> Piloto activo en Cali</span>
+        </div>
+        <div class="lstats">
+          <span><b>0</b> billeteros</span>
+          <span><b>0</b> datáfonos</span>
+          <span><b>0</b> filas</span>
+          <span><span class="on">100%</span> Bre-B</span>
+        </div>
+      </div>
+      {{/* Maqueta ilustrativa de la pantalla de compra. El QR es real: apunta a esta misma web. */}}
+      <div class="lphone" aria-hidden="true">
+        <div class="lphone-in">
+          <div class="lphone-top">
+            <span class="brand">GRABI<span class="dot">.</span></span>
+            <span class="lphone-tag">PAGO CONFIRMADO</span>
+          </div>
+          <div class="lphone-body">
+            <span class="t">Tu QR está listo</span>
+            {{if .DemoQR}}<div class="qrbox"><img src="{{.DemoQR}}" alt=""></div>{{end}}
+            <span class="c">Total <b>$3.500</b> · muéstralo al lector</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec" id="como">
+    <div class="lwrap">
+      <span class="leyebrow">Cómo funciona</span>
+      <h2 class="ltitle">Tres pasos y listo</h2>
+      <div class="lsteps">
+        <div class="lstep">
+          <div class="n">1</div>
+          <div>
+            <div class="t">Escanea el QR de la máquina</div>
+            <div class="d">O entra directo a la dirección de la máquina desde tu navegador. Sin apps, sin registro.</div>
+          </div>
+        </div>
+        <div class="lstep">
+          <div class="n">2</div>
+          <div>
+            <div class="t">Paga por Bre-B el monto exacto</div>
+            <div class="d">Transferencia instantánea desde tu banco colombiano. Sin efectivo, sin tarjeta, sin datáfono.</div>
+          </div>
+        </div>
+        <div class="lstep">
+          <div class="n">3</div>
+          <div>
+            <div class="t">Muestra tu QR y agárralo</div>
+            <div class="d">Al confirmarse el pago recibes un QR firmado. Acércalo al lector y la máquina dispensa.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec" id="porque">
+    <div class="lwrap">
+      <span class="leyebrow">Por qué GRABI</span>
+      <h2 class="ltitle">Hecho para confiar</h2>
+      <div class="lcards">
+        <div class="lcard">
+          <div class="k">SIN EFECTIVO NI TARJETA</div>
+          <div class="d">La máquina no tiene billetero, monedero ni datáfono. Menos costo, menos fallas, menos robos.</div>
+        </div>
+        <div class="lcard">
+          <div class="k">PAGO POR BRE-B</div>
+          <div class="d">Transferencia instantánea entre bancos colombianos, directa desde tu celular.</div>
+        </div>
+        <div class="lcard">
+          <div class="k">QR SOLO CON PAGO REAL</div>
+          <div class="d">Tu QR de retiro solo aparece cuando el banco confirma el pago. Nunca por pantallazo.</div>
+        </div>
+        <div class="lcard">
+          <div class="k">FUNCIONA SIN INTERNET</div>
+          <div class="d">La máquina verifica tu QR sin conexión: está firmado digitalmente y es de un solo uso.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="lsec lcontact" id="contacto">
+    <div class="lwrap">
+      <div class="lcontact-copy">
+        <span class="leyebrow">Contacto</span>
+        <h2 class="ltitle">¿Quieres saber más o una GRABI en tu punto?</h2>
+        <p>Déjanos tu correo y celular. Te contamos costos, requisitos del punto y fechas del piloto.</p>
+      </div>
+      <div class="lformcard">
+        {{if .Sent}}
+        <div class="lthanks">
+          <div class="tick">✓</div>
+          <div class="t">¡Gracias! Te contactamos pronto.</div>
+          <div class="d">Te escribimos al correo o al celular que nos dejaste.</div>
+        </div>
+        {{else}}
+        <form class="lform" method="post" action="/interesados" id="leadForm">
+          {{if .Error}}<div class="flash err">{{.Error}}</div>{{end}}
+          {{/* Honeypot anti-spam (landing-v1 §3): invisible para personas, tentador para bots. */}}
+          <div class="lhoney" aria-hidden="true">
+            <label for="l-web">Sitio web</label>
+            <input id="l-web" type="text" name="website" tabindex="-1" autocomplete="off">
+          </div>
+          <div>
+            <label for="l-mail">Correo *</label>
+            <input id="l-mail" type="email" name="email" required autocomplete="email"
+                   placeholder="tu@correo.com" value="{{.Form.Email}}">
+          </div>
+          <div>
+            <label for="l-cel">Celular *</label>
+            <input id="l-cel" type="tel" name="phone" required inputmode="tel" autocomplete="tel"
+                   placeholder="300 123 4567" value="{{.Form.Phone}}">
+          </div>
+          <div>
+            <label for="l-name">Nombre <span class="opt">(opcional)</span></label>
+            <input id="l-name" type="text" name="name" autocomplete="name"
+                   placeholder="Cómo te llamamos" value="{{.Form.Name}}">
+          </div>
+          <div>
+            <label for="l-msg">Mensaje <span class="opt">(opcional)</span></label>
+            <textarea id="l-msg" name="message" placeholder="Cuéntanos de tu punto: barrio, tipo de local, flujo de gente…">{{.Form.Message}}</textarea>
+          </div>
+          <button class="lbtn" type="submit">Enviar →</button>
+          <p class="lprivacy">Usamos tus datos solo para contactarte, no los compartimos. Nada de spam.</p>
+        </form>
+        {{end}}
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="lfoot">
+  <div class="lwrap">
+    <div class="bw">
+      <span class="brand">GRABI<span class="dot">.</span></span>
+      <span class="tag">Escanea, paga, agárralo.</span>
+    </div>
+    <span class="cr">© {{.Year}} GRABI · Cali, Colombia</span>
+  </div>
+</footer>
+
+<script>
+// Validación ligera (landing-v1 §7: JS vanilla mínimo). El servidor valida igual.
+(function(){
+  var f=document.getElementById('leadForm'); if(!f) return;
+  var btn=f.querySelector('button[type=submit]'),
+      mail=f.querySelector('[name=email]'), cel=f.querySelector('[name=phone]');
+  function ready(){
+    return /.+@.+\..+/.test(mail.value.trim()) && cel.value.replace(/\D/g,'').length>=7;
+  }
+  function sync(){ btn.disabled=!ready(); btn.style.opacity=ready()?'1':'.4'; }
+  mail.addEventListener('input',sync); cel.addEventListener('input',sync); sync();
+})();
+</script>
+{{end}}

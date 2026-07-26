@@ -108,6 +108,9 @@ type Server struct {
 
 	mu       sync.Mutex           // protege sessions
 	sessions map[string]time.Time // token de sesión → expiración (ui-web-v1 §5)
+
+	leadMu   sync.Mutex             // protege leadHits
+	leadHits map[string][]time.Time // IP → envíos recientes del formulario de interesados (landing-v1 §3)
 }
 
 // New construye el servidor. adminUser/adminPass son las credenciales del panel
@@ -136,7 +139,8 @@ func New(st *store.Store, adminUser, adminPass string, priv ed25519.PrivateKey, 
 	}
 	s := &Server{st: st, tmpl: base, adminUser: adminUser, adminPass: adminPass,
 		priv: priv, allowSim: allowSim, payWindow: payWindow, uploadDir: uploadDir,
-		uniqueAmt: uniqueAmt, sessions: make(map[string]time.Time)}
+		uniqueAmt: uniqueAmt, sessions: make(map[string]time.Time),
+		leadHits: make(map[string][]time.Time)}
 	return s, nil
 }
 
@@ -213,10 +217,9 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /admin/orders", s.auth(http.HandlerFunc(s.handleAdminOrders)))
 	mux.Handle("GET /admin/movements", s.auth(http.HandlerFunc(s.handleAdminMovements)))
 
-	// Raíz → panel.
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/admin", http.StatusSeeOther)
-	})
+	// Raíz → landing pública de la marca (landing-v1 §1). El panel vive en /admin.
+	mux.HandleFunc("GET /{$}", s.handleLanding)
+	mux.HandleFunc("POST /interesados", s.handleInteresado)
 	// Catch-all: cualquier ruta no registrada muestra el 404 con estilo.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, "ruta no encontrada: "+r.URL.Path)
@@ -228,10 +231,11 @@ func (s *Server) Routes() http.Handler {
 
 // page es el envoltorio que reciben todas las plantillas.
 type page struct {
-	Title  string
-	Admin  bool   // muestra la navegación de administración
-	Active string // sección activa del menú lateral: "machines" | "orders"
-	Data   any
+	Title   string
+	Admin   bool   // muestra la navegación de administración
+	Landing bool   // la landing controla su propio layout (sin .pubwrap)
+	Active  string // sección activa del menú lateral: "machines" | "orders"
+	Data    any
 }
 
 // render compone base.html con la plantilla `name` (que define "content").
