@@ -102,10 +102,31 @@ CREATE TABLE IF NOT EXISTS bank_movements (
   from_addr    TEXT                        -- remitente (allowlist / seguridad)
 );
 
+-- leads: interesados que dejan sus datos en el formulario B2B de la landing
+-- (landing-v1 §5, campos de landing-v2 §5). PII MÍNIMA: solo lo necesario para
+-- devolverles el contacto por WhatsApp. Nunca se exponen en páginas públicas (la
+-- lista vive en el panel admin autenticado). No se relaciona con órdenes ni
+-- máquinas: es un registro independiente y la semilla de un CRM ligero (a futuro
+-- puede crecer con estado del lead y notas).
+--   space_type: conjunto|oficina|negocio|otro — el servidor solo acepta la lista.
+--   source: de dónde llegó el lead (ej. "landing").
+CREATE TABLE IF NOT EXISTS leads (
+  id         BIGSERIAL PRIMARY KEY,
+  name       TEXT NOT NULL,
+  space_type TEXT NOT NULL,
+  city       TEXT NOT NULL,
+  whatsapp   TEXT NOT NULL,
+  source     TEXT NOT NULL DEFAULT 'landing',
+  created_at BIGINT NOT NULL               -- epoch s
+);
+
 CREATE INDEX IF NOT EXISTS idx_orders_machine ON orders(machine_id);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_match ON orders(machine_id, status, unique_amount);
+
+-- Los interesados se listan en el panel con los más recientes primero.
+CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at DESC);
 
 -- Migración idempotente para bases ya creadas (las nuevas ya traen la columna en
 -- el CREATE): añade `channels` sin romper. ADD COLUMN IF NOT EXISTS = no-op si existe.

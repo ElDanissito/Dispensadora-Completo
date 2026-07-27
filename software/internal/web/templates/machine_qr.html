@@ -1,37 +1,89 @@
 {{define "content"}}
 {{template "pubtop" .Machine}}
-<div style="margin-bottom:14px">{{if .Sim}}<span class="badge warn">pago simulado</span>{{else}}<span class="badge ok">✓ pago confirmado</span>{{end}}</div>
 
-<div class="stack" style="margin:6px 0 18px">
-  <h2 style="font-size:1.4rem; margin:0">Tu QR está listo</h2>
-  <div class="qrbox"><img src="{{.QRDataURI}}" alt="QR de tu compra"></div>
-  <div style="display:flex; gap:22px; font-family:var(--mono); font-size:.9rem">
-    <span class="muted">Total <span style="color:var(--fg); font-weight:600">{{cop .TotalCOP}}</span></span>
-    <span class="muted">Expira <span style="color:var(--warn)">{{ts .Exp}}</span></span>
+<div class="qrpage{{if .Expired}} qr-expired{{end}}" id="qrPage" data-left="{{.SecondsLeft}}">
+  {{/* El "pago confirmado" es el mensaje clave de la pantalla: va grande y arriba. */}}
+  {{if .Sim}}
+  <div class="paid sim"><span class="ic">🧪</span><span class="tx">Pago simulado (pruebas)</span></div>
+  {{else}}
+  <div class="paid"><span class="ic">✓</span><span class="tx">Pago confirmado</span></div>
+  {{end}}
+
+  {{/* Cuando el QR vence, este bloque se oculta y habla .qrdead. */}}
+  <div class="qralive">
+    <h2 class="qrtitle">Tu QR está listo</h2>
+    <p class="qrsub">Acércalo al <strong>lector de la máquina</strong> y agarra tu producto.</p>
   </div>
-  <div class="card" style="width:100%; text-align:center; margin:0; font-size:.98rem">
-    Acércalo al <strong style="color:var(--accent)">lector de la máquina</strong> y agarra tu producto.
+
+  <div class="qrwrap">
+    <div class="qrbox"><img src="{{.QRDataURI}}" alt="QR de tu compra"></div>
+    <p class="qrhint">Sube el brillo de la pantalla si el lector no lo lee.</p>
+  </div>
+
+  {{/* Expiración: contador regresivo (el token vive 5 min, contrato §3). */}}
+  <div class="qrexp" id="qrExp">
+    <span class="lbl">Expira en</span>
+    <span class="cd" id="qrCd">{{.Countdown}}</span>
+    <span class="abs">({{ts .Exp}})</span>
+  </div>
+
+  {{/* Estado expirado: el pago sigue siendo válido, solo caducó el token. */}}
+  <div class="qrdead" id="qrDead">
+    <div class="t">Este QR expiró</div>
+    <p class="d">Tu pago sigue registrado: genera un QR nuevo y vuelve a acercarlo al lector.
+    {{if .Dispensed}}Si la máquina ya te entregó el producto, no necesitas otro.{{end}}</p>
+    {{if not .Dispensed}}
+    <form method="post" action="/m/{{.Machine.ID}}/orden/{{.Jti}}/reemitir">
+      <button type="submit" class="btn-primary" style="flex:none">Generar uno nuevo</button>
+    </form>
+    {{end}}
+  </div>
+
+  {{/* Qué compraste, no solo el total. */}}
+  <div class="qrticket">
+    {{range .Items}}
+    <div class="r"><span>{{.Qty}}× {{.Name}}</span><span class="price">{{cop .PriceCOP}}</span></div>
+    {{end}}
+    <div class="r tot"><span>Total</span><span class="price">{{cop .TotalCOP}}</span></div>
+  </div>
+
+  {{if .Sim}}
+  <div class="note">
+    <strong>Pago simulado (pruebas).</strong> Este QR se emitió sin cobro real; la orden quedó marcada como <code>paid_sim</code>. En producción el QR solo se genera tras la notificación real de Bre-B (CLAUDE.md §4). Es válido una sola vez.
+  </div>
+  {{else}}
+  <div class="note">
+    Este QR está <b>firmado</b> y se generó porque tu pago entró al banco. Es de <b>un solo uso</b>: la máquina lo consume al dispensar.
+  </div>
+  {{end}}
+
+  {{if .Debug}}
+  <div class="card">
+    <div class="muted">Token (para depuración / inspección · {{.TokenLen}} chars)</div>
+    <div style="word-break:break-all; font-family:var(--mono); font-size:.72rem; margin-top:6px; color:var(--muted)">{{.Token}}</div>
+  </div>
+  {{end}}
+
+  <div class="card" style="text-align:center">
+    <a class="link" href="/m/{{.Machine.ID}}">← Volver a la máquina</a>
   </div>
 </div>
 
-{{if .Sim}}
-<div class="note">
-  <strong>Pago simulado (pruebas).</strong> Este QR se emitió sin cobro real; la orden quedó marcada como <code>paid_sim</code>. En producción el QR solo se genera tras la notificación real de Bre-B (CLAUDE.md §4). Es válido una sola vez.
-</div>
-{{else}}
-<div class="note">
-  Este QR está <b>firmado</b> y se generó porque tu pago entró al banco. Es de <b>un solo uso</b>: la máquina lo consume al dispensar.
-</div>
-{{end}}
-
-{{if .Debug}}
-<div class="card">
-  <div class="muted">Token (para depuración / inspección · {{.TokenLen}} chars)</div>
-  <div style="word-break:break-all; font-family:var(--mono); font-size:.72rem; margin-top:6px; color:var(--muted)">{{.Token}}</div>
-</div>
-{{end}}
-
-<div class="card" style="text-align:center">
-  <a class="link" href="/m/{{.Machine.ID}}">← Volver a la máquina</a>
-</div>
+<script>
+// Contador regresivo del QR. Al llegar a 0 el token ya no sirve (contrato §3):
+// se atenúa el QR y se ofrece re-emitirlo, sin recargar la página.
+(function(){
+  var page=document.getElementById('qrPage'),
+      cd=document.getElementById('qrCd'),
+      left=parseInt(page.dataset.left||'0',10);
+  if(!cd) return;
+  function paint(){
+    if(left<=0){ page.classList.add('qr-expired'); cd.textContent='0:00'; return true; }
+    cd.textContent=Math.floor(left/60)+':'+('0'+(left%60)).slice(-2);
+    return false;
+  }
+  if(paint()) return;
+  var t=setInterval(function(){ left--; if(paint()) clearInterval(t); }, 1000);
+})();
+</script>
 {{end}}

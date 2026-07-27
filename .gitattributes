@@ -1,0 +1,18 @@
+# Finales de línea del repo. Sin este archivo, el `core.autocrlf=true` que trae
+# la instalación de Git en Windows dejaba el árbol MIXTO (unos archivos con CRLF,
+# otros con LF) y cualquier operación de git parecía un cambio masivo (churn) que
+# no era real. Los atributos de este archivo MANDAN sobre core.autocrlf/core.eol,
+# así que el resultado es el mismo en cualquier PC y en CI.
+#
+# Regla: el repo guarda SIEMPRE LF y el worktree también, en Windows y en Linux.
+# Es lo que le sirve al proyecto: el backend corre en contenedores Linux (EC2), y
+# con LF en disco `gofmt` no marca los archivos Go como sin formatear en Windows.
+* text=auto eol=lf
+
+# Binarios: nunca convertir finales de línea ni intentar diff de texto.
+*.png  binary
+*.xlsx binary
+
+# Fixture de correo de las pruebas de bankmail: se deja tal cual está guardado
+# (byte a byte), sin que git le toque los finales de línea.
+*.eml -text

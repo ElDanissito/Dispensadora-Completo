@@ -1,0 +1,32 @@
+{{define "content"}}
+<h2 style="margin:0 0 6px">Interesados en tener una GRABI</h2>
+<div class="msub" style="margin-bottom:18px">Quien llena el formulario de la landing aparece aquí, del más reciente al más antiguo. Son <strong>datos personales</strong>: úsalos solo para contactar.</div>
+
+{{if .Leads}}
+<div class="otable ld">
+  <div class="ohead"><span>Fecha</span><span>Nombre</span><span>Tipo de espacio</span><span>Ciudad</span><span>WhatsApp</span><span>Origen</span></div>
+  {{range .Leads}}
+  <div class="orow">
+    <span class="mono muted">{{.Fecha}}</span>
+    <span>{{.Name}}</span>
+    <span>{{.SpaceTypeLabel}}</span>
+    <span>{{.City}}</span>
+    <span class="mono">{{.WhatsApp}}</span>
+    <span><span class="badge muted">{{.Origen}}</span></span>
+  </div>
+  {{end}}
+</div>
+
+<div class="ocards">
+  {{range .Leads}}
+  <div class="ocard">
+    <div class="top"><span>{{.Fecha}} · {{.City}}</span><span class="badge muted">{{.Origen}}</span></div>
+    <div class="prods">{{.Name}}</div>
+    <div class="bot"><span class="muted">{{.SpaceTypeLabel}}</span><span class="mono">{{.WhatsApp}}</span></div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div class="card muted">Todavía no hay interesados. Cuando alguien llene el formulario de la landing, aparece aquí.</div>
+{{end}}
+{{end}}

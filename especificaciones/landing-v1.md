@@ -1,5 +1,12 @@
 # Especificación — Landing pública + captura de interesados (v1)
 
+> ⚠️ **Superada por [`landing-v2.md`](./landing-v2.md)** (ADR-024) en lo que toca a estructura de
+> secciones (§2), campos del formulario (§3) y hero. Siguen vigentes de este documento: §4
+> (sección "Interesados" del admin), §5 (tabla `leads`), §6 (errores/404) y §7 (notas técnicas).
+> **§4 y §5 ya están implementados**: tabla `leads`, el formulario la persiste y el panel la lista
+> en `GET /admin/leads`. Los estados del lead (nuevo/contactado/descartado) y las notas siguen
+> siendo trabajo futuro, como dice §4.
+
 > Requisitos para el agente de **Software (02)**. Implementar sobre lo que ya existe,
 > **server-rendered** (Go templates + JS mínimo, **sin SPA**, ADR-011bis) y **reutilizando el
 > design system** de `internal/web/templates/base.html` (variables CSS, tema kiosko oscuro/neón,
@@ -40,19 +47,23 @@ El agente puede afinar textos y orden; la **intención** de cada bloque debe res
 ## 4. Sección "Interesados" en el admin (semilla de CRM)
 
 - Nueva entrada en el panel admin (junto a Máquinas / Órdenes / Movimientos): **"Interesados"**.
-- **Lista** de leads con: fecha, correo, celular, nombre y mensaje (si los hay), y **origen**
-  (`source`, ej. "landing"). Orden: más recientes primero. Misma estética del panel (tabla en
-  escritorio, tarjetas en móvil, como en Órdenes/Movimientos).
+- **Lista** de leads con los campos del formulario B2B de `landing-v2.md` §5: fecha, **nombre, tipo
+  de espacio, ciudad, WhatsApp**, y **origen** (`source`, ej. "landing"). Orden: más recientes
+  primero. Misma estética del panel (tabla en escritorio, tarjetas en móvil, como en Órdenes/Movimientos).
 - Es la **semilla de un CRM ligero**: dejar el modelo simple pero extensible (a futuro: estado del
   lead —nuevo/contactado/descartado—, notas). No hace falta implementar esos estados ahora, solo no
   cerrar la puerta.
 - Solo visible para el **admin autenticado** (rutas protegidas como el resto del panel).
 
-## 5. Modelo de datos (nueva tabla)
+## 5. Modelo de datos (nueva tabla) — actualizado a la landing v2 (B2B)
 
-- Tabla **`leads`** (PII mínima): `id`, `name` (opcional), `email`, `phone`, `message` (opcional),
-  `source` (ej. "landing"), `created_at`. Mismo estilo del `schema.sql` (Postgres, epoch en BIGINT).
+- Tabla **`leads`** con los campos del formulario B2B de `landing-v2.md` §5 (el correo se eliminó):
+  `id`, `name`, `space_type` (solo `conjunto|oficina|negocio|otro`), `city`, `whatsapp`,
+  `source` (ej. "landing"), `created_at`. PII mínima, mismo estilo del `schema.sql`
+  (Postgres, epoch en BIGINT). El servidor solo acepta `space_type` de la lista.
 - No se relaciona con órdenes ni máquinas: es un registro independiente.
+- El handler del formulario **ya existe** (valida y hoy escribe el lead en el **log del servidor**):
+  la tarea es **persistirlo en esta tabla**, no rehacer el formulario.
 
 ## 6. Errores / 404
 

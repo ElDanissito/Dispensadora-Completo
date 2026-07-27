@@ -78,7 +78,8 @@ en `especificaciones/vectores-prueba/`.
 
 ## Servidor web (`cmd/server`)
 
-Sirve la **página pública por máquina** (`GET /m/{id}`) con catálogo, precios y stock, y un
+Sirve la **landing pública de la marca** en la raíz (`GET /`, ADR-023), la **página pública por
+máquina** (`GET /m/{id}`) con catálogo, precios y stock, y un
 **panel de administración** en `/admin` (crear máquinas, cargar productos, asignar
 slot→producto/precio/stock, ver órdenes). Front server-rendered con `html/template`, sin JS
 pesado (ADR-002). Datos en **SQLite** (pura-Go, sin cgo).
@@ -91,10 +92,22 @@ ADMIN_PASS=algo-seguro ./dispensadoras-web -seed   # -seed carga datos de demo
 - `-db dispensadoras.db` ruta del archivo SQLite · `-addr :8080` dirección · `-seed` datos demo.
 - El panel `/admin` va protegido con **Basic Auth** (`ADMIN_USER`/`ADMIN_PASS`, por defecto
   `admin`/`changeme` con aviso — define `ADMIN_PASS` antes de exponerlo).
-- Rutas públicas: `GET /m/{id}` · `POST /m/{id}/pagar` · `GET /m/{id}/orden/{jti}/estado`
+- Rutas públicas: `GET /` (landing) · `POST /interesados` · `GET /m/{id}` · `POST /m/{id}/pagar`
+  · `GET /m/{id}/orden/{jti}/estado` · `POST /m/{id}/orden/{jti}/reemitir`
   · `POST /m/{id}/simular-pago` (solo con `-allow-sim`).
+- **Interesados (landing-v2):** `POST /interesados` valida nombre/tipo de espacio/ciudad/WhatsApp,
+  filtra bots (honeypot + tope de 5 envíos por IP cada 10 min), **guarda el lead en la tabla
+  `leads`** y redirige a `/?gracias=1`. `space_type` solo acepta `conjunto|oficina|negocio|otro`.
+  PII mínima: el log solo deja `id`, origen, tipo de espacio y ciudad (el nombre y el WhatsApp
+  viven en la base). Se consultan en el panel: **Interesados** (`GET /admin/leads`).
+- **Re-emitir el QR:** `POST /m/{id}/orden/{jti}/reemitir` vuelve a firmar el token de una orden ya
+  pagada cuyo QR venció sin dispensar. Conserva el `jti` (un solo uso, contrato §3) y solo renueva
+  `exp`; no aplica a órdenes pendientes, dispensadas ni canceladas.
 - Rutas admin: `GET /admin`, `POST /admin/machines`, `POST /admin/products`, `GET /admin/m/{id}`,
-  `POST /admin/m/{id}/slot`, `GET /admin/orders`.
+  `POST /admin/m/{id}/slot`, `GET /admin/orders`, `GET /admin/movements`, `GET /admin/leads`.
+- **Interesados en el panel** (`GET /admin/leads`, landing-v1 §4): lista los leads de `leads`
+  (fecha, nombre, tipo de espacio, ciudad, WhatsApp, origen), más recientes primero. Es **PII**:
+  ruta protegida por sesión, nunca en páginas públicas.
 
 ### Ciclo web→máquina (pago REAL Bre-B por conciliación de correo)
 
@@ -201,6 +214,7 @@ El backend corre en **contenedor** con **PostgreSQL** (antes SQLite). Config por
 | `GRABI_IMAP_HOST/PORT/USER/PASS` | Conciliación por correo | `imap.gmail.com` / `993` / `grabibot@gmail.com` / *(App Password)* |
 | `GRABI_BREB_KEY_M001` | Llave Bre-B de cobro de la máquina | `009...` |
 | `GRABI_MATCH_MODE` | `unique_amount` = fallback legado (opcional) | *(vacío = modo nombre, ADR-018)* |
+| `GRABI_WHATSAPP` | Nº público de WhatsApp de la landing (opcional) | `573001234567` · *(vacío = no se muestra el botón)* |
 
 ### Correr local (Docker)
 
@@ -221,8 +235,8 @@ TEST_DATABASE_URL="postgres://grabi:grabi@localhost:5432/grabi_test?sslmode=disa
 **Importante:** los tests apuntan a **`grabi_test`** (base aparte), NO a `grabi`
 (la de la app). Los tests hacen `TRUNCATE`, así que si se corren contra `grabi`
 **borran el seed/los datos** de la app. La base `grabi_test` la crea el contenedor
-en el primer arranque (`software/initdb/`). Usar **`-p 1`**: los paquetes `store` y
-`concil` comparten la base de pruebas y hacen `TRUNCATE` al iniciar, así que deben
+en el primer arranque (`software/initdb/`). Usar **`-p 1`**: los paquetes `store`,
+`concil` y `web` comparten la base de pruebas y hacen `TRUNCATE` al iniciar, así que deben
 correr en serie (si no, el reset de uno pisa los datos del otro). En **CI** (`.github/workflows/ci.yml`) ya
 va con `-p 1` contra un servicio `postgres:16` — ahí se valida la migración en cada push.
 

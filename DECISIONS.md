@@ -7,6 +7,71 @@
 
 ---
 
+## ADR-024 · Landing v2: la experiencia arriba, el negocio abajo (+ QR con contador y re-emisión)
+- **Fecha:** 2026-07-26 · **Autor:** Agente de Software (02) + Daniel.
+- **Decisión:** la landing se reordena en **dos discursos** (spec [`especificaciones/landing-v2.md`](./especificaciones/landing-v2.md),
+  que **supera** a v1 en estructura, hero y campos del formulario):
+  **hero + recorrido venden la experiencia de compra**; la **sección B2B vende el negocio**.
+  Orden: hero → cómo funciona → puente → **para tu negocio** → por qué GRABI → contacto → piloto → footer.
+- **Cómo funciona = 4 pasos + teléfono sticky.** Se **descartó** el carrusel/acordeón 3D con
+  auto-rotación: pelea con la lectura, pesa en Android de gama media e ignora `prefers-reduced-motion`.
+  La pantalla del teléfono cambia con el scroll (CSS, sin WebGL). El paso activo se calcula por
+  **posición respecto a la línea de lectura** (42%
+  del alto), no con bandas de `IntersectionObserver`: con bandas, el enlace del nav y el paso quedaban
+  desfasados según el orden de las entradas.
+- **Las pantallas del mockup son réplicas de las pantallas reales** (`machine_public`, `machine_pago`,
+  `machine_qr`): mismo copy y mismos elementos, medidas en `em` sobre el tamaño del dispositivo. No son
+  capturas PNG (no hay binarios en el repo y las fotos de producto viven en `data/uploads`, git-ignored):
+  los thumbnails de la tienda son **ilustraciones SVG** hasta que existan fotos reales.
+- **Inclinación 3D bajada a ~5°** (antes 17°) para que el texto interno siga legible, y **dos teléfonos
+  como máximo** en el hero: tienda atenuada detrás, QR firmado delante. Por debajo de 1180px queda uno.
+- **Addendum (2026-07-26): en móvil (<820px) no se pinta NINGUNA maqueta de teléfono.** Ni la del hero
+  ni las capturas por paso (que existían solo para móvil y se eliminaron del HTML: −7 KB por respuesta
+  para todos). Una maqueta de teléfono dentro de un teléfono no aporta, empujaba los CTAs fuera de la
+  primera pantalla y costaba pintar blur + glow + transforms en gama media. El sticky ya no era visible
+  en móvil, así que su sincronización por scroll también se apaga por debajo de 820px (sin rAF por
+  frame). El recorrido se lee como texto; en escritorio no cambia nada.
+- **Formulario B2B** (reemplaza correo+celular de v1 §3): **nombre · tipo de espacio · ciudad ·
+  WhatsApp**, los cuatro obligatorios, con validación en vivo y select validado contra lista en el
+  servidor. El **botón de WhatsApp** solo aparece si `GRABI_WHATSAPP` está definido: sin número
+  configurado no se publica ningún contacto (misma regla de ADR-023).
+- **Pantalla del QR (producción, no mockup):** "✓ Pago confirmado" pasa a ser el bloque principal;
+  la expiración es un **contador regresivo** con la hora absoluta al lado; se listan los **ítems**
+  comprados; hint de brillo junto al QR. Al vencer, el QR se atenúa y aparece **"Generar uno nuevo"**
+  → `POST /m/{id}/orden/{jti}/reemitir`, que **re-firma conservando el `jti`** (sigue siendo de un
+  solo uso, contrato §3) y solo renueva `exp`. `store.RefreshOrderToken` solo actúa sobre
+  `paid`/`paid_sim`: nunca sobre pendientes (nadie pagó), dispensadas (el producto salió) ni canceladas.
+  **El contrato del token no cambia.**
+- **Accesibilidad:** el texto mono pequeño sube de `--faint` a `--muted` para cumplir AA.
+- **Pendiente (sin cambios):** tabla `leads` + sección "Interesados" del admin. Hasta entonces el lead
+  se registra en el **log del servidor**.
+
+---
+
+## ADR-023 · La landing pública es la home (`GET /`); el panel se queda en `/admin`
+- **Fecha:** 2026-07-26 · **Autor:** Agente de Software (02) + Daniel.
+- **Decisión:** `GET /` sirve la **landing pública de la marca** (spec [`especificaciones/landing-v1.md`](./especificaciones/landing-v1.md),
+  mock `software/mockups/GRABI Landing.dc.html`). Antes la raíz **redirigía al login del admin**:
+  cualquiera que entrara a `grabi.napi.lat` veía el panel. El panel sigue en `/admin` (sin cambios).
+- **Razón:** la raíz es la cara pública de la marca y el destino natural del "volver a inicio" de los
+  404. Exponer el login como home era confuso y regalaba superficie de ataque a quien no la busca.
+- **Implementación:** plantilla `landing.html` + clases nuevas en `base.html` (mismo sistema de
+  diseño "kiosko oscuro", ADR-022; **no** se introdujo un segundo stylesheet). Server-rendered con JS
+  vanilla mínimo (ADR-011bis). La landing controla su propio layout (secciones a todo el ancho): se
+  añadió el flag `page.Landing` para saltarse `.pubwrap`.
+- **Formulario de interesados:** los inputs (correo* / celular* / nombre / mensaje), el **honeypot**,
+  el **rate-limit por IP** (5 envíos / 10 min) y la validación viven ya en `POST /interesados`.
+- **⚠️ Pendiente inmediato (siguiente commit):** la **tabla `leads`** (spec §5) y la sección
+  **"Interesados"** del admin (§4). Hasta entonces el lead **no se persiste**: queda en el **log del
+  servidor** (`docker compose logs app`) para no perderlo. Al crear la tabla, se reemplaza ese log por
+  el insert — el resto del flujo ya está hecho.
+- **Botón "Volver a inicio" → `/`** añadido en `notfound.html` y `machine_notfound.html` (§6), y como
+  enlace secundario en `machine_expirada.html` y `machine_revision.html`.
+- **Datos de contacto:** el footer va **sin correo/WhatsApp/Instagram** (los del mock eran de relleno);
+  se publican cuando existan de verdad. El único canal de contacto es el formulario.
+
+---
+
 ## ADR-022 · Rediseño completo de UI (kiosko oscuro 1a) + canales, reabastecimiento y panel de Configuración (pendiente)
 - **Fecha:** 2026-07-25 · **Autor:** Agente de Software (02) + Daniel.
 - **Decisión:** se rediseñó **todo** el front al lenguaje visual **"kiosko oscuro / neón" (dir 1a)**,
@@ -373,6 +438,7 @@ Hoy varias cosas de la máquina no se pueden editar tras crearla o dependen del 
 - [x] **Hosting / despliegue** → **AWS pay-on-demand** con **CI/CD (GitHub Actions → AWS)** (ADR-020). Descartados VPS fijos (Hostinger ~$70k, HostGator ~$35k/mes). **Servicio AWS concreto → EC2 pequeña + Docker Compose (ADR-021)**, tras descartar App Runner (cerrado a clientes nuevos el 2026-04-30) por control total y costo casi nulo en el piloto. **Pipeline montado**: CI/CD continuo a la EC2 vía SSM + OIDC (build sostenido por swap de 2 GB). **Backups `pg_dump`→S3 diferidos para el MVP** (ADR-021 addendum). **✅ Desplegado y vivo en `grabi.napi.lat` (2026-07-25).**
 - [~] **Agregador Bre-B** → **diferido** (ADR-019): la conciliación por correo basta para el MVP. Comparativa lista para cuando se retome: [`negocio/agregadores-bre-b-comparativa.md`](./negocio/agregadores-bre-b-comparativa.md).
 - [~] **Legal / trámites** (RUT/DIAN/facturación/sanidad) → **diferidos** para 1 máquina (ADR-019); formalizar antes de escalar.
+- [ ] **Número de WhatsApp público** para la landing → definir `GRABI_WHATSAPP` en el `.env` de la EC2. El botón alterno de contacto (mensaje precargado) ya está implementado y aparece solo cuando la variable existe (ADR-024, [`landing-v2.md`](./especificaciones/landing-v2.md) §9).
 - [ ] **Producto piloto concreto** (4 productos: qué snacks + bebidas) → define precios y surtido.
 - [ ] **Precios** por producto (salen del unit economics).
-- [ ] **Landing pública** (home en `/` de `grabi.napi.lat`) + **captura de interesados** que alimenta una sección "Interesados" en el admin (semilla de CRM). Spec: [`especificaciones/landing-v1.md`](./especificaciones/landing-v1.md). Objetivo: explicar la marca al público y servir de destino "volver a inicio" desde los 404.
+- [~] **Landing pública** (home en `/` de `grabi.napi.lat`) + **captura de interesados** que alimenta una sección "Interesados" en el admin (semilla de CRM). Spec: [`especificaciones/landing-v1.md`](./especificaciones/landing-v1.md). **Landing y formulario hechos (ADR-023)**; **tabla `leads` hecha** — el formulario la persiste (`space_type` validado contra `conjunto|oficina|negocio|otro`) — y **sección "Interesados" del panel hecha** (`GET /admin/leads`, protegida por sesión). Pendiente solo lo opcional de la semilla de CRM: estados del lead (nuevo/contactado/descartado) y notas.

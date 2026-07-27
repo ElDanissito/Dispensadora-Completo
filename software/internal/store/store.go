@@ -122,7 +122,7 @@ func (s *Store) Close() error { return s.db.Close() }
 // No usar en producción.
 func (s *Store) ResetForTest(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx,
-		`TRUNCATE bank_movements, order_items, orders, machine_products, products, used_jti, machines RESTART IDENTITY CASCADE`)
+		`TRUNCATE bank_movements, order_items, orders, machine_products, products, used_jti, machines, leads RESTART IDENTITY CASCADE`)
 	return err
 }
 
@@ -197,6 +197,19 @@ type BankMovement struct {
 	Result      string // matched|orphan|parse_failed|discarded|conflict
 	OrderJti    string
 	FromAddr    string
+}
+
+// Lead es un interesado del formulario B2B de la landing (landing-v1 §5, campos
+// de landing-v2 §5). PII mínima: lo justo para devolver el contacto por WhatsApp.
+// Nunca se expone en páginas públicas.
+type Lead struct {
+	ID        int64
+	Name      string
+	SpaceType string // conjunto|oficina|negocio|otro (la capa web valida la lista)
+	City      string
+	WhatsApp  string
+	Source    string // de dónde llegó (ej. "landing")
+	CreatedAt int64
 }
 
 // Resultados posibles de un movimiento (columna bank_movements.result, spec §5/§6).
@@ -751,6 +764,27 @@ func (s *Store) markPaid(ctx context.Context, jti, status, token string, exp, pa
 	return true, nil
 }
 
+// RefreshOrderToken re-emite el token de una orden YA PAGADA cuyo QR expiró sin
+// haberse dispensado: guarda el nuevo JWS y su `exp`. Conserva el MISMO `jti`, así
+// que el QR sigue siendo de un solo uso (la máquina consume el jti al dispensar,
+// contrato §3) y esto NO permite retirar dos veces. Solo actúa sobre 'paid' y
+// 'paid_sim': nunca sobre pendientes (no se ha cobrado), 'dispensed' (ya se
+// entregó) ni canceladas. Devuelve false si no aplicó a ninguna fila.
+func (s *Store) RefreshOrderToken(ctx context.Context, jti, token string, exp int64) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE orders SET token = $1, exp = $2
+		WHERE jti = $3 AND status IN ('paid','paid_sim')`,
+		token, exp, jti)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
 // MarkOrdersAmbiguous marca como 'ambiguous' (revisión/soporte) las órdenes cuyos
 // jti se pasan, siempre que sigan en 'pending' o 'expired'. Se usa cuando UN pago
 // casó con ≥2 órdenes (ADR-018): NO se dispensa ninguna y quedan para revisión
@@ -814,6 +848,55 @@ func (s *Store) RecordMovement(ctx context.Context, m BankMovement) error {
 		m.MessageID, m.MachineID, m.AmountCOP, m.Payer, m.Account, m.BreBKey, m.OccurredAt,
 		m.ProcessedAt, m.Result, nullStr(m.OrderJti), m.FromAddr)
 	return err
+}
+
+// --- Interesados (leads) ---
+
+// CreateLead persiste un interesado del formulario B2B de la landing y devuelve
+// su id. `Source` vacío se guarda como "landing" (el único origen por ahora) y
+// `CreatedAt` en 0 se sella con la hora actual. La validación de `SpaceType`
+// contra la lista (conjunto|oficina|negocio|otro) la hace la capa web, igual que
+// con `orders.status`.
+func (s *Store) CreateLead(ctx context.Context, l Lead) (int64, error) {
+	if l.Source == "" {
+		l.Source = "landing"
+	}
+	if l.CreatedAt == 0 {
+		l.CreatedAt = time.Now().Unix()
+	}
+	var id int64
+	err := s.db.QueryRowContext(ctx, `
+		INSERT INTO leads (name, space_type, city, whatsapp, source, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		l.Name, l.SpaceType, l.City, l.WhatsApp, l.Source, l.CreatedAt).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
+}
+
+// ListLeads devuelve los últimos `limit` interesados, más recientes primero (el
+// orden de la sección "Interesados" del panel, landing-v1 §4).
+func (s *Store) ListLeads(ctx context.Context, limit int) ([]Lead, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, name, space_type, city, whatsapp, source, created_at
+		FROM leads ORDER BY created_at DESC, id DESC LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Lead
+	for rows.Next() {
+		var l Lead
+		if err := rows.Scan(&l.ID, &l.Name, &l.SpaceType, &l.City, &l.WhatsApp, &l.Source, &l.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, l)
+	}
+	return out, rows.Err()
 }
 
 // --- helpers de NULL ---

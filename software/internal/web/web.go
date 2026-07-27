@@ -79,6 +79,17 @@ var funcs = template.FuncMap{
 	"ts": func(sec int64) string {
 		return time.Unix(sec, 0).In(bogota).Format("2006-01-02 15:04")
 	},
+	// dict arma un map para pasar varios valores a una plantilla anidada
+	// ({{template "x" dict "Screen" "qr" "Data" .}}); html/template no trae helper.
+	"dict": func(kv ...any) map[string]any {
+		m := make(map[string]any, len(kv)/2)
+		for i := 0; i+1 < len(kv); i += 2 {
+			if k, ok := kv[i].(string); ok {
+				m[k] = kv[i+1]
+			}
+		}
+		return m
+	},
 	// tint deriva un color de placeholder estable desde el nombre del producto
 	// (para el tile cuando no hay foto, estilo mockup).
 	"tint": func(s string) string {
@@ -108,6 +119,9 @@ type Server struct {
 
 	mu       sync.Mutex           // protege sessions
 	sessions map[string]time.Time // token de sesión → expiración (ui-web-v1 §5)
+
+	leadMu   sync.Mutex             // protege leadHits
+	leadHits map[string][]time.Time // IP → envíos recientes del formulario de interesados (landing-v1 §3)
 }
 
 // New construye el servidor. adminUser/adminPass son las credenciales del panel
@@ -136,7 +150,8 @@ func New(st *store.Store, adminUser, adminPass string, priv ed25519.PrivateKey, 
 	}
 	s := &Server{st: st, tmpl: base, adminUser: adminUser, adminPass: adminPass,
 		priv: priv, allowSim: allowSim, payWindow: payWindow, uploadDir: uploadDir,
-		uniqueAmt: uniqueAmt, sessions: make(map[string]time.Time)}
+		uniqueAmt: uniqueAmt, sessions: make(map[string]time.Time),
+		leadHits: make(map[string][]time.Time)}
 	return s, nil
 }
 
@@ -187,6 +202,8 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /m/{id}", s.handleMachinePublic)
 	mux.HandleFunc("POST /m/{id}/pagar", s.handlePagar)
 	mux.HandleFunc("GET /m/{id}/orden/{jti}/estado", s.handleEstadoOrden)
+	// Re-emitir el QR de una orden pagada cuyo token venció sin dispensar.
+	mux.HandleFunc("POST /m/{id}/orden/{jti}/reemitir", s.handleReemitirQR)
 
 	// Atajo de pruebas (firma el QR sin pago real). Solo si allowSim (spec §8).
 	mux.HandleFunc("POST /m/{id}/simular-pago", s.handleSimularPago)
@@ -212,11 +229,12 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /admin/m/{id}/slot/{slot}/delete", s.auth(http.HandlerFunc(s.handleDeleteSlot)))
 	mux.Handle("GET /admin/orders", s.auth(http.HandlerFunc(s.handleAdminOrders)))
 	mux.Handle("GET /admin/movements", s.auth(http.HandlerFunc(s.handleAdminMovements)))
+	// Interesados de la landing (landing-v1 §4). PII: solo admin autenticado.
+	mux.Handle("GET /admin/leads", s.auth(http.HandlerFunc(s.handleAdminLeads)))
 
-	// Raíz → panel.
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/admin", http.StatusSeeOther)
-	})
+	// Raíz → landing pública de la marca (landing-v1 §1). El panel vive en /admin.
+	mux.HandleFunc("GET /{$}", s.handleLanding)
+	mux.HandleFunc("POST /interesados", s.handleInteresado)
 	// Catch-all: cualquier ruta no registrada muestra el 404 con estilo.
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, "ruta no encontrada: "+r.URL.Path)
@@ -228,10 +246,11 @@ func (s *Server) Routes() http.Handler {
 
 // page es el envoltorio que reciben todas las plantillas.
 type page struct {
-	Title  string
-	Admin  bool   // muestra la navegación de administración
-	Active string // sección activa del menú lateral: "machines" | "orders"
-	Data   any
+	Title   string
+	Admin   bool   // muestra la navegación de administración
+	Landing bool   // la landing controla su propio layout (sin .pubwrap)
+	Active  string // sección activa del menú lateral: "machines" | "orders"
+	Data    any
 }
 
 // render compone base.html con la plantilla `name` (que define "content").
@@ -488,7 +507,7 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 
 	switch o.Status {
 	case "paid", "paid_sim", "dispensed":
-		s.renderQR(w, m, o)
+		s.renderQR(w, r, m, o)
 	case "ambiguous":
 		// Regla de seguridad ADR-018: un pago casó con ≥2 órdenes; no se dispensa.
 		// El cliente ve un mensaje de soporte (no un QR ni un error técnico).
@@ -547,9 +566,42 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// qrItem es una línea de la compra con el nombre del producto resuelto, para que
+// el cliente vea QUÉ compró junto al QR (no solo el total).
+type qrItem struct {
+	Qty      int
+	Name     string
+	Slot     int
+	PriceCOP int64
+}
+
+// orderItemNames resuelve el nombre de producto de cada línea de la orden a partir
+// del catálogo de la máquina. Si un canal ya no tiene producto asignado, cae a
+// "Canal #N" (la orden es histórica y no debe romperse por eso).
+func (s *Server) orderItemNames(ctx context.Context, o *store.Order) []qrItem {
+	names := map[int]string{}
+	if cat, err := s.st.Catalog(ctx, o.MachineID); err == nil {
+		for _, row := range cat {
+			names[row.Slot] = row.ProductName
+		}
+	}
+	out := make([]qrItem, 0, len(o.Items))
+	for _, it := range o.Items {
+		name := names[it.Slot]
+		if name == "" {
+			name = fmt.Sprintf("Canal #%d", it.Slot)
+		}
+		out = append(out, qrItem{Qty: it.Qty, Name: name, Slot: it.Slot, PriceCOP: it.PriceCOP})
+	}
+	return out
+}
+
 // renderQR muestra el QR de una orden ya pagada (token firmado guardado en la
 // orden). Sim indica si fue un pago simulado (para el aviso de la plantilla).
-func (s *Server) renderQR(w http.ResponseWriter, m *store.Machine, o *store.Order) {
+// Pasa los segundos que le quedan al token para el contador regresivo y, si ya
+// venció, el estado expirado con la opción de re-emitirlo (el pago sigue siendo
+// válido: solo caducó la ventana de 5 min del contrato).
+func (s *Server) renderQR(w http.ResponseWriter, r *http.Request, m *store.Machine, o *store.Order) {
 	if o.Token == "" {
 		http.Error(w, "la orden está pagada pero no tiene token emitido (revisar servidor)", http.StatusInternalServerError)
 		return
@@ -559,21 +611,32 @@ func (s *Server) renderQR(w http.ResponseWriter, m *store.Machine, o *store.Orde
 		http.Error(w, "no se pudo generar el QR: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	secondsLeft := o.Exp - time.Now().Unix()
+	if secondsLeft < 0 {
+		secondsLeft = 0
+	}
 	s.render(w, "machine_qr.html", page{
 		Title: "Tu QR · Máquina " + m.ID,
 		Data: struct {
-			Machine   *store.Machine
-			Items     []store.OrderItem
-			TotalCOP  int64
-			Jti       string
-			Exp       int64
-			Token     string
-			TokenLen  int
-			QRDataURI template.URL
-			Sim       bool
-			Debug     bool
+			Machine     *store.Machine
+			Items       []qrItem
+			TotalCOP    int64
+			Jti         string
+			Exp         int64
+			SecondsLeft int64
+			Countdown   string // mm:ss inicial (el JS sigue contando)
+			Expired     bool   // el QR ya venció: se muestra atenuado + re-emitir
+			Dispensed   bool   // la máquina ya lo consumió: no se re-emite
+			Token       string
+			TokenLen    int
+			QRDataURI   template.URL
+			Sim         bool
+			Debug       bool
 		}{
-			Machine: m, Items: o.Items, TotalCOP: o.TotalCOP, Jti: o.Jti, Exp: o.Exp,
+			Machine: m, Items: s.orderItemNames(r.Context(), o), TotalCOP: o.TotalCOP,
+			Jti: o.Jti, Exp: o.Exp, SecondsLeft: secondsLeft,
+			Countdown: fmt.Sprintf("%d:%02d", secondsLeft/60, secondsLeft%60),
+			Expired:   secondsLeft <= 0, Dispensed: o.Status == "dispensed",
 			Token: o.Token, TokenLen: len(o.Token), QRDataURI: template.URL(dataURI),
 			Sim: o.Status == "paid_sim",
 			// El bloque de token (inspección) solo se muestra en modo desarrollo:
@@ -582,6 +645,41 @@ func (s *Server) renderQR(w http.ResponseWriter, m *store.Machine, o *store.Orde
 			Debug: s.allowSim,
 		},
 	})
+}
+
+// handleReemitirQR re-firma el token de una orden ya pagada cuyo QR venció sin
+// dispensar ("Generar uno nuevo"). El pago no se repite: se conserva el mismo
+// `jti` (un solo uso, contrato §3) y solo se renueva `exp`, así que el cliente no
+// pierde su compra por quedarse mirando un QR caducado. No aplica a órdenes
+// pendientes (nadie pagó) ni ya dispensadas (el producto salió).
+func (s *Server) handleReemitirQR(w http.ResponseWriter, r *http.Request) {
+	id, jti := r.PathValue("id"), r.PathValue("jti")
+	if _, err := s.st.GetMachine(r.Context(), id); err != nil {
+		s.machineNotFound(w, id)
+		return
+	}
+	o, err := s.st.GetOrder(r.Context(), jti)
+	if err != nil || o.MachineID != id {
+		s.notFound(w, "Orden no encontrada")
+		return
+	}
+	if o.Status != "paid" && o.Status != "paid_sim" {
+		http.Error(w, "esta orden no puede re-emitir el QR (estado: "+o.Status+")", http.StatusConflict)
+		return
+	}
+	token, exp, err := s.SignOrder(r.Context(), *o)
+	if err != nil {
+		http.Error(w, "no se pudo firmar el nuevo QR: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	if ok, err := s.st.RefreshOrderToken(r.Context(), jti, token, exp); err != nil {
+		http.Error(w, "no se pudo guardar el nuevo QR: "+err.Error(), http.StatusInternalServerError)
+		return
+	} else if !ok {
+		http.Error(w, "esta orden ya no puede re-emitir el QR", http.StatusConflict)
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/m/%s/orden/%s/estado", id, jti), http.StatusSeeOther)
 }
 
 // SignOrder implementa concil.Emitter: firma el token v2 de una orden ya conciliada
@@ -1191,6 +1289,40 @@ func (s *Server) handleAdminMovements(w http.ResponseWriter, r *http.Request) {
 		Admin:  true,
 		Active: "movements",
 		Data:   struct{ Movements []movView }{views},
+	})
+}
+
+// handleAdminLeads lista los interesados que dejaron sus datos en la landing
+// (landing-v1 §4): la semilla del CRM. Son PII, así que la ruta va protegida como
+// el resto del panel y NUNCA se exponen en páginas públicas. Más recientes primero
+// (el orden lo da ListLeads).
+func (s *Server) handleAdminLeads(w http.ResponseWriter, r *http.Request) {
+	leads, err := s.st.ListLeads(r.Context(), 200)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	type leadView struct {
+		store.Lead
+		Fecha          string
+		SpaceTypeLabel string // etiqueta legible del tipo de espacio
+		Origen         string // `source` en mayúsculas, para la pastilla
+	}
+	views := make([]leadView, 0, len(leads))
+	for _, l := range leads {
+		views = append(views, leadView{
+			Lead: l,
+			// Con año: un lead vive mucho más que un movimiento del día.
+			Fecha:          time.Unix(l.CreatedAt, 0).In(bogota).Format("02/01/06 15:04"),
+			SpaceTypeLabel: spaceTypeLabel(l.SpaceType),
+			Origen:         strings.ToUpper(l.Source),
+		})
+	}
+	s.render(w, "admin_leads.html", page{
+		Title:  "Interesados · GRABI",
+		Admin:  true,
+		Active: "leads",
+		Data:   struct{ Leads []leadView }{views},
 	})
 }
 

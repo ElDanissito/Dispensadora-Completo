@@ -50,7 +50,7 @@ jobs:
       - name: Test (contra Postgres)
         env:
           TEST_DATABASE_URL: "postgres://grabi:grabi@localhost:5432/grabi_test?sslmode=disable"
-        # -p 1: los paquetes 'store' y 'concil' comparten la misma base de pruebas;
+        # -p 1: los paquetes 'store', 'concil' y 'web' comparten la misma base de pruebas;
         # correrlos en serie evita que el TRUNCATE de uno pise los datos del otro.
         run: go test -p 1 -count=1 ./...
 
