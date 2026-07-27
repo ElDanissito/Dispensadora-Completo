@@ -5,6 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0A0E0C">
 <title>{{.Title}}</title>
+<meta name="description" content="{{.Desc}}">
+
+{{/* Marca: favicon, ícono de app y manifiesto (identidad-visual-v1 §8/§9).
+     Los assets van embebidos en el binario y se sirven en /static/brand/. */}}
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/brand/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/brand/favicon-16.png">
+<link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+<link rel="manifest" href="/static/manifest.webmanifest">
+
+{{/* Previsualización al compartir. Las URL son ABSOLUTAS: quien lee estas metas
+     es un scraper externo, no el navegador, y no resuelve rutas relativas. */}}
+<link rel="canonical" href="{{.CanonURL}}">
+<meta property="og:site_name" content="GRABI">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="es_CO">
+<meta property="og:title" content="{{.Title}}">
+<meta property="og:description" content="{{.Desc}}">
+<meta property="og:url" content="{{.CanonURL}}">
+<meta property="og:image" content="{{.ImageURL}}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="GRABI · Escanea, paga, agárralo.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{.Title}}">
+<meta name="twitter:description" content="{{.Desc}}">
+<meta name="twitter:image" content="{{.ImageURL}}">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Archivo:wght@400;600;800;900&display=swap" rel="stylesheet">
