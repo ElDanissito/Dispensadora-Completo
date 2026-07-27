@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"io/fs"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -43,6 +45,20 @@ const (
 // Configuración de subida de imágenes (ui-web-v1 §3.1).
 const maxImageBytes = 5 << 20 // 5 MiB
 
+// Marca (identidad-visual-v1 §9). Los assets viven en internal/web/static y van
+// EMBEBIDOS en el binario: la imagen de producción es distroless y solo lleva el
+// ejecutable, así que un archivo fuera del embed no existiría en la EC2.
+const (
+	// siteBaseDefault es la base absoluta del sitio. Solo se usa para las URL
+	// que DEBEN ser absolutas (og:url, og:image): los enlaces del <head> van
+	// relativos. Sobreescribible con GRABI_SITE_URL (staging/pruebas).
+	siteBaseDefault = "https://grabi.napi.lat"
+	// socialImagePath es la imagen 1200×630 de previsualización al compartir.
+	socialImagePath = "/static/brand/social-1200x630.png"
+	// metaDescDefault es la descripción por defecto (meta description + og/twitter).
+	metaDescDefault = "Máquinas expendedoras sin efectivo ni datáfono. Escanea el QR de la máquina, paga con Bre-B desde el celular y agárralo."
+)
+
 // extPorTipo son los tipos de imagen aceptados (Content-Type detectado → extensión).
 var extPorTipo = map[string]string{
 	"image/jpeg": ".jpg",
@@ -53,6 +69,26 @@ var extPorTipo = map[string]string{
 
 //go:embed templates/*.html
 var tmplFS embed.FS
+
+//go:embed static
+var staticFS embed.FS
+
+// staticRoot es la raíz de lo que se sirve en /static/ (el embed sin su prefijo
+// "static/"). El árbol es fijo en tiempo de compilación: si fs.Sub fallara sería
+// un error del propio embed, no algo que pueda pasar en ejecución.
+var staticRoot = func() fs.FS {
+	sub, err := fs.Sub(staticFS, "static")
+	if err != nil {
+		panic("web: embed static/ inválido: " + err.Error())
+	}
+	return sub
+}()
+
+func init() {
+	// Go no conoce .webmanifest: sin registrarlo el navegador recibiría
+	// text/plain y descartaría el manifiesto.
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+}
 
 // bogota es la zona horaria del piloto (Colombia, UTC-5, sin DST).
 var bogota = time.FixedZone("COT", -5*3600)
@@ -116,6 +152,7 @@ type Server struct {
 	payWindow time.Duration      // ventana de validez de pago de las órdenes
 	uploadDir string             // carpeta de datos donde se guardan las fotos subidas (git-ignored)
 	uniqueAmt bool               // true = fallback por monto único; false = monto exacto + nombre (ADR-018)
+	site      string             // base absoluta del sitio para og:url / og:image (sin barra final)
 
 	mu       sync.Mutex           // protege sessions
 	sessions map[string]time.Time // token de sesión → expiración (ui-web-v1 §5)
@@ -148,9 +185,16 @@ func New(st *store.Store, adminUser, adminPass string, priv ed25519.PrivateKey, 
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		return nil, fmt.Errorf("creando carpeta de subidas %s: %w", uploadDir, err)
 	}
+	// Las metas sociales exigen URL absolutas y las lee un scraper (no el
+	// navegador del visitante), así que no pueden depender del Host de la
+	// petición: base canónica fija, sobreescribible por entorno.
+	site := strings.TrimRight(os.Getenv("GRABI_SITE_URL"), "/")
+	if site == "" {
+		site = siteBaseDefault
+	}
 	s := &Server{st: st, tmpl: base, adminUser: adminUser, adminPass: adminPass,
 		priv: priv, allowSim: allowSim, payWindow: payWindow, uploadDir: uploadDir,
-		uniqueAmt: uniqueAmt, sessions: make(map[string]time.Time),
+		uniqueAmt: uniqueAmt, site: site, sessions: make(map[string]time.Time),
 		leadHits: make(map[string][]time.Time)}
 	return s, nil
 }
@@ -209,8 +253,18 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /m/{id}/simular-pago", s.handleSimularPago)
 
 	// Fotos de producto subidas por el admin (ui-web-v1 §3.1). Servidas estáticas.
-	fs := http.StripPrefix("/uploads/", http.FileServer(http.Dir(s.uploadDir)))
-	mux.Handle("GET /uploads/", fs)
+	up := http.StripPrefix("/uploads/", http.FileServer(http.Dir(s.uploadDir)))
+	mux.Handle("GET /uploads/", up)
+
+	// Assets de marca embebidos: favicon, íconos, imagen social, wordmark y el
+	// manifiesto (identidad-visual-v1 §9).
+	mux.Handle("GET /static/", http.StripPrefix("/static/", cacheEstatico(http.FileServerFS(staticRoot))))
+	// Los navegadores piden /favicon.ico a la raíz aunque haya <link rel="icon">;
+	// sin esto caería en el catch-all y devolvería la página 404 en HTML.
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		http.ServeFileFS(w, r, staticRoot, "brand/favicon.ico")
+	})
 
 	// Login del panel (ui-web-v1 §5): página propia + sesión por cookie.
 	mux.HandleFunc("GET /admin/login", s.handleLoginForm)
@@ -247,14 +301,40 @@ func (s *Server) Routes() http.Handler {
 // page es el envoltorio que reciben todas las plantillas.
 type page struct {
 	Title   string
+	Desc    string // meta description + og/twitter description; "" ⇒ metaDescDefault
+	Path    string // ruta canónica de esta página para og:url; "" ⇒ "/"
 	Admin   bool   // muestra la navegación de administración
 	Landing bool   // la landing controla su propio layout (sin .pubwrap)
 	Active  string // sección activa del menú lateral: "machines" | "orders"
 	Data    any
+
+	// Los rellena render a partir de Desc/Path; el handler no los toca.
+	CanonURL string // og:url absoluta
+	ImageURL string // og:image / twitter:image absoluta
+}
+
+// cacheEstatico marca los assets de marca como cacheables un día: cambian poco y
+// se piden en cada visita.
+func cacheEstatico(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // render compone base.html con la plantilla `name` (que define "content").
 func (s *Server) render(w http.ResponseWriter, name string, p page) {
+	// Metas de marca: base.html las pinta en TODAS las páginas, así que la home
+	// y las públicas las heredan sin que cada handler las repita.
+	if p.Desc == "" {
+		p.Desc = metaDescDefault
+	}
+	if p.Path == "" {
+		p.Path = "/"
+	}
+	p.CanonURL = s.site + p.Path
+	p.ImageURL = s.site + socialImagePath
+
 	t, err := s.tmpl.Clone()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -383,6 +463,8 @@ func (s *Server) handleMachinePublic(w http.ResponseWriter, r *http.Request) {
 	}
 	s.render(w, "machine_public.html", page{
 		Title: machineTitle(m, ""),
+		// La URL que de verdad se comparte/escanea de esta página.
+		Path:  "/m/" + m.ID,
 		Admin: false,
 		Data: struct {
 			Machine   *store.Machine

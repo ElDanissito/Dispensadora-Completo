@@ -25,6 +25,9 @@ software/data/
 # QR / imágenes generadas en pruebas locales (los vectores versionados van aparte)
 *.png
 !especificaciones/**/*.png
+# Excepción: los assets de marca SÍ van al repo (se embeben en el binario, ver
+# identidad-visual-v1 §9). Sin esto el favicon/OG no llegarían a producción.
+!software/internal/web/static/brand/*.png
 
 # Capturas de UI: pueden mostrar datos reales (llave/nombre) → no al repo público
 especificaciones/ui-web-v1-capturas/
