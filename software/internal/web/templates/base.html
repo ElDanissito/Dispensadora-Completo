@@ -276,6 +276,7 @@
   .otable{border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
   .otable .ohead,.otable .orow{display:grid; grid-template-columns:74px 58px 1fr 96px 150px 132px; gap:12px; padding:13px 18px; align-items:center;}
   .otable.mv .ohead,.otable.mv .orow{grid-template-columns:128px 90px 1fr 150px 140px;}
+  .otable.ld .ohead,.otable.ld .orow{grid-template-columns:132px 1fr 180px 118px 132px 96px;}
   .otable .ohead{background:var(--surface-2); font-family:var(--mono); font-size:.7rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); font-weight:600; border-bottom:1px solid var(--line);}
   .otable .orow{border-bottom:1px solid var(--line-soft); font-size:.9rem;}
   .otable .orow:last-child{border-bottom:none;}
@@ -711,6 +712,7 @@
     <a class="nav-item{{if eq .Active "machines"}} active{{end}}" href="/admin">Máquinas</a>
     <a class="nav-item{{if eq .Active "orders"}} active{{end}}" href="/admin/orders">Órdenes</a>
     <a class="nav-item{{if eq .Active "movements"}} active{{end}}" href="/admin/movements">Movimientos</a>
+    <a class="nav-item{{if eq .Active "leads"}} active{{end}}" href="/admin/leads">Interesados</a>
     <div class="side-foot">
       <form method="post" action="/admin/logout"><button type="submit" class="secondary" style="width:100%">Salir</button></form>
     </div>
@@ -718,7 +720,7 @@
   <div class="acol">
     <header class="atop">
       <span class="brand">GRABI<span class="dot">.</span></span>
-      <span class="atop-sec">{{if eq .Active "orders"}}Órdenes{{else if eq .Active "movements"}}Movimientos{{else}}Máquinas{{end}}</span>
+      <span class="atop-sec">{{if eq .Active "orders"}}Órdenes{{else if eq .Active "movements"}}Movimientos{{else if eq .Active "leads"}}Interesados{{else}}Máquinas{{end}}</span>
     </header>
     <main class="amain">{{template "content" .Data}}</main>
   </div>
@@ -727,6 +729,7 @@
   <a class="ab-item{{if eq .Active "machines"}} active{{end}}" href="/admin">Máquinas</a>
   <a class="ab-item{{if eq .Active "orders"}} active{{end}}" href="/admin/orders">Órdenes</a>
   <a class="ab-item{{if eq .Active "movements"}} active{{end}}" href="/admin/movements">Movs.</a>
+  <a class="ab-item{{if eq .Active "leads"}} active{{end}}" href="/admin/leads">Interes.</a>
 </nav>
 
 <div class="modal-backdrop" id="warnModal" role="dialog" aria-modal="true">

@@ -229,6 +229,8 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /admin/m/{id}/slot/{slot}/delete", s.auth(http.HandlerFunc(s.handleDeleteSlot)))
 	mux.Handle("GET /admin/orders", s.auth(http.HandlerFunc(s.handleAdminOrders)))
 	mux.Handle("GET /admin/movements", s.auth(http.HandlerFunc(s.handleAdminMovements)))
+	// Interesados de la landing (landing-v1 §4). PII: solo admin autenticado.
+	mux.Handle("GET /admin/leads", s.auth(http.HandlerFunc(s.handleAdminLeads)))
 
 	// Raíz → landing pública de la marca (landing-v1 §1). El panel vive en /admin.
 	mux.HandleFunc("GET /{$}", s.handleLanding)
@@ -1287,6 +1289,40 @@ func (s *Server) handleAdminMovements(w http.ResponseWriter, r *http.Request) {
 		Admin:  true,
 		Active: "movements",
 		Data:   struct{ Movements []movView }{views},
+	})
+}
+
+// handleAdminLeads lista los interesados que dejaron sus datos en la landing
+// (landing-v1 §4): la semilla del CRM. Son PII, así que la ruta va protegida como
+// el resto del panel y NUNCA se exponen en páginas públicas. Más recientes primero
+// (el orden lo da ListLeads).
+func (s *Server) handleAdminLeads(w http.ResponseWriter, r *http.Request) {
+	leads, err := s.st.ListLeads(r.Context(), 200)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	type leadView struct {
+		store.Lead
+		Fecha          string
+		SpaceTypeLabel string // etiqueta legible del tipo de espacio
+		Origen         string // `source` en mayúsculas, para la pastilla
+	}
+	views := make([]leadView, 0, len(leads))
+	for _, l := range leads {
+		views = append(views, leadView{
+			Lead: l,
+			// Con año: un lead vive mucho más que un movimiento del día.
+			Fecha:          time.Unix(l.CreatedAt, 0).In(bogota).Format("02/01/06 15:04"),
+			SpaceTypeLabel: spaceTypeLabel(l.SpaceType),
+			Origen:         strings.ToUpper(l.Source),
+		})
+	}
+	s.render(w, "admin_leads.html", page{
+		Title:  "Interesados · GRABI",
+		Admin:  true,
+		Active: "leads",
+		Data:   struct{ Leads []leadView }{views},
 	})
 }
 

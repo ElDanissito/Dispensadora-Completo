@@ -125,7 +125,6 @@ aviso explícito de que no se ponen imágenes de relleno.
   2. Falta el campo **"Nombre de quien transfiere"**, que en producción va en esa misma pantalla
      (encima de la barra de pago) y es **obligatorio** para pagar (ADR-018). Hoy el nombre aparece
      en la pantalla de pago del paso 3 sin que se haya visto dónde se escribe.
-- **Sección "Interesados" del admin** (v1 §4). La **tabla `leads` ya existe** y el formulario la
-  llena (v1 §5): hasta que haya panel, los leads se consultan en la base
-  (`SELECT * FROM leads ORDER BY created_at DESC;`).
+- ~~Tabla `leads` + sección "Interesados" del admin (v1 §4–§5)~~ → **hechas**: el formulario
+  persiste el lead y el panel lo lista en `GET /admin/leads`.
 - Fotos reales de producto: los thumbnails de la pantalla de tienda son ilustraciones SVG.

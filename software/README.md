@@ -99,13 +99,15 @@ ADMIN_PASS=algo-seguro ./dispensadoras-web -seed   # -seed carga datos de demo
   filtra bots (honeypot + tope de 5 envíos por IP cada 10 min), **guarda el lead en la tabla
   `leads`** y redirige a `/?gracias=1`. `space_type` solo acepta `conjunto|oficina|negocio|otro`.
   PII mínima: el log solo deja `id`, origen, tipo de espacio y ciudad (el nombre y el WhatsApp
-  viven en la base). ⚠️ La sección **"Interesados"** del panel sigue pendiente: hasta entonces los
-  leads se consultan en la base (`SELECT * FROM leads ORDER BY created_at DESC;`).
+  viven en la base). Se consultan en el panel: **Interesados** (`GET /admin/leads`).
 - **Re-emitir el QR:** `POST /m/{id}/orden/{jti}/reemitir` vuelve a firmar el token de una orden ya
   pagada cuyo QR venció sin dispensar. Conserva el `jti` (un solo uso, contrato §3) y solo renueva
   `exp`; no aplica a órdenes pendientes, dispensadas ni canceladas.
 - Rutas admin: `GET /admin`, `POST /admin/machines`, `POST /admin/products`, `GET /admin/m/{id}`,
-  `POST /admin/m/{id}/slot`, `GET /admin/orders`.
+  `POST /admin/m/{id}/slot`, `GET /admin/orders`, `GET /admin/movements`, `GET /admin/leads`.
+- **Interesados en el panel** (`GET /admin/leads`, landing-v1 §4): lista los leads de `leads`
+  (fecha, nombre, tipo de espacio, ciudad, WhatsApp, origen), más recientes primero. Es **PII**:
+  ruta protegida por sesión, nunca en páginas públicas.
 
 ### Ciclo web→máquina (pago REAL Bre-B por conciliación de correo)
 

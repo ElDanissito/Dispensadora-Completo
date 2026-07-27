@@ -3,8 +3,9 @@
 > ⚠️ **Superada por [`landing-v2.md`](./landing-v2.md)** (ADR-024) en lo que toca a estructura de
 > secciones (§2), campos del formulario (§3) y hero. Siguen vigentes de este documento: §4
 > (sección "Interesados" del admin), §5 (tabla `leads`), §6 (errores/404) y §7 (notas técnicas).
-> De esos, **§5 ya está implementado** (tabla `leads` + el formulario la persiste) y **§4 sigue
-> pendiente**.
+> **§4 y §5 ya están implementados**: tabla `leads`, el formulario la persiste y el panel la lista
+> en `GET /admin/leads`. Los estados del lead (nuevo/contactado/descartado) y las notas siguen
+> siendo trabajo futuro, como dice §4.
 
 > Requisitos para el agente de **Software (02)**. Implementar sobre lo que ya existe,
 > **server-rendered** (Go templates + JS mínimo, **sin SPA**, ADR-011bis) y **reutilizando el

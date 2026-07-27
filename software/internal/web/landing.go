@@ -54,6 +54,18 @@ func validSpaceType(v string) bool {
 	return false
 }
 
+// spaceTypeLabel traduce la clave guardada en `leads.space_type` a su etiqueta
+// legible (formulario y panel de interesados). Si la clave no está en la lista
+// —dato viejo o insertado a mano— se muestra tal cual, sin ocultarla.
+func spaceTypeLabel(key string) string {
+	for _, st := range spaceTypes {
+		if st.Key == key {
+			return st.Label
+		}
+	}
+	return key
+}
+
 // leadForm son los campos del formulario B2B de la landing (landing-v2 §5):
 // nombre, tipo de espacio, ciudad y WhatsApp, todos obligatorios. Reemplaza el
 // formulario de correo+celular de landing-v1 §3: el canal real es WhatsApp.
@@ -64,16 +76,8 @@ type leadForm struct {
 	Phone     string
 }
 
-// SpaceTypeLabel devuelve la etiqueta legible del tipo elegido (para el log y,
-// cuando exista la tabla, para el panel).
-func (f leadForm) SpaceTypeLabel() string {
-	for _, st := range spaceTypes {
-		if st.Key == f.SpaceType {
-			return st.Label
-		}
-	}
-	return f.SpaceType
-}
+// SpaceTypeLabel devuelve la etiqueta legible del tipo elegido (para la vista).
+func (f leadForm) SpaceTypeLabel() string { return spaceTypeLabel(f.SpaceType) }
 
 // handleLanding sirve la home pública de la marca (landing-v2 §1). Es también el
 // destino del botón "volver a inicio" de las páginas de error/404.
