@@ -441,10 +441,12 @@
      aire arriba y abajo se ve intencionado (antes el aviso quedaba clavado al
      fondo con un vacío enorme en medio). */
   .scr-pay{padding:1em 1.1em; gap:.75em; align-items:stretch; justify-content:center;}
-  .pay-top{display:flex; align-items:center; gap:.7em;}
-  .pay-top .spin{width:1.8em; height:1.8em; flex:none; border-radius:50%; border:2px solid var(--line); border-top-color:var(--accent); animation:spin 1s linear infinite;}
-  .pay-top .t{font-weight:700; font-size:.9em;}
-  .pay-top .d{font-family:var(--mono); font-size:.62em; color:var(--muted); margin-top:.15em;}
+  /* Columna centrada con el spinner arriba: igual que el bloque .stack de la
+     pantalla real de pago (antes iba en fila, alineado a la izquierda). */
+  .pay-top{display:flex; flex-direction:column; align-items:center; text-align:center; gap:.5em; margin-bottom:.3em;}
+  .pay-top .spin{width:2.3em; height:2.3em; flex:none; border-radius:50%; border:2px solid var(--line); border-top-color:var(--accent); animation:spin 1s linear infinite;}
+  .pay-top .t{font-weight:700; font-size:.95em;}
+  .pay-top .d{font-family:var(--mono); font-size:.62em; line-height:1.5; color:var(--muted); margin-top:.15em;}
   .pay-card{border:1px solid var(--line); border-radius:.6em; padding:.8em; text-align:center;}
   .pay-card .l{font-family:var(--mono); font-size:.6em; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);}
   .pay-card .v{font-family:var(--mono); font-weight:700; font-size:1.7em; color:var(--accent); margin:.15em 0 .5em;}
