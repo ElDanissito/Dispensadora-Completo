@@ -65,26 +65,22 @@
             <span class="n">1</span>
             <div class="st">Escanea el QR de la máquina</div>
             <div class="sd">El QR pegado en la máquina <b>solo abre su tienda</b> en tu navegador: no es un comprobante ni sirve para retirar. También puedes escribir la dirección a mano.</div>
-            <div class="lshot">{{template "phone_screen_only" dict "Screen" "camara" "Data" .}}</div>
           </li>
           <li class="lstepx" data-screen="tienda">
             <span class="n">2</span>
             <div class="st">Elige tus productos</div>
             <div class="sd">Ves lo que hay <b>en esa máquina</b> con precio y unidades disponibles. Sumas cantidades y el total se calcula solo.</div>
-            <div class="lshot">{{template "phone_screen_only" dict "Screen" "tienda" "Data" .}}</div>
           </li>
           <li class="lstepx" data-screen="pago">
             <span class="n">3</span>
             <div class="st">Paga con Bre-B desde tu app bancaria</div>
             <div class="sd">La página te muestra el <b>monto exacto</b> y la <b>llave Bre-B</b> de la máquina. Transfieres desde tu banco y vuelves: nosotros esperamos la confirmación.</div>
-            <div class="lshot">{{template "phone_screen_only" dict "Screen" "pago" "Data" .}}</div>
           </li>
           <li class="lstepx" data-screen="qr">
             <span class="n">4</span>
             <div class="st">Recibe tu QR firmado, acércalo al lector y agárralo</div>
             <div class="sd">Este QR <b>sí es tuyo</b>: va firmado digitalmente, sirve <b>una sola vez</b> y es el que la máquina lee para entregarte el producto.</div>
             <div class="lsafe">El QR de retiro aparece <b>solo cuando el banco confirma tu pago</b>. Nunca por pantallazo.</div>
-            <div class="lshot">{{template "phone_screen_only" dict "Screen" "qr" "Data" .}}</div>
           </li>
         </ol>
 
@@ -393,6 +389,10 @@
 
   // --- 3. "Cómo funciona": el paso visible manda la pantalla del teléfono sticky,
   //        y la sección visible manda el enlace resaltado del nav ---
+  // En móvil (<820px) no hay teléfono sticky ni enlaces de nav: no hay nada que
+  // sincronizar, así que no se gasta un rAF por cada frame de scroll. Se consulta
+  // en cada evento (no una vez) para que un escritorio redimensionado despierte.
+  var mqDesk = window.matchMedia('(min-width: 820px)');
   var steps = [].slice.call(document.querySelectorAll('.lstepx')),
       canvas = document.getElementById('howCanvas'),
       layers = canvas ? [].slice.call(canvas.querySelectorAll('.lscr')) : [],
@@ -415,13 +415,13 @@
   }
   var syncRaf = null;
   function pedirSync(){
-    if(syncRaf) return;
+    if(syncRaf || !mqDesk.matches) return;
     syncRaf = requestAnimationFrame(function(){ syncRaf = null; sincronizar(); });
   }
   window.addEventListener('scroll', pedirSync, {passive:true});
   window.addEventListener('resize', pedirSync);
   window.addEventListener('load', pedirSync);
-  sincronizar();
+  pedirSync();
 
   // --- 4. Teléfono del hero: inclinación suave con el cursor (máx ~5°) ---
   var phone = document.getElementById('lphone'), hero = document.querySelector('.lhero');
@@ -479,11 +479,6 @@
   </div>
   <span class="lph-home"></span>
 </div>
-{{end}}
-
-{{/* Solo la pantalla (captura estática de móvil, sin marco). */}}
-{{define "phone_screen_only"}}
-{{template "phone_shell" .}}
 {{end}}
 
 {{/* Paso 1 — la cámara del celular sobre el QR pegado en la máquina. */}}

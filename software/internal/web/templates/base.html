@@ -359,7 +359,9 @@
 
   /* Composición de dos teléfonos + glow verde que los separa del fondo.
      El trasero solo aparece cuando hay ancho de sobra (≥1180px). */
-  .lhero-art{position:relative; flex:none; align-self:center;}
+  /* En móvil el hero es solo texto + CTAs: la composición de teléfonos se oculta
+     (ver el bloque de .lhow-phone). Se muestra desde 820px. */
+  .lhero-art{display:none; position:relative; flex:none; align-self:center;}
   .lhero-art::before{content:""; position:absolute; inset:-14% -20%; z-index:0; background:radial-gradient(52% 46% at 58% 46%,rgba(59,232,127,.17),transparent 72%); filter:blur(18px);}
   .lart-front{position:relative; z-index:2;}
   .lart-back{position:absolute; left:0; top:7%; z-index:1; opacity:.55; filter:blur(1.1px); transform:scale(.86) rotate(-4deg); pointer-events:none;}
@@ -490,11 +492,10 @@
   .lstepx .sd b{color:var(--fg); font-weight:600;}
   .lsafe{margin-top:12px; font-size:.9rem; line-height:1.6; color:var(--muted); border-left:2px solid var(--accent); padding-left:12px;}
   .lsafe b{color:var(--accent-2); font-weight:600;}
+  /* Móvil: sin maquetas de teléfono. Los pasos se leen como texto (el recorrido
+     se entiende sin la captura) y la página se ahorra pintar 10 pantallas con
+     blur, glow y transforms en un celular de gama media. */
   .lhow-phone{display:none;}
-  /* Captura estática bajo cada paso (móvil). */
-  .lshot{--lph-w:min(300px,calc(100vw - 96px)); margin-top:16px;}
-  .lshot .lphone-screen{width:var(--lph-w); aspect-ratio:9 / 18; border:1px solid var(--line); border-radius:var(--radius); font-size:calc(var(--lph-w)/24); box-shadow:none;}
-  .lshot .lscr{opacity:1; transform:none;}
 
   /* ---------- Puente ---------- */
   .lbridge > .lwrap{padding-top:52px; padding-bottom:52px; text-align:center;}
@@ -584,7 +585,7 @@
     .lstepx:first-child{padding-top:28px;}
     .lstepx .st{font-size:1.5rem;}
     .lstepx .sd{font-size:1rem;}
-    .lshot{display:none;}
+    .lhero-art{display:block;}
     .lhow-phone{display:block; position:sticky; top:98px;}
     .lb2b-grid{grid-template-columns:repeat(2,1fr); gap:20px;}
     .lb2b-grid.tres{grid-template-columns:repeat(3,1fr);}

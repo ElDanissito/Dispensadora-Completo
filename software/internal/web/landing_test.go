@@ -84,12 +84,17 @@ func TestLandingEsLaHome(t *testing.T) {
 			t.Errorf("la landing no contiene %q", want)
 		}
 	}
-	// Las cuatro pantallas del recorrido deben estar en la página (sticky + móvil).
+	// Las cuatro pantallas del recorrido deben estar en la página (teléfono sticky).
 	for _, want := range []string{"Apunta al QR pegado en la máquina", "Pagar con Bre-B →",
 		"Esperando tu pago…", "Tu QR está listo"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("falta la pantalla con %q", want)
 		}
+	}
+	// En móvil no se pintan maquetas de teléfono, así que la página NO debe volver a
+	// traer las capturas estáticas por paso (eran 4 marcos duplicados, ~7 KB).
+	if strings.Contains(body, "lshot") {
+		t.Error("volvieron las capturas estáticas de móvil (.lshot)")
 	}
 	// Sin GRABI_WHATSAPP configurado no se publica ningún contacto inventado.
 	if strings.Contains(body, "wa.me/") {

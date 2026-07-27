@@ -39,7 +39,9 @@
   Delantero (protagonista): **pantalla del QR firmado** con "✓ pago confirmado".
 - Inclinación **máx. 4–6°** (el texto interno debe seguir legible). Glow verde detrás y fondo de
   pantalla más claro que el de la página, para separar los dispositivos del lienzo.
-- **Fallback:** por debajo de 1180px de ancho queda **un solo teléfono** (el del QR).
+- **Fallback:** por debajo de 1180px de ancho queda **un solo teléfono** (el del QR) y **por debajo
+  de 820px no se muestra ninguno**: en móvil el hero es texto + CTAs, y así los botones quedan
+  arriba sin scroll.
 - Las pantallas son **réplicas de las pantallas reales** (`machine_public`, `machine_pago`,
   `machine_qr`): mismo copy, mismos elementos, mismo orden. Nunca capturas con productos sin imagen
   ni con "AGOTADO".
@@ -57,7 +59,9 @@
   (no es comprobante); el firmado **retira el producto**. Incluye la línea de seguridad de
   producción: *"El QR de retiro aparece solo cuando el banco confirma tu pago. Nunca por pantallazo."*
 - `prefers-reduced-motion`: transiciones instantáneas.
-- **Móvil:** pasos apilados, cada uno con su **captura estática** debajo. Sin sticky.
+- **Móvil:** pasos apilados **solo texto**, sin sticky y **sin capturas**. La maqueta de teléfono
+  dentro de una pantalla de teléfono no aporta, y pintarla salía caro: eran cuatro marcos más
+  (~7 KB de HTML) con blur, glow y transforms. El recorrido se entiende leyéndolo.
 
 ## 4. Sección B2B — "Ten tu propia GRABI"
 

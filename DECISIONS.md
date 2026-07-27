@@ -15,8 +15,8 @@
   Orden: hero → cómo funciona → puente → **para tu negocio** → por qué GRABI → contacto → piloto → footer.
 - **Cómo funciona = 4 pasos + teléfono sticky.** Se **descartó** el carrusel/acordeón 3D con
   auto-rotación: pelea con la lectura, pesa en Android de gama media e ignora `prefers-reduced-motion`.
-  La pantalla del teléfono cambia con el scroll (CSS, sin WebGL) y en móvil degrada a pasos apilados
-  con captura estática. El paso activo se calcula por **posición respecto a la línea de lectura** (42%
+  La pantalla del teléfono cambia con el scroll (CSS, sin WebGL). El paso activo se calcula por
+  **posición respecto a la línea de lectura** (42%
   del alto), no con bandas de `IntersectionObserver`: con bandas, el enlace del nav y el paso quedaban
   desfasados según el orden de las entradas.
 - **Las pantallas del mockup son réplicas de las pantallas reales** (`machine_public`, `machine_pago`,
@@ -25,6 +25,12 @@
   los thumbnails de la tienda son **ilustraciones SVG** hasta que existan fotos reales.
 - **Inclinación 3D bajada a ~5°** (antes 17°) para que el texto interno siga legible, y **dos teléfonos
   como máximo** en el hero: tienda atenuada detrás, QR firmado delante. Por debajo de 1180px queda uno.
+- **Addendum (2026-07-26): en móvil (<820px) no se pinta NINGUNA maqueta de teléfono.** Ni la del hero
+  ni las capturas por paso (que existían solo para móvil y se eliminaron del HTML: −7 KB por respuesta
+  para todos). Una maqueta de teléfono dentro de un teléfono no aporta, empujaba los CTAs fuera de la
+  primera pantalla y costaba pintar blur + glow + transforms en gama media. El sticky ya no era visible
+  en móvil, así que su sincronización por scroll también se apaga por debajo de 820px (sin rAF por
+  frame). El recorrido se lee como texto; en escritorio no cambia nada.
 - **Formulario B2B** (reemplaza correo+celular de v1 §3): **nombre · tipo de espacio · ciudad ·
   WhatsApp**, los cuatro obligatorios, con validación en vivo y select validado contra lista en el
   servidor. El **botón de WhatsApp** solo aparece si `GRABI_WHATSAPP` está definido: sin número
