@@ -396,7 +396,14 @@
   .scr{flex:1; min-height:0; display:flex; flex-direction:column;}
   .scr-cam{padding:.9em 1.1em 1.1em; gap:.8em;}
   .cam-view{flex:1; position:relative; border-radius:.8em; background:linear-gradient(160deg,#20302a,#0d1310 70%); display:grid; place-items:center; overflow:hidden;}
-  .cam-frame{position:absolute; inset:14% 10%; border-radius:.6em; box-shadow:0 0 0 2px var(--accent) inset; clip-path:polygon(0 0,32% 0,32% 3%,3% 3%,3% 22%,0 22%,0 0, 68% 0,100% 0,100% 22%,97% 22%,97% 3%,68% 3%, 68% 0, 100% 78%,100% 100%,68% 100%,68% 97%,97% 97%,97% 78%, 0 78%,3% 78%,3% 97%,32% 97%,32% 100%,0 100%);}
+  /* Marco de enfoque: un borde redondeado REAL recortado con mask a sus cuatro
+     esquinas. (El clip-path por porcentajes dejaba cortes: los tramos no casaban
+     con el radio.) Sin soporte de mask se ve el rectángulo completo, no roto. */
+  .cam-frame{position:absolute; inset:14% 10%; --cf-len:2.6em; --cf-t:.16em; border:var(--cf-t) solid var(--accent); border-radius:.75em;
+    -webkit-mask:linear-gradient(#000,#000) top left,linear-gradient(#000,#000) top right,linear-gradient(#000,#000) bottom left,linear-gradient(#000,#000) bottom right;
+    mask:linear-gradient(#000,#000) top left,linear-gradient(#000,#000) top right,linear-gradient(#000,#000) bottom left,linear-gradient(#000,#000) bottom right;
+    -webkit-mask-size:var(--cf-len) var(--cf-len); mask-size:var(--cf-len) var(--cf-len);
+    -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;}
   .cam-sticker{width:62%; background:#fff; border-radius:.5em; padding:.5em; display:flex; flex-direction:column; align-items:center; gap:.3em; transform:rotate(-1.5deg);}
   .cam-sticker img{width:100%; display:block; image-rendering:pixelated;}
   .cam-sticker .cs-brand{font-family:var(--display); font-weight:900; font-size:.8em; color:#05130B;}
