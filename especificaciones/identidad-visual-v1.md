@@ -27,10 +27,16 @@
 - **Área de respeto:** margen libre alrededor ≥ la altura de la "G". **Tamaño mínimo legible:** ~72px
   de ancho en pantalla (por debajo de eso, usar la marca compacta, §3).
 
-## 3. Marca compacta / símbolo — DECISIÓN PENDIENTE
+## 3. Marca compacta / símbolo — DECISIÓN TOMADA: Ruta B (2026-07-26)
 
-El wordmark **no funciona** en tamaños chicos (favicon 16–32px, ícono de app, avatar). Hace falta una
-**marca compacta cuadrada**. Es la única decisión de branding de fondo; a resolver en Claude Design:
+**La marca compacta oficial es la Ruta B: el punto verde dentro de un visor de escaneo (lente/scan).**
+Motivos: es legible a 16px (geometría pura), es distintiva (una "G" sola sería genérica) y **cuenta el
+producto** — el visor dice "escanea", que es el paso 1; además funciona en la máquina como señal de
+"escanea aquí". El **punto verde** es el elemento compartido con el wordmark, así que el sistema
+coherer. De aquí salen favicon, ícono de app y avatar.
+
+El wordmark **no funciona** en tamaños chicos (favicon 16–32px, ícono de app, avatar); por eso la
+marca compacta. Rutas que se exploraron:
 
 - **Opción A — "G." :** la G de Archivo + el punto verde. Máxima continuidad con el wordmark.
 - **Opción B — solo el punto/lente:** el punto verde convertido en símbolo (círculo/lente que evoca
