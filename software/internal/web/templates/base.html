@@ -541,7 +541,9 @@
      acento y el botón centrado. El formulario queda detrás, intacto. */
   .lthanks-back{backdrop-filter:blur(2px);}
   .lthanks-modal{border-color:var(--accent); text-align:center;}
-  .lthanks-modal .actions{justify-content:center; margin-top:18px;}
+  /* `.modal.` (no solo `.lthanks-modal`) para ganarle en especificidad a
+     `.modal .actions{justify-content:flex-end}`, que se declara más abajo. */
+  .modal.lthanks-modal .actions{justify-content:center; margin-top:18px;}
   .lthanks-modal .lbtn{min-width:180px;}
   .lthanks{text-align:center; display:flex; flex-direction:column; gap:8px; padding:8px 0;}
   .lthanks .tick{font-family:var(--mono); font-weight:700; font-size:1.9rem; color:var(--accent);}
