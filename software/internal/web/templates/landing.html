@@ -555,7 +555,7 @@
     <span class="spin"></span>
     <div>
       <div class="t">Esperando tu pago…</div>
-      <div class="d">Verificamos cada 5 segundos</div>
+      <div class="d">Verificamos cada 5 segundos. No cierres esta página.</div>
     </div>
   </div>
   <div class="pay-card">
@@ -571,6 +571,9 @@
     <div class="row"><span>Tiempo para pagar</span><b>12:40</b></div>
     <div class="progress"><i style="width:84%"></i></div>
   </div>
+  {{/* Modo por nombre (ADR-018): la pantalla real muestra a nombre de quién
+       entrará la transferencia, que es lo que desambigua el pago. */}}
+  <div class="pay-payer">A nombre de: <b>Camila Restrepo</b></div>
   <div class="pay-note">El <b>QR de retiro</b> aparece solo cuando el banco confirma tu pago. Nunca por pantallazo.</div>
 </div>
 {{end}}

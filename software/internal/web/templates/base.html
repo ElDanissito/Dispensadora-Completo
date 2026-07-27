@@ -437,7 +437,10 @@
   .shop-bar .b{margin-left:auto; flex:none; background:var(--accent); color:var(--accent-ink); border-radius:.4em; padding:.55em .7em; font-size:.72em; font-weight:700;}
 
   /* --- Pantalla: esperando pago (paso 3) --- */
-  .scr-pay{padding:1em 1.1em; gap:.75em; align-items:stretch;}
+  /* Bloque centrado: la pantalla real no ancla nada abajo, así que repartir el
+     aire arriba y abajo se ve intencionado (antes el aviso quedaba clavado al
+     fondo con un vacío enorme en medio). */
+  .scr-pay{padding:1em 1.1em; gap:.75em; align-items:stretch; justify-content:center;}
   .pay-top{display:flex; align-items:center; gap:.7em;}
   .pay-top .spin{width:1.8em; height:1.8em; flex:none; border-radius:50%; border:2px solid var(--line); border-top-color:var(--accent); animation:spin 1s linear infinite;}
   .pay-top .t{font-weight:700; font-size:.9em;}
@@ -451,7 +454,9 @@
   .pay-time .row{display:flex; justify-content:space-between; font-family:var(--mono); font-size:.66em; color:var(--muted); margin-bottom:.4em;}
   .pay-time .row b{color:var(--fg);}
   .pay-time .progress{height:.35em;}
-  .pay-note{margin-top:auto; font-family:var(--mono); font-size:.62em; line-height:1.55; color:var(--muted); border-left:2px solid var(--accent); padding-left:.6em;}
+  .pay-payer{text-align:center; font-family:var(--mono); font-size:.66em; color:var(--muted);}
+  .pay-payer b{color:var(--fg); font-weight:600;}
+  .pay-note{margin-top:.25em; font-family:var(--mono); font-size:.62em; line-height:1.55; color:var(--muted); border-left:2px solid var(--accent); padding-left:.6em;}
   .pay-note b{color:var(--fg);}
 
   /* --- Pantalla: QR firmado (paso 4) --- */
