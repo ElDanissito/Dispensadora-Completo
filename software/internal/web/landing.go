@@ -15,7 +15,12 @@ import (
 
 	"dispensadoras/software/internal/config"
 	"dispensadoras/software/internal/qr"
+	"dispensadoras/software/internal/store"
 )
+
+// leadSource es el origen que se guarda en `leads.source`: hoy el único canal es
+// el formulario de la landing; la columna deja la puerta abierta a otros.
+const leadSource = "landing"
 
 // Rate-limit ligero del formulario (landing-v2 §5): sin CAPTCHA, solo un tope
 // por IP en memoria. Basta para el piloto (un solo proceso).
@@ -111,13 +116,11 @@ func (s *Server) renderLanding(w http.ResponseWriter, r *http.Request, status in
 	})
 }
 
-// handleInteresado recibe el formulario B2B de la landing (landing-v2 §5).
-//
-// TODO(leads): la tabla `leads` y la sección "Interesados" del panel llegan en el
-// commit siguiente. Hasta entonces el lead NO se persiste en la base: se registra
-// en el log del servidor para no perderlo (revisar con `docker compose logs app`).
-// Al existir la tabla, basta reemplazar el log por el insert; el resto del flujo
-// (validación, honeypot, rate-limit) ya está.
+// handleInteresado recibe el formulario B2B de la landing (landing-v2 §5) y
+// persiste el lead en la tabla `leads` (landing-v1 §5). Antes de existir la tabla
+// el lead solo se escribía en el log; ahora la base es la fuente de verdad y el
+// log queda como rastro sin PII. La sección "Interesados" del panel (landing-v1
+// §4) sigue pendiente: hasta entonces los leads se consultan en la base.
 func (s *Server) handleInteresado(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		s.renderLanding(w, r, http.StatusBadRequest, leadForm{}, "No pudimos leer el formulario. Inténtalo de nuevo.", false)
@@ -159,9 +162,22 @@ func (s *Server) handleInteresado(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// PII: se registra lo mínimo para poder contactar (landing-v2 §5).
-	log.Printf("interesado (landing) source=landing name=%q space_type=%q city=%q whatsapp=%q",
-		f.Name, f.SpaceType, f.City, f.Phone)
+	// Persistir el lead (PII mínima: lo necesario para contactar, landing-v2 §5).
+	id, err := s.st.CreateLead(r.Context(), store.Lead{
+		Name: f.Name, SpaceType: f.SpaceType, City: f.City, WhatsApp: f.Phone,
+		Source: leadSource,
+	})
+	if err != nil {
+		// Si la base falla, el lead no se pierde: queda en el log (con PII, como
+		// antes de existir la tabla) y se le pide reintentar en vez de mentirle.
+		log.Printf("guardando interesado: %v — lead source=%s name=%q space_type=%q city=%q whatsapp=%q",
+			err, leadSource, f.Name, f.SpaceType, f.City, f.Phone)
+		s.renderLanding(w, r, http.StatusInternalServerError, f,
+			"No pudimos guardar tus datos. Inténtalo de nuevo en un momento.", false)
+		return
+	}
+	// Rastro operativo sin PII: el nombre y el WhatsApp ya están en la base.
+	log.Printf("interesado guardado id=%d source=%s space_type=%q city=%q", id, leadSource, f.SpaceType, f.City)
 
 	http.Redirect(w, r, "/?gracias=1#contacto", http.StatusSeeOther)
 }

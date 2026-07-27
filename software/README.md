@@ -96,9 +96,11 @@ ADMIN_PASS=algo-seguro ./dispensadoras-web -seed   # -seed carga datos de demo
   · `GET /m/{id}/orden/{jti}/estado` · `POST /m/{id}/orden/{jti}/reemitir`
   · `POST /m/{id}/simular-pago` (solo con `-allow-sim`).
 - **Interesados (landing-v2):** `POST /interesados` valida nombre/tipo de espacio/ciudad/WhatsApp,
-  filtra bots (honeypot + tope de 5 envíos por IP cada 10 min) y redirige a `/?gracias=1`.
-  ⚠️ **Todavía no hay tabla `leads`**: el lead se escribe en el **log del servidor**
-  (`docker compose logs app`) hasta el commit que cree el esquema y la sección "Interesados" del panel.
+  filtra bots (honeypot + tope de 5 envíos por IP cada 10 min), **guarda el lead en la tabla
+  `leads`** y redirige a `/?gracias=1`. `space_type` solo acepta `conjunto|oficina|negocio|otro`.
+  PII mínima: el log solo deja `id`, origen, tipo de espacio y ciudad (el nombre y el WhatsApp
+  viven en la base). ⚠️ La sección **"Interesados"** del panel sigue pendiente: hasta entonces los
+  leads se consultan en la base (`SELECT * FROM leads ORDER BY created_at DESC;`).
 - **Re-emitir el QR:** `POST /m/{id}/orden/{jti}/reemitir` vuelve a firmar el token de una orden ya
   pagada cuyo QR venció sin dispensar. Conserva el `jti` (un solo uso, contrato §3) y solo renueva
   `exp`; no aplica a órdenes pendientes, dispensadas ni canceladas.
@@ -231,8 +233,8 @@ TEST_DATABASE_URL="postgres://grabi:grabi@localhost:5432/grabi_test?sslmode=disa
 **Importante:** los tests apuntan a **`grabi_test`** (base aparte), NO a `grabi`
 (la de la app). Los tests hacen `TRUNCATE`, así que si se corren contra `grabi`
 **borran el seed/los datos** de la app. La base `grabi_test` la crea el contenedor
-en el primer arranque (`software/initdb/`). Usar **`-p 1`**: los paquetes `store` y
-`concil` comparten la base de pruebas y hacen `TRUNCATE` al iniciar, así que deben
+en el primer arranque (`software/initdb/`). Usar **`-p 1`**: los paquetes `store`,
+`concil` y `web` comparten la base de pruebas y hacen `TRUNCATE` al iniciar, así que deben
 correr en serie (si no, el reset de uno pisa los datos del otro). En **CI** (`.github/workflows/ci.yml`) ya
 va con `-p 1` contra un servicio `postgres:16` — ahí se valida la migración en cada push.
 

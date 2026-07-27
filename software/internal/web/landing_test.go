@@ -1,16 +1,20 @@
 package web
 
-// Pruebas de la landing pública (landing-v2). No tocan la base de datos: la
-// home y el formulario de interesados no consultan el store, así que el
-// servidor se construye con store nil.
+// Pruebas de la landing pública (landing-v2). La home y las validaciones del
+// formulario no consultan el store, así que se prueban con store nil; guardar el
+// lead sí toca la base, y esa prueba requiere el Postgres de pruebas.
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"dispensadoras/software/internal/store"
 )
 
 // newTestServer construye un Server sin base de datos (suficiente para las
@@ -22,6 +26,29 @@ func newTestServer(t *testing.T) *Server {
 		t.Fatalf("New: %v", err)
 	}
 	return s
+}
+
+// newTestServerConBase construye un Server con el Postgres de pruebas
+// (TEST_DATABASE_URL) ya limpio. Se omite el test si no hay base disponible.
+func newTestServerConBase(t *testing.T) (*Server, *store.Store) {
+	t.Helper()
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_DATABASE_URL no definido; se omite (requiere Postgres de pruebas)")
+	}
+	st, err := store.Open(dsn)
+	if err != nil {
+		t.Fatalf("store.Open: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if err := st.ResetForTest(context.Background()); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	s, err := New(st, "admin", "secreto", nil, false, 0, t.TempDir(), false)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return s, st
 }
 
 func TestLandingEsLaHome(t *testing.T) {
@@ -88,32 +115,39 @@ func TestNotFoundLlevaAInicio(t *testing.T) {
 	}
 }
 
-func TestInteresadoValidaYAcepta(t *testing.T) {
-	s := newTestServer(t)
-	srv := httptest.NewServer(s.Routes())
-	defer srv.Close()
+// leadOK son los cuatro campos válidos del formulario B2B.
+var leadOK = url.Values{"name": {"Ana"}, "space_type": {"conjunto"}, "city": {"Cali"}, "phone": {"300 123 4567"}}
+
+// leadCon copia leadOK cambiando un campo (para probar cada validación).
+func leadCon(k, v string) url.Values {
+	out := url.Values{}
+	for key, vals := range leadOK {
+		out[key] = vals
+	}
+	out.Set(k, v)
+	return out
+}
+
+// postLead envía el formulario sin seguir la redirección de éxito.
+func postLead(t *testing.T, baseURL string, form url.Values) *http.Response {
+	t.Helper()
 	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
 		return http.ErrUseLastResponse
 	}}
-
-	post := func(form url.Values) *http.Response {
-		t.Helper()
-		res, err := client.PostForm(srv.URL+"/interesados", form)
-		if err != nil {
-			t.Fatalf("POST /interesados: %v", err)
-		}
-		return res
+	res, err := client.PostForm(baseURL+"/interesados", form)
+	if err != nil {
+		t.Fatalf("POST /interesados: %v", err)
 	}
+	return res
+}
 
-	ok := url.Values{"name": {"Ana"}, "space_type": {"conjunto"}, "city": {"Cali"}, "phone": {"300 123 4567"}}
-	with := func(k, v string) url.Values {
-		out := url.Values{}
-		for key, vals := range ok {
-			out[key] = vals
-		}
-		out.Set(k, v)
-		return out
-	}
+// Las validaciones y el honeypot rechazan (o absorben) el envío ANTES de tocar la
+// base, así que este test corre sin Postgres.
+func TestInteresadoValidaAntesDeGuardar(t *testing.T) {
+	srv := httptest.NewServer(newTestServer(t).Routes())
+	defer srv.Close()
+	post := func(form url.Values) *http.Response { return postLead(t, srv.URL, form) }
+	with := leadCon
 
 	// Tipo de espacio fuera de la lista → 400 (el select no es una promesa).
 	res := post(with("space_type", "casa-del-arbol"))
@@ -141,22 +175,64 @@ func TestInteresadoValidaYAcepta(t *testing.T) {
 		res.Body.Close()
 	}
 
-	// Válido → redirección al estado de éxito.
-	res = post(ok)
-	if res.StatusCode != http.StatusSeeOther {
-		t.Errorf("lead válido: status = %d, se esperaba 303", res.StatusCode)
-	}
-	if loc := res.Header.Get("Location"); !strings.HasPrefix(loc, "/?gracias=1") {
-		t.Errorf("lead válido: Location = %q", loc)
-	}
-	res.Body.Close()
-
-	// El honeypot lleno se acepta en silencio (no se avisa al bot).
+	// El honeypot lleno se acepta en silencio (no se avisa al bot) y no se guarda
+	// nada: por eso responde 303 aunque no haya base detrás.
 	res = post(with("website", "http://spam"))
 	if res.StatusCode != http.StatusSeeOther {
 		t.Errorf("honeypot: status = %d, se esperaba 303", res.StatusCode)
 	}
 	res.Body.Close()
+}
+
+// Un lead válido se persiste en la tabla `leads` (landing-v1 §5) y el visitante
+// termina en el estado de éxito.
+func TestInteresadoSeGuardaEnLaBase(t *testing.T) {
+	s, st := newTestServerConBase(t)
+	srv := httptest.NewServer(s.Routes())
+	defer srv.Close()
+
+	res := postLead(t, srv.URL, leadOK)
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusSeeOther {
+		t.Fatalf("lead válido: status = %d, se esperaba 303", res.StatusCode)
+	}
+	if loc := res.Header.Get("Location"); !strings.HasPrefix(loc, "/?gracias=1") {
+		t.Errorf("lead válido: Location = %q", loc)
+	}
+
+	leads, err := st.ListLeads(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("ListLeads: %v", err)
+	}
+	if len(leads) != 1 {
+		t.Fatalf("esperaba 1 lead guardado, obtuve %d", len(leads))
+	}
+	got := leads[0]
+	if got.Name != "Ana" || got.SpaceType != "conjunto" || got.City != "Cali" ||
+		got.WhatsApp != "300 123 4567" || got.Source != "landing" || got.CreatedAt == 0 {
+		t.Fatalf("lead guardado inesperado: %+v", got)
+	}
+
+	// Un tipo de espacio fuera de la lista no llega a la base.
+	bad := postLead(t, srv.URL, leadCon("space_type", "casa-del-arbol"))
+	bad.Body.Close()
+	if bad.StatusCode != http.StatusBadRequest {
+		t.Errorf("tipo inválido: status = %d, se esperaba 400", bad.StatusCode)
+	}
+	if leads, err = st.ListLeads(context.Background(), 10); err != nil {
+		t.Fatalf("ListLeads: %v", err)
+	} else if len(leads) != 1 {
+		t.Errorf("un lead inválido se guardó: %d filas", len(leads))
+	}
+
+	// El honeypot tampoco deja rastro en la base.
+	hp := postLead(t, srv.URL, leadCon("website", "http://spam"))
+	hp.Body.Close()
+	if leads, err = st.ListLeads(context.Background(), 10); err != nil {
+		t.Fatalf("ListLeads: %v", err)
+	} else if len(leads) != 1 {
+		t.Errorf("el honeypot guardó un lead: %d filas", len(leads))
+	}
 }
 
 func TestGraciasMuestraElEstadoDeExito(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 )
 
 // openTemp abre la base Postgres de pruebas (TEST_DATABASE_URL) y la limpia. Si
@@ -135,5 +136,49 @@ func TestRefreshOrderToken(t *testing.T) {
 		if ok, err := st.RefreshOrderToken(ctx, o.Jti, "jws.no", 8888); err != nil || ok {
 			t.Fatalf("estado %s: esperaba ok=false, obtuve ok=%v err=%v", status, ok, err)
 		}
+	}
+}
+
+// Los interesados de la landing se guardan y se listan con los más recientes
+// primero (landing-v1 §4/§5). No se relacionan con órdenes ni máquinas.
+func TestCreateAndListLeads(t *testing.T) {
+	ctx := context.Background()
+	st := openTemp(t)
+
+	id, err := st.CreateLead(ctx, Lead{
+		Name: "Ana Ruiz", SpaceType: "conjunto", City: "Cali", WhatsApp: "3001234567",
+	})
+	if err != nil {
+		t.Fatalf("CreateLead: %v", err)
+	}
+	if id == 0 {
+		t.Fatal("CreateLead devolvió id 0")
+	}
+	// Un segundo lead, más reciente y con origen explícito.
+	if _, err := st.CreateLead(ctx, Lead{
+		Name: "Beto Gómez", SpaceType: "oficina", City: "Palmira", WhatsApp: "3109876543",
+		Source: "referido", CreatedAt: time.Now().Unix() + 60,
+	}); err != nil {
+		t.Fatalf("CreateLead 2: %v", err)
+	}
+
+	leads, err := st.ListLeads(ctx, 0)
+	if err != nil {
+		t.Fatalf("ListLeads: %v", err)
+	}
+	if len(leads) != 2 {
+		t.Fatalf("esperaba 2 leads, obtuve %d", len(leads))
+	}
+	if leads[0].Name != "Beto Gómez" || leads[0].Source != "referido" {
+		t.Errorf("el más reciente debe ir primero: %+v", leads[0])
+	}
+	primero := leads[1]
+	if primero.ID != id || primero.SpaceType != "conjunto" || primero.City != "Cali" ||
+		primero.WhatsApp != "3001234567" {
+		t.Errorf("lead inesperado: %+v", primero)
+	}
+	// Source vacío ⇒ "landing"; CreatedAt en 0 ⇒ se sella al insertar.
+	if primero.Source != "landing" || primero.CreatedAt == 0 {
+		t.Errorf("valores por defecto no aplicados: %+v", primero)
 	}
 }
