@@ -119,6 +119,12 @@ aviso explícito de que no se ponen imágenes de relleno.
   `GRABI_WHATSAPP` (número en formato internacional, sin símbolos) aparece bajo el formulario como
   vía secundaria, con el mensaje precargado. **Falta el número.** En Colombia hay gente que no llena
   formularios y sí escribe por WhatsApp, así que conviene cerrarlo pronto.
+- **Pantalla de tienda del mockup (paso 2), dos ajustes de fidelidad:**
+  1. Muestra **3 productos y la máquina del piloto tiene 4 canales** (ADR-019). Un cuarto producto
+     la hace fiel y de paso llena el vacío bajo la lista.
+  2. Falta el campo **"Nombre de quien transfiere"**, que en producción va en esa misma pantalla
+     (encima de la barra de pago) y es **obligatorio** para pagar (ADR-018). Hoy el nombre aparece
+     en la pantalla de pago del paso 3 sin que se haya visto dónde se escribe.
 - **Tabla `leads` + sección "Interesados" del admin** (v1 §4–§5). Hasta entonces el lead se registra
   en el **log del servidor**, no en la base.
 - Fotos reales de producto: los thumbnails de la pantalla de tienda son ilustraciones SVG.
