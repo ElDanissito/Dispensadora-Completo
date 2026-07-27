@@ -344,6 +344,23 @@ func (s *Server) renderLogin(w http.ResponseWriter, failed bool) {
 
 // --- Handlers ---
 
+// machineTitle arma el <title> de las páginas del cliente: la marca primero y
+// luego el nombre/ubicación de la máquina ("GRABI · Tienda D1"). Eso es lo que
+// se lee en la pestaña del navegador, y ahí el machine_id no le dice nada al
+// cliente (lo necesitan la máquina, el token y el panel, no él). Si la máquina
+// aún no tiene nombre se cae al id para no dejar la pestaña muda. state es
+// opcional: el momento del flujo ("Paga tu compra", "Tu QR"), que va en medio.
+func machineTitle(m *store.Machine, state string) string {
+	who := m.Name
+	if who == "" {
+		who = m.ID
+	}
+	if state == "" {
+		return "GRABI · " + who
+	}
+	return "GRABI · " + state + " · " + who
+}
+
 func (s *Server) handleMachinePublic(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	m, err := s.st.GetMachine(r.Context(), id)
@@ -365,7 +382,7 @@ func (s *Server) handleMachinePublic(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.render(w, "machine_public.html", page{
-		Title: "Máquina " + m.ID,
+		Title: machineTitle(m, ""),
 		Admin: false,
 		Data: struct {
 			Machine   *store.Machine
@@ -512,14 +529,14 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 		// Regla de seguridad ADR-018: un pago casó con ≥2 órdenes; no se dispensa.
 		// El cliente ve un mensaje de soporte (no un QR ni un error técnico).
 		s.render(w, "machine_revision.html", page{
-			Title: "Pago en revisión · Máquina " + id,
+			Title: machineTitle(m, "Pago en revisión"),
 			Data: struct {
 				Machine *store.Machine
 			}{m},
 		})
 	case "expired", "canceled":
 		s.render(w, "machine_expirada.html", page{
-			Title: "Orden expirada · Máquina " + id,
+			Title: machineTitle(m, "Orden expirada"),
 			Data: struct {
 				Machine *store.Machine
 			}{m},
@@ -538,7 +555,7 @@ func (s *Server) handleEstadoOrden(w http.ResponseWriter, r *http.Request) {
 			payPct = 100
 		}
 		s.render(w, "machine_pago.html", page{
-			Title: "Paga tu compra · Máquina " + id,
+			Title: machineTitle(m, "Paga tu compra"),
 			Data: struct {
 				Machine       *store.Machine
 				Order         *store.Order
@@ -616,7 +633,7 @@ func (s *Server) renderQR(w http.ResponseWriter, r *http.Request, m *store.Machi
 		secondsLeft = 0
 	}
 	s.render(w, "machine_qr.html", page{
-		Title: "Tu QR · Máquina " + m.ID,
+		Title: machineTitle(m, "Tu QR"),
 		Data: struct {
 			Machine     *store.Machine
 			Items       []qrItem
