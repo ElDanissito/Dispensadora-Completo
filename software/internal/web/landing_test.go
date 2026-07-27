@@ -273,7 +273,9 @@ func TestInteresadoSeGuardaEnLaBase(t *testing.T) {
 	}
 }
 
-func TestGraciasMuestraElEstadoDeExito(t *testing.T) {
+// Tras enviar, el "gracias" es un POPUP sobre el formulario: si sustituyera al
+// formulario, quien quiera dejar otro lead se quedaría sin él hasta recargar a mano.
+func TestGraciasEsUnPopupSobreElFormulario(t *testing.T) {
 	srv := httptest.NewServer(newTestServer(t).Routes())
 	defer srv.Close()
 	res, err := http.Get(srv.URL + "/?gracias=1")
@@ -282,11 +284,42 @@ func TestGraciasMuestraElEstadoDeExito(t *testing.T) {
 	}
 	defer res.Body.Close()
 	body := readAll(t, res)
+
 	if !strings.Contains(body, "¡Gracias! Te contactamos pronto.") {
 		t.Error("no se muestra el estado de éxito con ?gracias=1")
 	}
-	if strings.Contains(body, `name="space_type"`) {
-		t.Error("el formulario sigue visible tras enviar")
+	// Pintado ya abierto por el servidor y cerrable sin JS (enlace a /#contacto).
+	for _, want := range []string{
+		`class="modal-backdrop open lthanks-back"`,
+		`role="dialog"`, `aria-modal="true"`,
+		`href="/#contacto"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("el popup no trae %q", want)
+		}
+	}
+	// El formulario sigue ahí, vacío y listo para otro envío.
+	if !strings.Contains(body, `name="space_type"`) || !strings.Contains(body, `action="/interesados"`) {
+		t.Error("el formulario desapareció tras enviar")
+	}
+	if strings.Contains(body, `value="Ana"`) {
+		t.Error("el formulario conserva lo enviado en vez de quedar vacío")
+	}
+}
+
+// Sin ?gracias=1 no hay popup: solo aparece al volver de un envío.
+func TestSinGraciasNoHayPopup(t *testing.T) {
+	srv := httptest.NewServer(newTestServer(t).Routes())
+	defer srv.Close()
+	res, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
+	defer res.Body.Close()
+	// Se busca el markup (`id="thanksModal"`), no el identificador a secas: el JS
+	// que lo cierra menciona el id igual y siempre viaja en la página.
+	if body := readAll(t, res); strings.Contains(body, `id="thanksModal"`) {
+		t.Error("el popup de gracias aparece sin haber enviado el formulario")
 	}
 }
 

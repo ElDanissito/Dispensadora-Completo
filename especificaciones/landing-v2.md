@@ -84,6 +84,11 @@ volver a pagar). Tres tarjetas, no cuatro: la rejilla es de 3 columnas y una cua
   Ciudad · WhatsApp**. Los cuatro obligatorios. Sustituye al formulario correo+celular de v1 §3:
   el canal real de contacto es WhatsApp.
 - CTA: **"Quiero una GRABI en mi espacio"**.
+- **Confirmación en popup, no en lugar del formulario.** Al volver del envío el "¡Gracias!" se
+  muestra como diálogo **encima** del formulario, que sigue ahí y vacío: si lo sustituyera, quien
+  quiera preguntar por un segundo espacio se queda sin formulario hasta recargar a mano. Se pinta
+  abierto desde el servidor (funciona sin JS: "Listo" es un enlace a `/#contacto`) y con JS se
+  cierra en el sitio, limpiando el `?gracias=1` para que un refresco no lo repita.
 - **Validación en vivo** por campo (borde y mensaje) y botón habilitado solo cuando los cuatro son
   válidos. El servidor valida igual: el select solo acepta las claves de la lista.
 - **Anti-spam:** honeypot oculto + rate-limit por IP (5 envíos / 10 min). Sin CAPTCHA.

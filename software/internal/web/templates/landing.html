@@ -191,14 +191,9 @@
           <li>Fechas del piloto y de las siguientes máquinas</li>
         </ul>
       </div>
+      {{/* El formulario SIEMPRE está: el "gracias" es un popup encima (así se puede
+           enviar otro lead sin recargar a mano). */}}
       <div class="lformcard reveal">
-        {{if .Sent}}
-        <div class="lthanks">
-          <div class="tick">✓</div>
-          <div class="t">¡Gracias! Te contactamos pronto.</div>
-          <div class="d">Te escribimos por WhatsApp al número que nos dejaste.</div>
-        </div>
-        {{else}}
         <form class="lform" method="post" action="/interesados" id="leadForm" novalidate>
           {{if .Error}}<div class="flash err">{{.Error}}</div>{{end}}
           {{/* Honeypot anti-spam: invisible para personas, tentador para bots. */}}
@@ -248,7 +243,6 @@
           {{end}}
           <p class="lprivacy">Usamos tus datos solo para contactarte, no los compartimos. Nada de spam.</p>
         </form>
-        {{end}}
       </div>
     </div>
   </section>
@@ -274,6 +268,27 @@
     </div>
   </section>
 </main>
+
+{{if .Sent}}
+{{/* Popup de "gracias" (landing-v2 §5). Va FUERA de las secciones con `.reveal`:
+     esas usan `transform`, y un ancestro transformado rompe el position:fixed del
+     fondo. Se pinta ya abierto desde el servidor, así que funciona sin JS: el
+     botón "Listo" es un enlace a /#contacto, que devuelve la página sin el
+     ?gracias=1 y con el formulario vacío listo para otro envío. Con JS se cierra
+     en el sitio, sin recargar. */}}
+<div class="modal-backdrop open lthanks-back" id="thanksModal" role="dialog" aria-modal="true" aria-labelledby="thanksTitle">
+  <div class="modal lthanks-modal">
+    <div class="lthanks">
+      <div class="tick" aria-hidden="true">✓</div>
+      <div class="t" id="thanksTitle">¡Gracias! Te contactamos pronto.</div>
+      <div class="d">Te escribimos por WhatsApp al número que nos dejaste.</div>
+    </div>
+    <div class="actions">
+      <a class="lbtn" href="/#contacto" id="thanksClose">Listo</a>
+    </div>
+  </div>
+</div>
+{{end}}
 
 <footer class="lfoot" id="footer">
   <div class="lwrap">
@@ -439,6 +454,25 @@
       });
     });
     hero.addEventListener('pointerleave', function(){ phone.style.transform = ''; });
+  }
+
+  // --- 5. Popup de "gracias": cerrar sin recargar ---
+  // El enlace "Listo" ya funciona sin JS (vuelve a /#contacto). Con JS lo cerramos
+  // en el sitio y limpiamos el ?gracias=1 de la barra, para que un refresco no
+  // vuelva a mostrar el popup.
+  var thanks = document.getElementById('thanksModal');
+  if(thanks){
+    var closeThanks = function(ev){
+      if(ev) ev.preventDefault();
+      thanks.classList.remove('open');
+      if(history.replaceState) history.replaceState(null, '', '/#contacto');
+    };
+    document.getElementById('thanksClose').addEventListener('click', closeThanks);
+    // Clic en el fondo (no en la tarjeta) y Esc: lo esperado en un popup.
+    thanks.addEventListener('click', function(ev){ if(ev.target === thanks) closeThanks(ev); });
+    document.addEventListener('keydown', function(ev){
+      if(ev.key === 'Escape' && thanks.classList.contains('open')) closeThanks(ev);
+    });
   }
 })();
 </script>

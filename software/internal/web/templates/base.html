@@ -537,6 +537,12 @@
   .lform-or::before,.lform-or::after{content:""; flex:1; height:1px; background:var(--line);}
   .lprivacy{font-size:.82rem; line-height:1.6; color:var(--muted);}
   .lhoney{position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;}
+  /* Popup de "gracias": el .modal-backdrop/.modal de siempre, con el borde de
+     acento y el botón centrado. El formulario queda detrás, intacto. */
+  .lthanks-back{backdrop-filter:blur(2px);}
+  .lthanks-modal{border-color:var(--accent); text-align:center;}
+  .lthanks-modal .actions{justify-content:center; margin-top:18px;}
+  .lthanks-modal .lbtn{min-width:180px;}
   .lthanks{text-align:center; display:flex; flex-direction:column; gap:8px; padding:8px 0;}
   .lthanks .tick{font-family:var(--mono); font-weight:700; font-size:1.9rem; color:var(--accent);}
   .lthanks .t{font-weight:700; font-size:1.1rem;}
