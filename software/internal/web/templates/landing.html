@@ -25,6 +25,8 @@
         <div class="lhero-cta reveal">
           <a class="lbtn" href="#negocio">Quiero una máquina →</a>
           <a class="lbtn ghost" href="#como">Ver cómo funciona ↓</a>
+          {{/* Única prueba social above the fold: esto ya está operando. */}}
+          <a class="lpilot-live" href="#piloto"><span class="dotlive"></span>Piloto activo en Cali</a>
         </div>
         <div class="lstats reveal">
           <span class="s">Sin billeteros</span>
@@ -154,27 +156,27 @@
     </div>
   </section>
 
-  {{/* ---------- Por qué GRABI (confianza del comprador) ---------- */}}
+  {{/* ---------- Por qué GRABI: confianza de QUIEN COMPRA ----------
+       Audiencia distinta a la sección B2B: aquí no se habla de costos ni de
+       operación, solo de qué protege al comprador frente a la máquina. */}}
   <section class="lsec" id="porque">
     <div class="lwrap">
       <span class="leyebrow reveal">Por qué GRABI</span>
-      <h2 class="ltitle reveal">Hecho para confiar</h2>
-      <div class="lb2b-grid">
+      <h2 class="ltitle reveal">Comprar aquí es seguro</h2>
+      <p class="lintro reveal">Esto es lo que te cubre a ti, el que está frente a la máquina con el
+        celular en la mano.</p>
+      <div class="lb2b-grid tres">
         <div class="lb2b reveal">
-          <div class="k">SIN EFECTIVO NI TARJETA</div>
-          <div class="d">La máquina no tiene billetero, monedero ni datáfono. Menos costo, menos fallas, menos robos.</div>
+          <div class="k">TU PLATA VA POR EL BANCO</div>
+          <div class="d">Pagas desde <b>tu propia app bancaria</b> por Bre-B. La transferencia sale de tu banco a la cuenta del punto: GRABI nunca toca tu dinero.</div>
         </div>
         <div class="lb2b reveal">
-          <div class="k">PAGO POR BRE-B</div>
-          <div class="d">Transferencia instantánea entre bancos colombianos, directa desde tu celular.</div>
+          <div class="k">NO DEJAS DATOS DE TARJETA</div>
+          <div class="d">No hay datáfono ni formulario de pago: <b>no escribes número de tarjeta ni CVV</b>, no creas una cuenta y no instalas ninguna app.</div>
         </div>
         <div class="lb2b reveal">
-          <div class="k">QR SOLO CON PAGO REAL</div>
-          <div class="d">Tu QR de retiro solo aparece cuando el banco confirma el pago. Nunca por pantallazo.</div>
-        </div>
-        <div class="lb2b reveal">
-          <div class="k">FUNCIONA SIN INTERNET</div>
-          <div class="d">La máquina verifica tu QR sin conexión: está firmado digitalmente y es de un solo uso.</div>
+          <div class="k">TU QR NO SE FALSIFICA</div>
+          <div class="d">Va <b>firmado digitalmente</b> y sirve una sola vez. Si expira antes de que retires, generas uno nuevo <b>sin volver a pagar</b>.</div>
         </div>
       </div>
     </div>
@@ -256,7 +258,7 @@
   </section>
 
   {{/* ---------- Estado del piloto ---------- */}}
-  <section class="lsec">
+  <section class="lsec" id="piloto">
     <div class="lwrap">
       <span class="leyebrow reveal">Estado del proyecto</span>
       <h2 class="ltitle reveal">Piloto activo en Cali</h2>

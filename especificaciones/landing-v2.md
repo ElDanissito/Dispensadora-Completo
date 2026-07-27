@@ -29,6 +29,8 @@
 - **CTAs dobles:** primario sólido **"Quiero una máquina →"** → `#negocio`; secundario outline
   **"Ver cómo funciona ↓"** → `#como`. En móvil se apilan, el primario arriba.
 - Stats: **Sin billeteros · Sin datáfonos · Sin filas · 100% Bre-B** (sin métricas inventadas).
+- **Chip "Piloto activo en Cali"** junto a los CTAs, enlazando a la sección de piloto: es la única
+  prueba social *above the fold* y es lo que retiene a un lead B2B en los primeros segundos.
 - Bloque de texto centrado verticalmente.
 
 ### 2.1 Composición de dos teléfonos
@@ -64,6 +66,14 @@ datáfono ni comisiones de adquirencia · QR firmado de un solo uso que **valida
 punto · instalación y soporte incluidos durante el piloto · ideal para conjuntos, oficinas y
 espacios donde los grandes operadores no llegan · surtido definido con el dueño del punto.
 
+### 4.1 Separación de audiencias (no repetir argumentos)
+
+**"Para tu negocio" habla al dueño del punto; "Por qué GRABI" habla a quien compra.** No pueden
+repetir los mismos puntos (efectivo, Bre-B, QR firmado, offline) o el visitante siente déjà vu.
+"Por qué GRABI" cubre solo lo que protege al comprador: **su plata sale de su propio banco**, **no
+deja datos de tarjeta ni crea cuentas**, y **su QR no se falsifica** (y si expira, genera otro sin
+volver a pagar). Tres tarjetas, no cuatro: la rejilla es de 3 columnas y una cuarta queda huérfana.
+
 ## 5. Captura de lead B2B
 
 - **Form corto:** **Nombre · Tipo de espacio** (select: conjunto / oficina / negocio / otro) **·
@@ -85,9 +95,14 @@ espacios donde los grandes operadores no llegan · surtido definido con el dueñ
 conciliado, verificación offline). **Foto real de la máquina cuando exista**; hasta entonces, un
 aviso explícito de que no se ponen imágenes de relleno.
 
-## 7. Accesibilidad y responsive
+## 7. Accesibilidad, tipografía y responsive
 
-- Contraste **AA** en el texto mono pequeño (eyebrow, stats, avisos): nada de gris `--faint` para
+- **Regla tipográfica:** la **mono** es solo para *eyebrows*, labels y datos (montos, contadores,
+  chips). **Todo párrafo va en sans**: en bloques largos la mono cansa. Excepción: el interior de
+  las maquetas de teléfono, que replica las pantallas reales (donde `.hint`/`.note` sí son mono).
+- **Ritmo del recorrido:** cada paso ocupa ~30vh. Más alto deja tramos de scroll con la columna
+  vacía y la página parece quedarse sin contenido.
+- Contraste **AA** en el texto pequeño (eyebrow, stats, avisos): nada de gris `--faint` para
   texto informativo.
 - Anclajes con **scroll suave** y `scroll-margin-top` por el nav sticky.
 - `label` en todos los campos, foco visible, `aria-invalid` al fallar la validación.
@@ -100,6 +115,10 @@ aviso explícito de que no se ponen imágenes de relleno.
 
 ## 9. Pendiente (no bloquea)
 
+- **Botón de WhatsApp en contacto.** El código ya está y se activa solo: en cuanto se defina
+  `GRABI_WHATSAPP` (número en formato internacional, sin símbolos) aparece bajo el formulario como
+  vía secundaria, con el mensaje precargado. **Falta el número.** En Colombia hay gente que no llena
+  formularios y sí escribe por WhatsApp, así que conviene cerrarlo pronto.
 - **Tabla `leads` + sección "Interesados" del admin** (v1 §4–§5). Hasta entonces el lead se registra
   en el **log del servidor**, no en la base.
 - Fotos reales de producto: los thumbnails de la pantalla de tienda son ilustraciones SVG.

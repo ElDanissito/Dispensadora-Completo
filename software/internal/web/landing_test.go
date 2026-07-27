@@ -42,15 +42,16 @@ func TestLandingEsLaHome(t *testing.T) {
 	body := readAll(t, res)
 	for _, want := range []string{
 		"Escanea, paga,", "agárralo.",
-		"Cuatro pasos y listo",  // cómo funciona (teléfono sticky)
-		"Ten tu propia GRABI",   // sección B2B
-		"Hecho para confiar",    // por qué GRABI
-		"Piloto activo en Cali", // estado del piloto
-		"Quiero una máquina →",  // CTA primario del hero
-		"Ver cómo funciona ↓",   // CTA secundario del hero
-		`href="#negocio"`,       // enlace del nav a la sección B2B
-		`action="/interesados"`, // formulario de leads
-		`name="space_type"`,     // select de tipo de espacio
+		"Cuatro pasos y listo",   // cómo funciona (teléfono sticky)
+		"Ten tu propia GRABI",    // sección B2B (dueño del punto)
+		"Comprar aquí es seguro", // por qué GRABI (quien compra)
+		"Piloto activo en Cali",  // chip del hero + estado del piloto
+		`href="#piloto"`,         // el chip del hero enlaza al estado del piloto
+		"Quiero una máquina →",   // CTA primario del hero
+		"Ver cómo funciona ↓",    // CTA secundario del hero
+		`href="#negocio"`,        // enlace del nav a la sección B2B
+		`action="/interesados"`,  // formulario de leads
+		`name="space_type"`,      // select de tipo de espacio
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("la landing no contiene %q", want)
