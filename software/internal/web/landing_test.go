@@ -97,6 +97,39 @@ func TestLandingEsLaHome(t *testing.T) {
 	}
 }
 
+// El botón de WhatsApp solo aparece con GRABI_WHATSAPP definido, y su mensaje
+// precargado debe ir codificado UNA sola vez: si se pre-codifica en Go y encima lo
+// escapa html/template, WhatsApp muestra el "Hola%2C+quiero..." crudo.
+func TestBotonDeWhatsAppCodificaElMensajeUnaVez(t *testing.T) {
+	t.Setenv("GRABI_WHATSAPP", "+57 302 865 9218")
+	srv := httptest.NewServer(newTestServer(t).Routes())
+	defer srv.Close()
+
+	res, err := http.Get(srv.URL + "/")
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
+	defer res.Body.Close()
+	body := readAll(t, res)
+
+	// El número se publica solo con dígitos (formato internacional de wa.me).
+	if !strings.Contains(body, "https://wa.me/573028659218?text=") {
+		t.Fatal("no se muestra el botón de WhatsApp con el número configurado")
+	}
+	// Codificación simple: espacios como %20 y la tilde en UTF-8 (%c3%a1).
+	for _, want := range []string{"Hola%2c%20quiero", "m%c3%a1quina%20GRABI"} {
+		if !strings.Contains(strings.ToLower(body), strings.ToLower(want)) {
+			t.Errorf("el mensaje precargado no contiene %q", want)
+		}
+	}
+	// Señales de doble codificación (%25 = '%' escapado, '+' en vez de %20).
+	for _, bad := range []string{"%252c", "%25c3", "Hola%2C+quiero", "text=Hola+"} {
+		if strings.Contains(strings.ToLower(body), strings.ToLower(bad)) {
+			t.Errorf("el mensaje va codificado dos veces (contiene %q)", bad)
+		}
+	}
+}
+
 func TestNotFoundLlevaAInicio(t *testing.T) {
 	srv := httptest.NewServer(newTestServer(t).Routes())
 	defer srv.Close()

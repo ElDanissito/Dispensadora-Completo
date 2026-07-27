@@ -9,7 +9,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -21,6 +20,13 @@ import (
 // leadSource es el origen que se guarda en `leads.source`: hoy el único canal es
 // el formulario de la landing; la columna deja la puerta abierta a otros.
 const leadSource = "landing"
+
+// whatsAppMsg es el mensaje precargado del botón de WhatsApp (landing-v2 §5). Va
+// en texto PLANO a propósito: la plantilla lo pinta dentro del query de
+// `https://wa.me/...?text=`, y ahí html/template ya lo codifica solo (espacios a
+// %20). Si se pre-codificara con url.QueryEscape, se escaparía DOS veces y
+// WhatsApp mostraría el "Hola%2C+quiero..." literal.
+const whatsAppMsg = "Hola, quiero saber más sobre tener una máquina GRABI"
 
 // Rate-limit ligero del formulario (landing-v2 §5): sin CAPTCHA, solo un tope
 // por IP en memoria. Basta para el piloto (un solo proceso).
@@ -110,12 +116,12 @@ func (s *Server) renderLanding(w http.ResponseWriter, r *http.Request, status in
 			DemoQR      template.URL
 			SpaceTypes  []struct{ Key, Label string }
 			WhatsApp    string // "" ⇒ no se muestra el botón de WhatsApp
-			WhatsAppMsg string
+			WhatsAppMsg string // texto PLANO: html/template lo codifica al pintar el href
 		}{
 			Form: f, Error: errMsg, Sent: sent, Year: time.Now().In(bogota).Year(),
 			DemoQR: demoQR, SpaceTypes: spaceTypes,
 			WhatsApp:    config.WhatsApp(),
-			WhatsAppMsg: url.QueryEscape("Hola, quiero saber más sobre tener una máquina GRABI"),
+			WhatsAppMsg: whatsAppMsg,
 		},
 	})
 }
