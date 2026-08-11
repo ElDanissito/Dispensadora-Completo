@@ -148,8 +148,10 @@ func TestNotFoundLlevaAInicio(t *testing.T) {
 		t.Fatalf("status = %d, se esperaba 404", res.StatusCode)
 	}
 	body := readAll(t, res)
-	if !strings.Contains(body, `href="/"`) || !strings.Contains(body, "Volver a inicio") {
-		t.Error("el 404 no tiene el botón 'Volver a inicio' apuntando a /")
+	// Desde ADR-025 el CTA principal es volver a escanear; el inicio queda como
+	// enlace secundario (el 404 más común es un id de máquina mal tecleado).
+	if !strings.Contains(body, `class="btn-secondary" href="/"`) || !strings.Contains(body, "Ir al inicio") {
+		t.Error("el 404 no tiene el enlace secundario 'Ir al inicio' apuntando a /")
 	}
 }
 

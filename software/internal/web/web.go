@@ -286,6 +286,10 @@ func (s *Server) Routes() http.Handler {
 	// Interesados de la landing (landing-v1 §4). PII: solo admin autenticado.
 	mux.Handle("GET /admin/leads", s.auth(http.HandlerFunc(s.handleAdminLeads)))
 
+	// Escáner del QR de la máquina (ADR-025). Es el paso previo a /m/{id} y el
+	// destino del "Volver a escanear" de las páginas de error.
+	mux.HandleFunc("GET /scan", s.handleScan)
+
 	// Raíz → landing pública de la marca (landing-v1 §1). El panel vive en /admin.
 	mux.HandleFunc("GET /{$}", s.handleLanding)
 	mux.HandleFunc("POST /interesados", s.handleInteresado)

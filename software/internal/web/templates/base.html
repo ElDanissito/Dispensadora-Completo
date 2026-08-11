@@ -335,6 +335,47 @@
   .btn-secondary{background:transparent; border:1px solid var(--line); color:var(--fg); font-weight:600; padding:14px 22px; border-radius:var(--r-sm); text-decoration:none; font-family:var(--font);}
   .btn-primary:hover{filter:brightness(1.06);} .btn-secondary:hover{background:var(--surface-2);}
 
+  /* Escáner del cliente (GET /scan, ADR-025) */
+  .scanwrap{max-width:520px; margin:8px auto 40px; display:flex; flex-direction:column; gap:18px;}
+  .scanintro{display:flex; flex-direction:column; gap:6px; text-align:center; align-items:center;}
+  .scantitle{font-family:var(--display); font-weight:800; font-size:1.6rem; line-height:1.2; margin:0; text-wrap:balance;}
+  .scanlead{color:var(--muted); font-family:var(--mono); font-size:.82rem; line-height:1.6; max-width:400px; margin:0;}
+  .scanstage{position:relative; width:100%; aspect-ratio:1/1; background:#050706; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  .scanstage video{width:100%; height:100%; object-fit:cover; display:block; opacity:0; transition:opacity .3s ease;}
+  .scanstage[data-state="live"] video{opacity:1;}
+  .scanidle{position:absolute; inset:auto 16px 16px; text-align:center; font-family:var(--mono); font-size:.78rem; color:var(--faint); margin:0;}
+  .scanstage[data-state="live"] .scanidle{display:none;}
+  /* Mira: cuatro esquinas + punto verde — la marca compacta (identidad-visual-v1 §3). */
+  .scanmira{position:absolute; inset:16%; pointer-events:none;}
+  .scanmira .c{position:absolute; width:30px; height:30px; border:4px solid var(--fg); border-radius:8px;}
+  .scanmira .tl{top:0; left:0; border-right:none; border-bottom:none;}
+  .scanmira .tr{top:0; right:0; border-left:none; border-bottom:none;}
+  .scanmira .bl{bottom:0; left:0; border-right:none; border-top:none;}
+  .scanmira .br{bottom:0; right:0; border-left:none; border-top:none;}
+  .scanmira .dot{position:absolute; left:50%; top:50%; width:16px; height:16px; margin:-8px 0 0 -8px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 7px rgba(59,232,127,.14);}
+  .scanstage[data-state="live"] .scanmira .dot{animation:scanpulse 1.8s ease-in-out infinite;}
+  @keyframes scanpulse{0%,100%{box-shadow:0 0 0 7px rgba(59,232,127,.14);} 50%{box-shadow:0 0 0 14px rgba(59,232,127,.05);}}
+  .scanmsg{font-family:var(--mono); font-size:.84rem; line-height:1.55; color:var(--muted); text-align:center; margin:0; min-height:1.55em;}
+  .scanmsg.ok{color:var(--accent-2);}
+  .scanmsg.err{color:var(--warn);}
+  .scanfallback{border:1px solid var(--warn); background:var(--warn-soft); border-radius:var(--radius); padding:16px 18px; display:flex; flex-direction:column; gap:10px;}
+  /* Un `display` de clase pisa el display:none que el navegador da a [hidden]:
+     sin esta regla el aviso de "sin cámara" se vería SIEMPRE. */
+  .scanfallback[hidden]{display:none;}
+  .scanfallback strong{font-size:.95rem;}
+  .scanfallback p{font-family:var(--mono); font-size:.8rem; line-height:1.6; color:var(--muted); margin:0;}
+  .scanfallback .scanpriv{color:var(--faint);}
+  .scanfallback button{align-self:flex-start;}
+  .scanmanual{border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); padding:0 16px;}
+  .scanmanual summary{cursor:pointer; padding:14px 0; font-family:var(--mono); font-size:.84rem; font-weight:600; color:var(--accent-2);}
+  .scanmanual summary:focus-visible{outline:2.5px solid var(--accent); outline-offset:2px;}
+  .scanmanual form{padding:0 0 18px; display:flex; flex-direction:column;}
+  .scanmanual input{font-family:var(--mono); letter-spacing:.12em; text-transform:uppercase;}
+  .scanmanual button{margin-top:14px;}
+  .scanerr{font-family:var(--mono); font-size:.78rem; line-height:1.5; color:var(--crit); margin:8px 0 0;}
+  .scanerr[hidden]{display:none;}
+  .scanfoot{text-align:center; font-family:var(--mono); font-size:.82rem; margin:0;}
+
   /* ===== Landing pública (home, landing-v2) ===== */
   /* Navegación fluida: el ancla queda por debajo del nav sticky. */
   html{scroll-behavior:smooth;}

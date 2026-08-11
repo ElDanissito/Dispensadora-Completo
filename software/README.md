@@ -92,9 +92,12 @@ ADMIN_PASS=algo-seguro ./dispensadoras-web -seed   # -seed carga datos de demo
 - `-db dispensadoras.db` ruta del archivo SQLite · `-addr :8080` dirección · `-seed` datos demo.
 - El panel `/admin` va protegido con **Basic Auth** (`ADMIN_USER`/`ADMIN_PASS`, por defecto
   `admin`/`changeme` con aviso — define `ADMIN_PASS` antes de exponerlo).
-- Rutas públicas: `GET /` (landing) · `POST /interesados` · `GET /m/{id}` · `POST /m/{id}/pagar`
-  · `GET /m/{id}/orden/{jti}/estado` · `POST /m/{id}/orden/{jti}/reemitir`
+- Rutas públicas: `GET /` (landing) · `POST /interesados` · **`GET /scan`** · `GET /m/{id}`
+  · `POST /m/{id}/pagar` · `GET /m/{id}/orden/{jti}/estado` · `POST /m/{id}/orden/{jti}/reemitir`
   · `POST /m/{id}/simular-pago` (solo con `-allow-sim`).
+- **Escáner del QR de la máquina (`GET /scan`, ADR-025):** abre la cámara del celular y lleva al
+  cliente a la tienda de la máquina. Es una **capa nueva**: no toca el contrato del token, la
+  conciliación ni `/m/{id}`. Detalles en [Escáner](#escáner-del-qr-get-scan).
 - **Interesados (landing-v2):** `POST /interesados` valida nombre/tipo de espacio/ciudad/WhatsApp,
   filtra bots (honeypot + tope de 5 envíos por IP cada 10 min), **guarda el lead en la tabla
   `leads`** y redirige a `/?gracias=1`. `space_type` solo acepta `conjunto|oficina|negocio|otro`.
@@ -108,6 +111,33 @@ ADMIN_PASS=algo-seguro ./dispensadoras-web -seed   # -seed carga datos de demo
 - **Interesados en el panel** (`GET /admin/leads`, landing-v1 §4): lista los leads de `leads`
   (fecha, nombre, tipo de espacio, ciudad, WhatsApp, origen), más recientes primero. Es **PII**:
   ruta protegida por sesión, nunca en páginas públicas.
+
+### Escáner del QR (`GET /scan`)
+
+Página server-rendered (`internal/web/scan.go` + `templates/scan.html`) que abre la cámara del
+celular, lee el QR pegado en la máquina y redirige a su tienda. Es el destino del **"Volver a
+escanear"** de las páginas de error (cubre el caso de teclear `grabi.napi.lat/M001`, sin `/m/`).
+
+- **Decodificación en el navegador** con **jsQR 1.4.0 autohospedado** en
+  `internal/web/static/vendor/` (embebido en el binario, servido en `/static/vendor/jsQR.js`).
+  **Nunca por CDN**: es la página que decide a dónde navega el cliente. Procedencia y hash en
+  [`static/vendor/README.md`](internal/web/static/vendor/README.md). El vídeo **no sale del
+  dispositivo**: el servidor no recibe ni un frame.
+- **Validación del destino (seguridad).** El contenido de un QR es texto que cualquiera puede
+  imprimir y pegar encima. La página **nunca navega al URL del QR**: solo acepta un URL `http(s)`
+  del **mismo host**, con ruta `/m/{id}` e `id` que case con `machineIDPattern` (`^M\d{3,}$`), y
+  entonces construye ella misma la ruta **relativa** `/m/{ID}`. Cualquier otra cosa → "ese QR no es
+  de una máquina GRABI" y sigue escaneando. Un QR de phishing no puede sacar al cliente del sitio.
+- **Fallbacks:** sin permiso / sin `getUserMedia` → aviso + botón "Permitir cámara"; y siempre
+  **"Escribir el ID manualmente"**. Ese formulario es un `GET /scan?m=M001` de verdad: **sin
+  JavaScript lo valida y redirige el servidor** (misma regex, ver `handleScan`), con JS se
+  resuelve sin recargar. Un `m` inválido re-pinta el formulario con el error; **nunca** redirige.
+- **Auto-off:** al redirigir, al ocultarse la pestaña y en `pagehide` se paran los tracks (se
+  libera la cámara y se apaga el indicador del sistema).
+- **Verificado (2026-08-11):** QR reales generados con `internal/qr` decodificados por el jsQR
+  vendorizado, enrutando a `/m/M001` y `/m/M0042`, y **rechazando** `https://evil.example/m/M001`
+  y `https://grabi.napi.lat/admin`. Estados (escaneando / sin cámara / ID inválido) revisados a
+  390 px sin scroll horizontal.
 
 ### Ciclo web→máquina (pago REAL Bre-B por conciliación de correo)
 
