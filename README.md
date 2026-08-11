@@ -27,7 +27,7 @@ explica cómo gestionar la operación desde una sola gerencia (tú + agentes de 
 
 ## La idea en 6 pasos
 
-1. El cliente frente a la máquina abre `dominio.com/<ID>` (o escanea un QR estático pegado en la máquina).
+1. El cliente frente a la máquina escanea el QR estático pegado en ella (con la cámara del sistema o con el escáner del propio sitio, `dominio.com/scan`), o abre `dominio.com/m/<ID>` a mano.
 2. La web muestra los productos **de esa máquina** y su stock.
 3. El cliente paga por **Bre-B** (transferencia inmediata a la llave del negocio).
 4. Al confirmar el pago, la web genera un **QR con un JWT firmado** que contiene: productos comprados + `machine_id` + timestamp + id único de orden.

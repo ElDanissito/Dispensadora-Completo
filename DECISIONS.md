@@ -7,6 +7,51 @@
 
 ---
 
+## ADR-025 · Escáner propio del QR de la máquina (`GET /scan`) con destino validado
+- **Fecha:** 2026-08-11 · **Autor:** Agente de Software (02) + Daniel.
+- **Decisión:** GRABI tiene su **propia página de escaneo**, `GET /scan`: abre la cámara del celular,
+  lee el QR pegado en la máquina y lleva al cliente a `/m/{id}`. Server-rendered + JS vanilla
+  (ADR-011bis), con el sistema de diseño de `base.html` (ADR-022). Es **capa nueva**: no toca el
+  contrato del token, la conciliación ni `/m/{id}`.
+- **Por qué:** el cliente que no escanea con la app de cámara (o cuyo QR está rayado) se quedaba sin
+  camino. El caso reportado es el peor: quien teclea `grabi.napi.lat/M001` **sin `/m/`** caía en un
+  404 cuyo único botón era "volver a inicio", que no resuelve nada.
+- **Integración con los errores:** en `notfound.html` y `machine_notfound.html` el CTA principal pasa
+  a ser **"Volver a escanear" → `/scan`**, y "Ir al inicio" → `/` queda como secundario. Se elimina
+  el `history.back()` de `machine_notfound` (volvía a la app de cámara, no a un escáner).
+  `machine_expirada`/`machine_revision` **no cambian**: ahí la máquina se conoce y el reintento
+  correcto es volver a esa tienda, no re-escanear.
+- **jsQR 1.4.0 AUTOHOSPEDADO, no CDN** (`internal/web/static/vendor/`, embebido en el binario).
+  Esta es la página que decide **a dónde navega** el cliente: un `<script>` de un tercero ahí es
+  ejecución remota de código en el peor sitio posible, y además el celular puede estar en una red
+  que bloquee el CDN. Coste: ~257 KB en el binario (~65 KB por la red, Caddy hace `encode gzip`) y
+  actualizar a mano. Procedencia + hash verificable en `static/vendor/README.md`.
+- **Regla de seguridad del destino (lo importante).** El QR es texto que cualquiera puede imprimir y
+  **pegar encima** del nuestro. La página **NUNCA navega al URL que trae el QR**: exige un URL
+  `http(s)` del **mismo host**, ruta `/m/{id}` e `id` que case `^M\d{3,}$`, y entonces **construye
+  ella misma** la ruta relativa `/m/{ID}`. Cualquier otra cosa → "ese QR no es de una máquina GRABI"
+  y sigue escaneando. Cierra phishing por QR pegado, `javascript:`/`data:`, sufijos de dominio
+  (`grabi.napi.lat.evil.example`), otro puerto y `..` codificado.
+- **La regex vive en UN solo sitio** (`machineIDPattern` en `scan.go`) y el handler la **inyecta en
+  la plantilla** para el JS. Así el escáner del navegador y el servidor no pueden validar distinto,
+  y las pruebas en Go cubren la regla de verdad.
+- **El fallback manual funciona SIN JavaScript:** el formulario "Escribir el ID manualmente" es un
+  `GET /scan?m=M001` real que el servidor valida con la misma regex y redirige (303). Un `m`
+  inválido re-pinta el formulario con el error y **nunca** redirige (no hay redirect abierto: el
+  destino se arma con un id ya validado, sin barras ni esquema).
+- **Auto-off de la cámara:** se sueltan los tracks al redirigir, al ocultarse la pestaña y en
+  `pagehide`. Se retoma sola al volver, solo si el permiso estaba concedido.
+- **Verificado (2026-08-11):** QR reales generados con `internal/qr` decodificados por el jsQR
+  vendorizado → `/m/M001` y `/m/M0042`; `https://evil.example/m/M001` y `https://grabi.napi.lat/admin`
+  se leen pero **se rechazan**. 21 casos de la función de validación tal como se sirve al navegador,
+  más las pruebas Go de `/scan` (`internal/web/scan_test.go`). Render revisado a 390 px sin scroll
+  horizontal en los tres estados (escaneando / sin cámara / ID inválido).
+- **Pendiente (no bloquea):** generar desde el panel la **calcomanía imprimible** del QR por máquina
+  (hoy el QR de la máquina se hace a mano); y decidir si `/{ID}` sin `/m/` debería redirigir en vez
+  de dar 404 — por ahora da 404 **a propósito**, y el 404 ofrece volver a escanear.
+
+---
+
 ## ADR-024 · Landing v2: la experiencia arriba, el negocio abajo (+ QR con contador y re-emisión)
 - **Fecha:** 2026-07-26 · **Autor:** Agente de Software (02) + Daniel.
 - **Decisión:** la landing se reordena en **dos discursos** (spec [`especificaciones/landing-v2.md`](./especificaciones/landing-v2.md),

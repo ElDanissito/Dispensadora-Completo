@@ -1,0 +1,217 @@
+{{define "content"}}
+{{template "pubtop" false}}
+
+<div class="scanwrap">
+  <div class="scanintro">
+    <span class="eyebrow">Escanear</span>
+    <h1 class="scantitle">Apunta al QR de la máquina</h1>
+    <p class="scanlead">Se abre la tienda de esa máquina para elegir tus productos y pagar por Bre-B.</p>
+  </div>
+
+  <div class="scanstage" id="stage" data-state="init">
+    <video id="cam" playsinline muted autoplay disablepictureinpicture></video>
+    {{/* Mira de escaneo: mismo lenguaje visual de la marca compacta
+         (identidad-visual-v1 §3) — cuatro esquinas + punto verde al centro. */}}
+    <div class="scanmira" aria-hidden="true">
+      <span class="c tl"></span><span class="c tr"></span>
+      <span class="c bl"></span><span class="c br"></span>
+      <span class="dot"></span>
+    </div>
+    <p class="scanidle" id="idle">Preparando la cámara…</p>
+  </div>
+
+  <p class="scanmsg" id="msg" role="status" aria-live="polite">Necesitamos tu cámara solo para leer el QR.</p>
+
+  <div class="scanfallback" id="fallback" hidden>
+    <strong>Sin cámara no podemos leer el QR</strong>
+    <p id="fallbackWhy">El navegador no nos dio acceso a la cámara.</p>
+    <p class="scanpriv">La imagen se procesa <strong>en tu celular</strong>: no se envía ni se guarda nada.</p>
+    <button type="button" id="askCam">Permitir cámara</button>
+  </div>
+
+  {{/* Fallback manual. Es un formulario GET de verdad: sin JavaScript lo valida
+       y redirige el servidor (handleScan), con JS se resuelve sin recargar. */}}
+  <details class="scanmanual" id="manual"{{if .Err}} open{{end}}>
+    <summary>Escribir el ID manualmente</summary>
+    <form method="get" action="/scan" id="manualForm">
+      <label for="mid">ID de la máquina</label>
+      <input type="text" id="mid" name="m" value="{{.Typed}}" placeholder="M001"
+             autocomplete="off" autocapitalize="characters" autocorrect="off"
+             spellcheck="false" maxlength="12" aria-describedby="midHint"
+             {{if .Err}}aria-invalid="true"{{end}}>
+      <p class="scanerr" id="midErr" role="alert"{{if not .Err}} hidden{{end}}>{{.Err}}</p>
+      <p class="hint" id="midHint">Está impreso junto al QR de la máquina, con la forma <span class="accent">M001</span>.</p>
+      <button type="submit">Ir a la máquina</button>
+    </form>
+  </details>
+
+  <p class="scanfoot"><a class="link" href="/">Volver a inicio</a></p>
+</div>
+
+<script src="/static/vendor/jsQR.js"></script>
+<script>
+(function(){
+  var stage=document.getElementById('stage'),
+      video=document.getElementById('cam'),
+      idle=document.getElementById('idle'),
+      msg=document.getElementById('msg'),
+      fallback=document.getElementById('fallback'),
+      fallbackWhy=document.getElementById('fallbackWhy'),
+      askBtn=document.getElementById('askCam'),
+      manual=document.getElementById('manual'),
+      form=document.getElementById('manualForm'),
+      input=document.getElementById('mid'),
+      midErr=document.getElementById('midErr');
+
+  // Misma regex que valida el servidor (machineIDPattern en scan.go).
+  var ID_RE=new RegExp("{{.MachineIDPattern}}");
+  var HINT='Apunta al QR de la máquina.';
+
+  var stream=null, raf=0, scanning=false, wasLive=false, badTimer=0;
+  var canvas=document.createElement('canvas'),
+      ctx=canvas.getContext('2d',{willReadFrequently:true});
+
+  function say(text,kind){
+    if(msg.textContent===text && msg.dataset.kind===(kind||'')) return;
+    msg.textContent=text; msg.dataset.kind=kind||'';
+    msg.className='scanmsg'+(kind?' '+kind:'');
+  }
+
+  // safePath traduce el contenido del QR a una ruta de ESTE sitio, o null.
+  // Nunca devuelve el URL del QR: si valida, la ruta la construimos aquí con el
+  // id ya comprobado. Así un QR falso pegado sobre la máquina no puede llevar al
+  // cliente a un dominio de phishing.
+  function safePath(raw){
+    var u;
+    try{ u=new URL(String(raw).trim()); }catch(e){ return null; }   // no es un URL absoluto
+    if(u.protocol!=='https:' && u.protocol!=='http:') return null;  // javascript:, data:, intent:…
+    if(u.host!==location.host) return null;                         // otro dominio
+    var m=/^\/m\/([^\/?#]+)\/?$/.exec(u.pathname);                  // solo la tienda por máquina
+    if(!m) return null;
+    var id;
+    try{ id=decodeURIComponent(m[1]); }catch(e){ return null; }
+    id=id.trim().toUpperCase();
+    if(!ID_RE.test(id)) return null;
+    return '/m/'+id;
+  }
+
+  function go(path){
+    scanning=false;
+    stop();                       // suelta la cámara ANTES de navegar
+    say('QR leído. Abriendo la tienda…','ok');
+    location.href=path;
+  }
+
+  function stop(){
+    if(raf){ cancelAnimationFrame(raf); raf=0; }
+    if(stream){
+      stream.getTracks().forEach(function(t){ t.stop(); });
+      stream=null;
+    }
+    try{ video.pause(); video.srcObject=null; }catch(e){}
+    if(stage.dataset.state==='live') stage.dataset.state='off';
+  }
+
+  function tick(){
+    raf=0;
+    if(!scanning) return;
+    if(video.readyState>=2 && video.videoWidth){
+      // Bajamos la resolución antes de decodificar: jsQR lee de sobra a 640px
+      // y un frame 1080p por cuadro funde la batería de un Android medio.
+      var w=video.videoWidth, h=video.videoHeight,
+          k=Math.min(1,640/Math.max(w,h));
+      canvas.width=Math.round(w*k); canvas.height=Math.round(h*k);
+      ctx.drawImage(video,0,0,canvas.width,canvas.height);
+      var img=ctx.getImageData(0,0,canvas.width,canvas.height),
+          code=window.jsQR ? window.jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'}) : null;
+      if(code && code.data){
+        var path=safePath(code.data);
+        if(path){ go(path); return; }
+        say('Ese QR no es de una máquina GRABI. Sigue apuntando.','err');
+        if(badTimer) clearTimeout(badTimer);
+        badTimer=setTimeout(function(){ if(scanning) say(HINT); },4000);
+      }
+    }
+    raf=requestAnimationFrame(tick);
+  }
+
+  function showFallback(why){
+    stop();
+    scanning=false; wasLive=false;
+    stage.dataset.state='off';
+    idle.textContent='Cámara apagada';
+    fallbackWhy.textContent=why;
+    fallback.hidden=false;
+    manual.open=true;             // deja siempre una salida: escribir el ID
+    // Corto y distinto del texto del aviso: el lector de pantalla ya leerá la
+    // tarjeta, repetirla entera aquí solo hace ruido (y se ve duplicada).
+    say('Cámara no disponible.','err');
+  }
+
+  function start(){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      showFallback('Este navegador no puede abrir la cámara desde una página web. Escribe el ID de la máquina para continuar.');
+      askBtn.hidden=true;
+      return;
+    }
+    idle.textContent='Preparando la cámara…';
+    say('Pidiendo permiso de cámara…');
+    navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false})
+      .then(function(s){
+        stream=s; video.srcObject=s;
+        var p=video.play(); if(p && p.catch) p.catch(function(){});
+        stage.dataset.state='live';
+        fallback.hidden=true;
+        scanning=true; wasLive=true;
+        say(HINT);
+        if(!raf) raf=requestAnimationFrame(tick);
+      })
+      .catch(function(err){
+        var n=err && err.name;
+        if(n==='NotAllowedError' || n==='SecurityError'){
+          showFallback('No diste permiso de cámara. Tócalo de nuevo y acepta, o escribe el ID de la máquina.');
+        }else if(n==='NotFoundError' || n==='DevicesNotFoundError' || n==='OverconstrainedError'){
+          showFallback('No encontramos una cámara en este dispositivo. Escribe el ID de la máquina para continuar.');
+        }else{
+          showFallback('No pudimos abrir la cámara. Puede estar en uso por otra app. Escribe el ID de la máquina para continuar.');
+        }
+      });
+  }
+
+  askBtn.addEventListener('click',function(){ fallback.hidden=true; start(); });
+
+  // Auto-off: al cambiar de pestaña/app soltamos la cámara (el indicador del
+  // sistema se apaga) y la retomamos solo si estaba viva.
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden){
+      if(scanning){ scanning=false; stop(); idle.textContent='Cámara en pausa'; say('Cámara en pausa. Vuelve a esta pantalla para seguir.'); }
+    }else if(wasLive && !stream){
+      start();
+    }
+  });
+  window.addEventListener('pagehide',stop);
+
+  // Fallback manual con JS: mismo criterio que el servidor, sin recargar.
+  form.addEventListener('submit',function(e){
+    var id=normalizar(input.value);
+    if(!ID_RE.test(id)){
+      e.preventDefault();
+      midErr.textContent='Ese ID no es válido. Tiene la forma M001: una M y al menos 3 números.';
+      midErr.hidden=false;
+      input.setAttribute('aria-invalid','true');
+      input.focus();
+      return;
+    }
+    e.preventDefault();
+    midErr.hidden=true; input.removeAttribute('aria-invalid');
+    go('/m/'+id);
+  });
+  input.addEventListener('input',function(){
+    midErr.hidden=true; input.removeAttribute('aria-invalid');
+  });
+  function normalizar(v){ return String(v||'').replace(/\s+/g,'').toUpperCase(); }
+
+  start();
+})();
+</script>
+{{end}}
