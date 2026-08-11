@@ -67,7 +67,18 @@
   var ID_RE=new RegExp("{{.MachineIDPattern}}");
   var HINT='Apunta al QR de la máquina.';
 
-  var stream=null, raf=0, scanning=false, wasLive=false, badTimer=0;
+  // Cada decodificación cuesta ~17 ms en un PC (mucho más en un celular, y hasta
+  // 450 ms si el frame sale movido o con grano). Decodificar en CADA frame de
+  // requestAnimationFrame deja el hilo principal ocupado al 100%: el teclado y el
+  // repintado se quedan sin turno. A ~9 por segundo sobra — nadie apunta un QR
+  // menos de un segundo — y baja el uso del hilo a la vigésima parte.
+  var SCAN_MS=110;
+
+  var stream=null, raf=0, scanning=false, wasLive=false, badTimer=0, ultimoScan=0;
+  // Con el bloque "escribir el ID" abierto no se decodifica: es justo cuando el
+  // usuario está tecleando y necesita el hilo libre. La cámara sigue encendida
+  // para que al cerrarlo se reanude al instante.
+  var pausado=manual.open;
   var canvas=document.createElement('canvas'),
       ctx=canvas.getContext('2d',{willReadFrequently:true});
 
@@ -112,10 +123,14 @@
     if(stage.dataset.state==='live') stage.dataset.state='off';
   }
 
-  function tick(){
+  // t es la marca de tiempo que pasa requestAnimationFrame. El bucle sigue
+  // atado a rAF (así se detiene solo con la pestaña oculta), pero solo
+  // decodifica cuando toca: el resto de frames son una comparación y ya.
+  function tick(t){
     raf=0;
     if(!scanning) return;
-    if(video.readyState>=2 && video.videoWidth){
+    if(!pausado && t-ultimoScan>=SCAN_MS && video.readyState>=2 && video.videoWidth){
+      ultimoScan=t;
       // Bajamos la resolución antes de decodificar: jsQR lee de sobra a 640px
       // y un frame 1080p por cuadro funde la batería de un Android medio.
       var w=video.videoWidth, h=video.videoHeight,
@@ -190,6 +205,17 @@
     }
   });
   window.addEventListener('pagehide',stop);
+
+  // Mientras el bloque manual está abierto no se decodifica. Es el momento en que
+  // el usuario teclea, y decodificar a la vez le roba el hilo: en un celular se
+  // nota como teclado lento. El <details> es la única condición (para enfocar el
+  // campo hay que abrirlo antes), así que no hace falta escuchar el foco.
+  manual.addEventListener('toggle',function(){
+    pausado=manual.open;
+    if(!scanning) return;                       // la cámara ya no está viva: no toques el mensaje
+    if(pausado){ say('Escaneo en pausa mientras escribes el ID.'); }
+    else { ultimoScan=0; say(HINT); }           // al cerrar, decodifica en el primer frame
+  });
 
   // Fallback manual con JS: mismo criterio que el servidor, sin recargar.
   form.addEventListener('submit',function(e){

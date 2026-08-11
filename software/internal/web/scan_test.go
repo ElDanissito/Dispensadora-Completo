@@ -206,6 +206,33 @@ func TestScanManualEscapaLoEscrito(t *testing.T) {
 	}
 }
 
+// Decodificar en cada frame de requestAnimationFrame satura el hilo principal de
+// un celular (~17 ms por frame en un PC, mucho más en el móvil, y hasta 450 ms si
+// el frame sale movido): el teclado se siente lento. El bucle debe ir limitado y
+// además parar mientras el usuario escribe el ID a mano.
+func TestScanLimitaElRitmoDeEscaneo(t *testing.T) {
+	srv := httptest.NewServer(newTestServer(t).Routes())
+	defer srv.Close()
+
+	_, body := get(t, srv.URL+"/scan")
+	js := string(body)
+	if !strings.Contains(js, "var SCAN_MS=") {
+		t.Error("no hay tope de ritmo de escaneo (SCAN_MS)")
+	}
+	if !strings.Contains(js, "t-ultimoScan>=SCAN_MS") {
+		t.Error("el bucle no comprueba SCAN_MS: estaría decodificando en cada frame")
+	}
+	if !strings.Contains(js, "!pausado &&") {
+		t.Error("el bucle no mira el estado de pausa")
+	}
+	if !strings.Contains(js, "manual.addEventListener('toggle'") {
+		t.Error("abrir/cerrar el bloque manual no pausa ni reanuda el escaneo")
+	}
+	if !strings.Contains(js, "var pausado=manual.open;") {
+		t.Error("al llegar con el bloque manual ya abierto (error de ID) debería empezar en pausa")
+	}
+}
+
 // La regex viaja al JS: si dejara de estar en el HTML, el escáner aceptaría
 // cualquier cosa o nada.
 func TestScanInyectaLaRegexCompartida(t *testing.T) {
