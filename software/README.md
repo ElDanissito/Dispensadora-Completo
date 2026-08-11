@@ -134,6 +134,11 @@ escanear"** de las páginas de error (cubre el caso de teclear `grabi.napi.lat/M
   resuelve sin recargar. Un `m` inválido re-pinta el formulario con el error; **nunca** redirige.
 - **Auto-off:** al redirigir, al ocultarse la pestaña y en `pagehide` se paran los tracks (se
   libera la cámara y se apaga el indicador del sistema).
+- **Ritmo del escaneo (ADR-025 addendum):** se decodifica como mucho **~9 veces por segundo**
+  (`SCAN_MS`), no en cada frame, y **no se decodifica mientras el bloque "Escribir el ID
+  manualmente" está abierto** (es cuando el usuario teclea y necesita el hilo libre; la cámara sigue
+  encendida para reanudar al instante). Decodificar en cada frame dejaba el hilo principal al 100 %
+  en el celular y se notaba como teclado lento.
 - **Verificado (2026-08-11):** QR reales generados con `internal/qr` decodificados por el jsQR
   vendorizado, enrutando a `/m/M001` y `/m/M0042`, y **rechazando** `https://evil.example/m/M001`
   y `https://grabi.napi.lat/admin`. Estados (escaneando / sin cámara / ID inválido) revisados a

@@ -46,6 +46,32 @@
   se leen pero **se rechazan**. 21 casos de la función de validación tal como se sirve al navegador,
   más las pruebas Go de `/scan` (`internal/web/scan_test.go`). Render revisado a 390 px sin scroll
   horizontal en los tres estados (escaneando / sin cámara / ID inválido).
+### Addendum (2026-08-11) — el escaneo va limitado a ~9/s y se pausa al escribir el ID
+- **Síntoma (Daniel, tras el merge):** en el celular, escribir el ID a mano iba lento y "la página
+  parecía que pesara".
+- **Causa medida:** el bucle decodificaba con jsQR en **cada frame de `requestAnimationFrame`**
+  (~60/s). Coste por decodificación **en PC**: 11–17 ms con una escena normal (pared, frente de la
+  máquina, QR encuadrado) y **hasta 450 ms** con un frame movido o con grano. El presupuesto de un
+  frame a 60 fps son 16,7 ms: **una sola decodificación ya se lo comía entero**, y en un celular es
+  varias veces peor → el hilo principal nunca quedaba libre para el teclado ni el repintado.
+  Peor aún, **nada pausaba el bucle** al abrir "Escribir el ID manualmente": la carga máxima caía
+  justo mientras el usuario tecleaba.
+- **Descartado como causa (también medido):** la red (15,6 KB de HTML + 60 KB de jsQR ya
+  comprimidos por Caddy) y el canvas (`drawImage` + `getImageData` ≈ **1 ms**/frame, irrelevante).
+  El parse de los 257 KB de jsQR sí pesa, pero **una sola vez** al abrir, no al escribir.
+- **Decisión:** (1) **tope de ~9 decodificaciones por segundo** (`SCAN_MS=110`) — nadie apunta un QR
+  menos de un segundo, así que 9 oportunidades/s sobran; y (2) **pausar la decodificación mientras
+  el bloque manual está abierto** (evento `toggle` del `<details>`), que es exactamente cuando el
+  usuario teclea. El bucle sigue atado a `rAF` (así se sigue deteniendo solo con la pestaña oculta):
+  los frames que no tocan son una comparación de tiempos y nada más. La **cámara no se apaga** al
+  abrir el bloque manual, solo se deja de decodificar, para que al cerrarlo se reanude al instante.
+- **Verificado:** ejecutando el script **tal como se sirve** contra un DOM simulado con reloj
+  virtual: **60,3/s → 8,7/s** escaneando, y **60/s → 0/s** con el bloque manual abierto, reanudando
+  a 8,7/s al cerrarlo. Guardado como regresión en `scan_test.go`.
+- **No se tocó** la resolución de decodificación (640 px) ni la animación del punto verde. Medido:
+  a 384 px el QR **sigue decodificando** y el coste baja de 16,6 a 6,3 ms; y el `box-shadow` animado
+  repinta de más. Quedan como mejoras disponibles si hiciera falta más margen.
+
 - **Pendiente (no bloquea):** generar desde el panel la **calcomanía imprimible** del QR por máquina
   (hoy el QR de la máquina se hace a mano); y decidir si `/{ID}` sin `/m/` debería redirigir en vez
   de dar 404 — por ahora da 404 **a propósito**, y el 404 ofrece volver a escanear.
