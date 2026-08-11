@@ -1,0 +1,1153 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GRABI · Dispensadora V1 var2 (caja recta) — 4 carriles · modelo 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800;900&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0E0C; --fg:#EAF4EE; --muted:#8FA79A; --mint:#3BE87F; --deep:#0B7A3E;
+    --line:#22302a; --surface:#0E1512;
+    --font:'Space Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --brand:'Archivo',var(--font);
+    --barW:196px;        /* ancho del panel de controles (lo lee SAFE en el JS) */
+    --barTop:196px;      /* arranca debajo del HUD */
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);color:var(--fg);
+    font-family:var(--font);-webkit-font-smoothing:antialiased;user-select:none}
+  #app{position:fixed;inset:0}
+  canvas{display:block;outline:none}
+
+  .hud{position:fixed;left:18px;top:16px;z-index:12;pointer-events:none;max-width:min(340px,44vw)}
+  .logo{display:flex;align-items:center;gap:9px}
+  .logo svg{width:30px;height:30px;border-radius:7px;display:block}
+  .logo .wm{font-family:var(--brand);font-weight:900;font-size:1.45rem;letter-spacing:.3px;line-height:1}
+  .logo .wm i{color:var(--mint);font-style:normal}
+  .sub{font-family:var(--mono);font-size:.7rem;color:var(--muted);margin-top:7px;letter-spacing:.3px}
+  .dims{margin-top:11px;display:flex;flex-wrap:wrap;gap:5px}
+  .dims span{font-family:var(--mono);font-size:.66rem;color:var(--fg);background:#ffffff0d;
+    border:1px solid var(--line);border-radius:6px;padding:3px 7px}
+  .dims span b{color:var(--mint);font-weight:600}
+  .nots{margin-top:9px;display:flex;flex-wrap:wrap;gap:4px}
+  .nots span{font-family:var(--mono);font-size:.62rem;color:#c99191;background:#ff6b6b12;
+    border:1px solid #ff6b6b26;border-radius:6px;padding:3px 6px}
+
+  .hint{position:fixed;right:18px;top:16px;z-index:12;text-align:right;font-family:var(--mono);
+    font-size:.66rem;color:var(--muted);line-height:1.9;pointer-events:none}
+  .hint b{color:var(--mint);font-weight:600}
+  .hint kbd{background:#ffffff0f;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:.62rem}
+
+  /* Panel de controles: columna fija al costado izquierdo, debajo del HUD.
+     La barra no captura punteros (para no romper el arrastre); sólo los grupos. */
+  .bar{position:fixed;left:14px;top:var(--barTop);bottom:14px;z-index:12;width:var(--barW);
+    display:flex;flex-direction:column;gap:9px;overflow-y:auto;overscroll-behavior:contain;
+    pointer-events:none;scrollbar-width:thin;scrollbar-color:#2a3a32 transparent}
+  .bar::-webkit-scrollbar{width:6px}
+  .bar::-webkit-scrollbar-thumb{background:#2a3a32;border-radius:3px}
+  .grp{display:flex;flex-direction:column;gap:2px;background:#0e1512e8;border:1px solid var(--line);
+    border-radius:11px;padding:4px;pointer-events:auto;backdrop-filter:blur(8px);flex:none}
+  .grp > b{font-family:var(--mono);font-size:.56rem;font-weight:600;color:#6b8078;
+    letter-spacing:.14em;text-transform:uppercase;padding:6px 9px 4px}
+  button{display:block;width:100%;text-align:left;background:transparent;color:var(--muted);
+    border:0;border-radius:8px;padding:7px 10px;font-family:var(--mono);font-size:.72rem;
+    font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+  button:hover{background:#ffffff0d;color:var(--fg)}
+  button.on{background:var(--mint);color:#05130B}
+  button.cta{background:var(--mint);color:#05130B}
+  button.cta:hover{background:#6cf39d;color:#05130B}
+  button.cta:disabled{opacity:.4;cursor:default}
+
+  #tags{position:fixed;inset:0;z-index:10;pointer-events:none;overflow:hidden}
+  .tag{position:absolute;display:flex;align-items:center;gap:0;font-family:var(--mono);
+    font-size:.63rem;letter-spacing:.2px;white-space:nowrap;transition:opacity .2s;will-change:transform}
+  .tag i{width:7px;height:7px;border-radius:50%;background:var(--mint);flex:none;
+    box-shadow:0 0 0 3px #3be87f2e,0 0 12px #3be87f88}
+  .tag u{display:block;height:1px;width:26px;background:linear-gradient(90deg,#3be87faa,#3be87f22);flex:none}
+  .tag em{font-style:normal;background:#0a0e0cd9;border:1px solid #3be87f33;border-radius:6px;
+    padding:4px 8px;color:var(--fg);backdrop-filter:blur(6px)}
+  .tag em s{text-decoration:none;color:var(--muted)}
+  .tag.flip{flex-direction:row-reverse}
+  .tag.flip u{background:linear-gradient(90deg,#3be87f22,#3be87faa)}
+
+  #toast{position:fixed;left:50%;top:20px;z-index:14;opacity:0;transform:translate(-50%,-14px);
+    background:#0a0e0ce6;border:1px solid #3be87f44;border-radius:10px;padding:9px 15px;
+    font-family:var(--mono);font-size:.72rem;color:var(--fg);pointer-events:none;
+    transition:opacity .25s,transform .25s;backdrop-filter:blur(8px)}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  #toast b{color:var(--mint)}
+
+  #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;
+    padding:28px;font-family:var(--mono);font-size:.8rem;color:var(--muted);z-index:30;line-height:1.9}
+  @media (max-width:760px){
+    :root{--barW:158px;--barTop:178px}
+    .hud{max-width:58vw} .hint{display:none}
+    button{padding:7px 8px;font-size:.66rem}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="tags"></div>
+
+<div class="hud">
+  <div class="logo">
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <rect width="100" height="100" rx="22" fill="#0A0E0C"></rect>
+      <path d="M41 24 L24 24 L24 41 M59 24 L76 24 L76 41 M41 76 L24 76 L24 59 M59 76 L76 76 L76 59"
+            fill="none" stroke="#EAF4EE" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"></path>
+      <circle cx="50" cy="50" r="13" fill="#3BE87F"></circle>
+    </svg>
+    <div class="wm">GRABI<i>.</i></div>
+  </div>
+  <div class="sub"><b style="color:#3BE87F">var2 · caja recta</b> · 4 carriles (2×2)</div>
+  <div class="dims">
+    <span>prof <b>66</b> cm</span><span>ancho <b>33.6</b> cm</span><span>alto <b>44.5</b> cm</span>
+  </div>
+  <div class="nots">
+    <span>sin monedero</span><span>sin billetero</span><span>sin datáfono</span><span>sin pantalla</span>
+  </div>
+</div>
+
+<div class="hint">
+  arrastra: <b>girar</b> &nbsp;·&nbsp; rueda: <b>zoom</b><br>
+  clic en un producto: <b>dispensar</b><br>
+  <kbd>1</kbd>–<kbd>4</kbd> carriles &nbsp;<kbd>D</kbd> puerta &nbsp;<kbd>X</kbd> rayos X
+</div>
+
+<div class="bar">
+  <div class="grp">
+    <b>Vista</b>
+    <button id="vIso" class="on">Isométrica</button>
+    <button id="vFront">Frontal</button>
+    <button id="vReader">Lector QR</button>
+    <button id="vSide">Lateral</button>
+    <button id="vTop">Planta</button>
+    <button id="tSpin" class="on">⟳ Girar</button>
+  </div>
+  <div class="grp">
+    <b>Mostrar</b>
+    <button id="tDoor">Abrir puerta</button>
+    <button id="tXray">Rayos X</button>
+    <button id="tDims">Medidas</button>
+    <button id="tTags" class="on">Etiquetas</button>
+    <button id="tSkin">Vinilos</button>
+    <button id="tColor">Acero</button>
+  </div>
+  <div class="grp">
+    <b>Demo</b>
+    <button id="aBuy" class="cta">▶ Simular compra</button>
+    <button id="aShot">Exportar PNG</button>
+    <button id="aReset">Reiniciar</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="err">No se pudo cargar Three.js.<br>Ábrelo con conexión a internet (se usa el CDN) y recarga.</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+if(typeof THREE==='undefined'){ document.getElementById('err').style.display='flex'; return; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   GRABI · Dispensadora V1 (variante 2) — modelo 3D interactivo
+   1 unidad = 1 cm. Medidas reales del piloto:
+       profundidad D = 66 · ancho W = 33.6 · alto H = 44.5
+   Frente = +Z. Puerta de cara completa que abre desde la izquierda (bisagras internas).
+   VARIANTE 2: caja recta, sin el chaflán frontal. El frente sube plano hasta el
+   techo, así que la cabecera de marca es más alta y el techo es horizontal.
+   Lector QR GM65 en el frente, esquina superior derecha.
+   NO lleva monedero, billetero, datáfono ni pantalla.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// ── Envolvente ──
+const W=33.6, H=44.5, D=66;
+const T=1.4;              // espesor de lámina (exagerado para que se lea en 3D)
+const ZF=D/2;             // plano frontal
+
+// ── Retícula del frente (todo derivado, nada suelto) ──
+const dL=-W/2, dR=W/2;                  // bordes laterales de la puerta
+// La puerta sube hasta justo debajo del techo: si lo pasara, al abrirse lo atravesaría
+const dBot=0.6, dTop=H-T-0.3;
+const railL=dL+1.6;                     // franja izquierda de la puerta (lado del giro)
+const colR =dR-7.8;                     // inicio de la columna derecha (lector + electrónica)
+const slotB=2.8,  slotT=9.8;            // boca de entrega
+const winB=13.8,  winT=36.2;            // vitrina: un solo vidrio plano
+const winL=railL, winR=colR;
+// La rejilla 2×2 la forman el estante y el divisor INTERIORES (la puerta no lleva cruceta)
+const MUL=1.2;                          // grosor aparente del divisor interior
+const mullX=(winL+winR)/2, mullY=(winB+winT)/2;
+const paneCX=[(winL+mullX-MUL/2)/2, (mullX+MUL/2+winR)/2];   // centros de carril
+const paneCY=[(winB+mullY-MUL/2)/2, (mullY+MUL/2+winT)/2];
+const readerW=4.2, readerH=2.4;         // ventana del GM65: 42 × 24 mm
+const readerBZ=0.9;                     // margen del bisel; su borde debe quedar libre
+// Eje de la columna derecha: 0.5 cm a la derecha del centro geométrico, para separar
+// el lector del marco de la vitrina. Lo comparten lector, pasos, chip Bre-B y placa.
+const readerX=(colR+dR)/2+0.5, readerY=33.6;
+const BEZ=0.55;                         // grosor de los marcos (vitrina y boca)
+const bandY=(slotT+winB)/2;             // banda entre vitrina y boca de entrega
+
+// ════════════════ Escena / cámara / render ════════════════
+const APP=document.getElementById('app');
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(34, innerWidth/innerHeight, 1, 4000);
+const renderer=new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+// Pipeline lineal a propósito: three r128 no tiene gestión de color, así que dejar
+// outputEncoding en sRGB haría que cada color hex se leyera como lineal y todo saldría
+// lavado. Sin encoding ni tone mapping los colores de marca salen tal como se autoran.
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+APP.appendChild(renderer.domElement);
+
+// Telón de fondo: una esfera invertida con degradado (respeta encoding, no se lava)
+scene.background=new THREE.Color(0x060a08);
+(function backdrop(){
+  const c=document.createElement('canvas'); c.width=32; c.height=512;
+  const x=c.getContext('2d');
+  const g=x.createLinearGradient(0,0,0,512);
+  g.addColorStop(0,'#0a120f'); g.addColorStop(.42,'#101c17');
+  g.addColorStop(.62,'#0a1210'); g.addColorStop(1,'#040705');
+  x.fillStyle=g; x.fillRect(0,0,32,512);
+  const t=new THREE.CanvasTexture(c);
+  const sky=new THREE.Mesh(new THREE.SphereGeometry(1500,24,20),
+    new THREE.MeshBasicMaterial({map:t, side:THREE.BackSide, depthWrite:false, fog:false}));
+  scene.add(sky);
+})();
+scene.fog=new THREE.Fog(0x070c0a, 300, 900);
+
+// ════════════════ Luces ════════════════
+scene.add(new THREE.HemisphereLight(0xd6f0e2, 0x0a0f0c, .58));
+const key=new THREE.DirectionalLight(0xffffff,1.18);
+key.position.set(-74,120,106); key.castShadow=true;
+key.shadow.mapSize.set(2048,2048);
+key.shadow.camera.near=20; key.shadow.camera.far=470;
+key.shadow.camera.left=-110; key.shadow.camera.right=110;
+key.shadow.camera.top=130;  key.shadow.camera.bottom=-30;
+key.shadow.bias=-0.0006; scene.add(key);
+const fillL=new THREE.DirectionalLight(0x9fe2c0,.42); fillL.position.set(96,42,-30); scene.add(fillL);
+const rimL =new THREE.DirectionalLight(0xbfe9ff,.30); rimL.position.set(40,62,-120); scene.add(rimL);
+const halo=new THREE.PointLight(0x3be87f,.6,42,2);
+halo.position.set(readerX,readerY,ZF+7); scene.add(halo);
+
+// Piso
+const floor=new THREE.Mesh(new THREE.CircleGeometry(420,64),
+  new THREE.MeshStandardMaterial({color:0x0c1310, roughness:.94, metalness:.05}));
+floor.rotation.x=-Math.PI/2; floor.position.y=-0.02; floor.receiveShadow=true; scene.add(floor);
+(function(){
+  const g=new THREE.GridHelper(600,60,0x1c2a23,0x141d19);
+  g.position.y=0.03; g.material.transparent=true; g.material.opacity=.55; scene.add(g);
+})();
+
+// ════════════════ Marca: texturas dibujadas en canvas ════════════════
+const MINT='#3BE87F', OFF='#EAF4EE', MUT='#8FA79A';
+const REG=[];
+function tex(w,h,draw,rep){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  const x=c.getContext('2d'); draw(x,w,h);
+  const t=new THREE.CanvasTexture(c); t.anisotropy=8;
+  if(rep){ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(rep[0],rep[1]); }
+  REG.push({x,w,h,draw,t}); return t;
+}
+function refreshTex(){ REG.forEach(r=>{ r.x.clearRect(0,0,r.w,r.h); r.draw(r.x,r.w,r.h); r.t.needsUpdate=true; }); }
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(refreshTex);
+
+const F_BRAND=s=>'900 '+s+'px Archivo, "Arial Black", sans-serif';
+const F_MONO=(w,s)=>w+' '+s+'px "IBM Plex Mono", ui-monospace, monospace';
+const F_UI=(w,s)=>w+' '+s+'px "Space Grotesk", system-ui, sans-serif';
+
+function rr(x,rx,ry,rw,rh,r){
+  r=Math.min(r,rw/2,rh/2); x.beginPath();
+  x.moveTo(rx+r,ry); x.arcTo(rx+rw,ry,rx+rw,ry+rh,r); x.arcTo(rx+rw,ry+rh,rx,ry+rh,r);
+  x.arcTo(rx,ry+rh,rx,ry,r); x.arcTo(rx,ry,rx+rw,ry,r); x.closePath();
+}
+/* Isotipo oficial (brand/mark.svg): cuadrado redondeado, 4 esquinas, punto central */
+function drawMark(x,cx,cy,s,bg,st,dot){
+  const k=s/100;
+  if(bg){ x.save(); rr(x,cx-s/2,cy-s/2,s,s,22*k); x.fillStyle=bg; x.fill(); x.restore(); }
+  x.save(); x.translate(cx-s/2,cy-s/2); x.scale(k,k);
+  x.strokeStyle=st; x.lineWidth=7.5; x.lineCap='round'; x.lineJoin='round';
+  x.beginPath();
+  x.moveTo(41,24); x.lineTo(24,24); x.lineTo(24,41);
+  x.moveTo(59,24); x.lineTo(76,24); x.lineTo(76,41);
+  x.moveTo(41,76); x.lineTo(24,76); x.lineTo(24,59);
+  x.moveTo(59,76); x.lineTo(76,76); x.lineTo(76,59);
+  x.stroke();
+  x.fillStyle=dot; x.beginPath(); x.arc(50,50,13,0,Math.PI*2); x.fill();
+  x.restore();
+}
+/* Logotipo "GRABI." con el punto verde (brand/wordmark-*.svg) */
+function wordmark(x,leftX,baseY,size,fg,dotCol){
+  x.save(); x.textAlign='left'; x.textBaseline='middle'; x.font=F_BRAND(size);
+  x.fillStyle=fg; x.fillText('GRABI',leftX,baseY);
+  const mw=x.measureText('GRABI').width, r=size*0.115;
+  x.fillStyle=dotCol; x.beginPath(); x.arc(leftX+mw+r*1.4, baseY+size*0.33, r, 0, Math.PI*2); x.fill();
+  x.restore(); return x.measureText('GRABI').width+r*3;
+}
+
+// micro-textura de lámina
+const texNoise=tex(256,256,(x,w,h)=>{
+  x.fillStyle='#808080'; x.fillRect(0,0,w,h);
+  for(let i=0;i<26000;i++){
+    const g=118+((i*2654435761)%23);
+    x.fillStyle='rgb('+g+','+g+','+g+')';
+    x.fillRect((i*37)%w,(i*61)%h,1,1);
+  }
+},[7,7]);
+
+/* Cabecera de la puerta. En la variante recta la banda es más alta que en la V1,
+   así que va en dos filas: marca arriba y dominio + medio de pago abajo. */
+const HEADER_AR=5.43;                                   // = 1400/258, ver el panel
+const texHeader=tex(1400,258,(x,w,h)=>{
+  x.clearRect(0,0,w,h);
+  // fila 1: isotipo + logotipo, centrados como un solo bloque
+  const s=104, gap=26;
+  x.font=F_BRAND(100);
+  const wmW=x.measureText('GRABI').width + 100*0.115*3;
+  const total=s+gap+wmW, x0=(w-total)/2, cy=90;
+  drawMark(x, x0+s/2, cy, s, null, OFF, MINT);
+  wordmark(x, x0+s+gap, cy-4, 100, OFF, MINT);
+  // separador + fila 2
+  x.strokeStyle='#26332c'; x.lineWidth=3;
+  x.beginPath(); x.moveTo(w*0.16,166); x.lineTo(w*0.84,166); x.stroke();
+  x.textAlign='center'; x.textBaseline='middle';
+  x.font=F_MONO(600,40); x.fillStyle=MUT;
+  const dom='grabi.napi.lat', sep='   ·   ', pay='pago con Bre-B';
+  const wd=x.measureText(dom).width, ws=x.measureText(sep).width, wp=x.measureText(pay).width;
+  const bx=(w-(wd+ws+wp))/2;
+  x.textAlign='left';
+  x.fillStyle=OFF;  x.fillText(dom, bx, 214);
+  x.fillStyle=MUT;  x.fillText(sep, bx+wd, 214);
+  x.fillStyle=MINT; x.fillText(pay, bx+wd+ws, 214);
+});
+
+// frente del lector GM65
+const texReader=tex(640,380,(x,w,h)=>{
+  x.fillStyle='#080f0b'; rr(x,0,0,w,h,44); x.fill();
+  x.strokeStyle='#1d2b24'; x.lineWidth=6; rr(x,3,3,w-6,h-6,42); x.stroke();
+  x.fillStyle='#030805'; rr(x,w*0.30,h*0.18,w*0.40,h*0.44,18); x.fill();
+  x.fillStyle='#0d2a1c'; rr(x,w*0.325,h*0.205,w*0.35,h*0.39,14); x.fill();
+  x.fillStyle=MINT; x.beginPath(); x.arc(w*0.19,h*0.38,13,0,Math.PI*2); x.fill();
+  x.globalAlpha=.28; x.beginPath(); x.arc(w*0.19,h*0.38,26,0,Math.PI*2); x.fill(); x.globalAlpha=1;
+  x.fillStyle='#5a6b62'; x.beginPath(); x.arc(w*0.81,h*0.38,10,0,Math.PI*2); x.fill();
+  x.textAlign='center'; x.textBaseline='middle';
+  x.font=F_MONO(700,44); x.fillStyle=OFF; x.fillText('ESCANEA TU QR',w/2,h*0.79);
+  x.font=F_MONO(400,25); x.fillStyle=MUT; x.fillText('GM65 · verifica sin internet',w/2,h*0.925);
+});
+
+// Parte el texto en líneas que quepan en maxW y las dibuja centradas en cx
+function wrapLines(x,text,maxW,cx,cy,lineH){
+  const words=text.split(' '); let line='', n=0;
+  const flush=()=>{ if(line){ x.fillText(line, cx, cy+n*lineH); n++; line=''; } };
+  words.forEach(word=>{
+    const probe = line ? line+' '+word : word;
+    if(x.measureText(probe).width>maxW && line){ flush(); line=word; }
+    else line=probe;
+  });
+  flush(); return n;
+}
+// columna derecha: los 3 pasos, apilados en vertical y con el texto derecho
+const texSteps=tex(480,1360,(x,w,h)=>{
+  x.clearRect(0,0,w,h);
+  const blk=h/3, cx=w/2;
+  [['1','ESCANEA','el QR de la máquina'],
+   ['2','PAGA','con Bre-B desde tu banco'],
+   ['3','MUESTRA','el QR y agárralo']].forEach((s,i)=>{
+    const y0=i*blk;
+    x.textAlign='center'; x.textBaseline='middle';
+    x.fillStyle=MINT; x.beginPath(); x.arc(cx, y0+110, 54, 0, Math.PI*2); x.fill();
+    x.font=F_BRAND(64); x.fillStyle='#05130B'; x.fillText(s[0], cx, y0+114);
+    x.font=F_BRAND(74); x.fillStyle=OFF;       x.fillText(s[1], cx, y0+240);
+    x.font=F_MONO(400,34); x.fillStyle=MUT;    wrapLines(x, s[2], w*0.86, cx, y0+310, 42);
+    if(i<2){ x.strokeStyle='#25332c'; x.lineWidth=5;
+      x.beginPath(); x.moveTo(w*0.16, y0+blk-14); x.lineTo(w*0.84, y0+blk-14); x.stroke(); }
+  });
+});
+
+// vinilo lateral izquierdo (el grande)
+const texWrap=tex(1600,900,(x,w,h)=>{
+  const g=x.createLinearGradient(0,0,w,h);
+  g.addColorStop(0,'#0d1512'); g.addColorStop(.55,'#101d17'); g.addColorStop(1,'#080f0c');
+  x.fillStyle=g; x.fillRect(0,0,w,h);
+  x.fillStyle=MINT; x.fillRect(0,0,w,15); x.fillRect(0,h-15,w,15);
+  x.save(); x.globalAlpha=.05; drawMark(x,w-250,h-240,680,null,OFF,MINT); x.restore();
+  drawMark(x,148,148,148,MINT,'#05130B','#05130B');
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  x.font=F_BRAND(130); x.fillStyle=OFF;
+  x.fillText('Escanea,',94,428); x.fillText('paga,',94,562);
+  x.fillStyle=MINT; x.fillText('agárralo.',94,696);
+  x.font=F_MONO(600,42); x.fillStyle=MUT;
+  x.fillText('Sin efectivo · sin datáfono · pago Bre-B',94,784);
+  x.textAlign='right'; x.font=F_BRAND(56); x.fillStyle=OFF; x.fillText('grabi.napi.lat',w-94,286);
+  x.font=F_MONO(600,36); x.fillStyle=MINT; x.fillText('/ M001',w-94,338);
+});
+
+/* Vinilo lateral derecho: "cómo funciona". A propósito NO nombra productos ni precios,
+   para que el surtido del piloto pueda cambiar sin reimprimir el vinilo. */
+const texWrap2=tex(1200,576,(x,w,h)=>{
+  x.fillStyle='#0c1411'; x.fillRect(0,0,w,h);
+  x.fillStyle=MINT; x.fillRect(0,0,14,h);
+  x.save(); x.globalAlpha=.05; drawMark(x,w-180,h-140,460,null,OFF,MINT); x.restore();
+  // titular
+  drawMark(x,88,84,86,MINT,'#05130B','#05130B');
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  // El cuerpo se ajusta a la línea más larga para no chocar con el separador
+  // (y para aguantar el fallback de fuente si Archivo no alcanza a cargar).
+  const claims=[['Sin efectivo.',OFF],['Sin datáfono.',OFF],['Solo tu celular.',MINT]];
+  const maxW=540; let fs=78;
+  x.font=F_BRAND(fs);
+  const widest=Math.max.apply(null, claims.map(c=>x.measureText(c[0]).width));
+  if(widest>maxW) fs=Math.floor(fs*maxW/widest);
+  x.font=F_BRAND(fs);
+  claims.forEach((c,i)=>{ x.fillStyle=c[1]; x.fillText(c[0], 60, 232+i*Math.round(fs*1.12)); });
+  x.font=F_MONO(600,30); x.fillStyle=MUT; x.fillText('grabi.napi.lat',60,486);
+  // separador + los 3 pasos
+  x.strokeStyle='#1d2a24'; x.lineWidth=3;
+  x.beginPath(); x.moveTo(640,60); x.lineTo(640,h-60); x.stroke();
+  [['1','Escanea el QR de la máquina'],
+   ['2','Paga con Bre-B desde tu banco'],
+   ['3','Muestra el QR y agárralo']].forEach((s,i)=>{
+    const cy=150+i*130;
+    x.fillStyle=MINT; x.beginPath(); x.arc(730,cy-14,34,0,Math.PI*2); x.fill();
+    x.textAlign='center'; x.textBaseline='middle';
+    x.font=F_BRAND(40); x.fillStyle='#05130B'; x.fillText(s[0],730,cy-12);
+    x.textAlign='left'; x.font=F_UI(500,38); x.fillStyle=OFF;
+    wrapLines(x, s[1], 340, 786, cy-26, 44);
+    x.textAlign='left'; x.textBaseline='alphabetic';
+  });
+});
+
+// calcomanía del techo (horizontal, se ve en la vista de planta)
+const TOP_AR=4.6;                                       // = 1380/300, ver el panel
+const texTop=tex(1380,300,(x,w,h)=>{
+  x.clearRect(0,0,w,h);
+  const s=118, gap=30;
+  x.font=F_BRAND(126);
+  const wmW=x.measureText('GRABI').width + 126*0.115*3;
+  const tail=' · M001';
+  x.font=F_MONO(600,44); const wt=x.measureText(tail).width;
+  const total=s+gap+wmW+wt, x0=(w-total)/2, cy=h/2;
+  drawMark(x, x0+s/2, cy, s, null, OFF, MINT);
+  wordmark(x, x0+s+gap, cy-4, 126, OFF, MINT);
+  x.textAlign='left'; x.textBaseline='middle';
+  x.font=F_MONO(600,44); x.fillStyle=MUT; x.fillText(tail, x0+s+gap+wmW, cy+10);
+});
+
+// rótulo de la boca de entrega
+const texSlot=tex(900,120,(x,w,h)=>{
+  x.clearRect(0,0,w,h); x.textAlign='center'; x.textBaseline='middle';
+  x.font=F_MONO(700,56); x.fillStyle=OFF; x.fillText('▾  RETIRA TU COMPRA AQUÍ  ▾',w/2,h/2);
+});
+
+// chip Bre-B
+const texBreb=tex(600,190,(x,w,h)=>{
+  x.clearRect(0,0,w,h);
+  x.fillStyle='#0b1310'; rr(x,4,4,w-8,h-8,34); x.fill();
+  x.strokeStyle=MINT; x.lineWidth=5; rr(x,4,4,w-8,h-8,34); x.stroke();
+  x.textAlign='center'; x.textBaseline='middle';
+  x.font=F_BRAND(66); x.fillStyle=OFF;  x.fillText('Bre-B',w/2,h/2-26);
+  x.font=F_MONO(600,30); x.fillStyle=MINT; x.fillText('pago inmediato',w/2,h/2+42);
+});
+
+// placa de identificación de la máquina
+const texPlate=tex(600,160,(x,w,h)=>{
+  x.clearRect(0,0,w,h);
+  x.fillStyle='#0a110e'; rr(x,2,2,w-4,h-4,18); x.fill();
+  x.strokeStyle='#22302a'; x.lineWidth=4; rr(x,2,2,w-4,h-4,18); x.stroke();
+  x.textAlign='center'; x.textBaseline='middle';
+  x.font=F_MONO(700,50); x.fillStyle=OFF; x.fillText('M001',w/2,h/2-18);
+  x.font=F_MONO(400,28); x.fillStyle=MUT; x.fillText('CALI · CO',w/2,h/2+34);
+});
+
+// placa técnica trasera
+const texSpec=tex(900,560,(x,w,h)=>{
+  x.fillStyle='#0d1310'; x.fillRect(0,0,w,h);
+  x.strokeStyle='#212e28'; x.lineWidth=6; x.strokeRect(3,3,w-6,h-6);
+  drawMark(x,84,80,94,null,OFF,MINT);
+  x.textAlign='left'; x.textBaseline='middle';
+  x.font=F_BRAND(62); x.fillStyle=OFF; x.fillText('GRABI',146,80);
+  x.font=F_MONO(600,30);
+  [['MODELO','V1 · 4 carriles (2×2)'],['DIMENSIONES','660 × 336 × 445 mm'],
+   ['ALIMENTACIÓN','110–120 V AC · 60 Hz'],['CONSUMO','< 25 W'],
+   ['CONTROL','ESP32 · verificación offline'],['LECTOR','GM65 (2D / QR)'],
+   ['PAGO','Bre-B · token Ed25519'],['SERIE','GRB-V1-000001']]
+  .forEach((r,i)=>{ const y=178+i*46;
+    x.fillStyle='#6d827a'; x.fillText(r[0],40,y);
+    x.fillStyle=OFF;       x.fillText(r[1],336,y); });
+});
+
+/* Etiquetas de producto. `wide` = envoltura de lata/botella (la textura da la vuelta al
+   cilindro, así que el texto va horizontal); si no, es una bolsa vertical. */
+function texLabel(name,sub,bg,fg,wide){
+  const cw=wide?512:340, chh=wide?320:430;
+  return tex(cw,chh,(x,w,h)=>{
+    x.fillStyle=bg; x.fillRect(0,0,w,h);
+    x.fillStyle='#00000026'; x.fillRect(0,0,w,h*0.07); x.fillRect(0,h*0.93,w,h*0.07);
+    x.fillStyle=fg; x.fillRect(0,h*0.30,w,h*0.014);
+    x.textAlign='center'; x.textBaseline='middle';
+    // en envolturas cilíndricas sólo se ve ~1/3 de la vuelta: el texto va al centro
+    const fs=Math.min((wide?w*0.40:w*0.86)/(name.length*0.60), h*0.20);
+    x.font=F_BRAND(fs); x.fillStyle=fg; x.fillText(name, w/2, h*0.45);
+    x.font=F_MONO(600, h*0.075); x.globalAlpha=.85; x.fillText(sub, w/2, h*0.60); x.globalAlpha=1;
+    x.save(); x.globalAlpha=.92; drawMark(x, w/2, h*0.80, h*0.15, null, fg, fg); x.restore();
+  });
+}
+
+// pantalla del celular con el QR del token (patrón determinista, decorativo)
+const texPhone=tex(700,1200,(x,w,h)=>{
+  x.fillStyle='#0b100e'; rr(x,0,0,w,h,72); x.fill();
+  x.fillStyle='#050807'; rr(x,16,16,w-32,h-32,58); x.fill();
+  x.textAlign='left'; x.textBaseline='middle'; x.font=F_MONO(600,26); x.fillStyle=MUT;
+  x.fillText('9:41',54,78); x.textAlign='right'; x.fillText('▮▮▮ 100%',w-54,78);
+  drawMark(x,84,178,72,null,OFF,MINT);
+  x.textAlign='left'; x.font=F_BRAND(54); x.fillStyle=OFF; x.fillText('GRABI',132,180);
+  x.font=F_MONO(400,25); x.fillStyle=MUT; x.fillText('grabi.napi.lat/M001',132,220);
+  x.font=F_MONO(600,28); x.fillStyle=MUT; x.fillText('TOTAL PAGADO',56,296);
+  x.font=F_BRAND(88); x.fillStyle=MINT; x.fillText('$ 3.000',56,364);
+  const qx=92,qy=436,qs=516,n=25,c=qs/n;
+  x.fillStyle=OFF; rr(x,qx-22,qy-22,qs+44,qs+44,26); x.fill();
+  let seed=987654321; const rnd=()=>{ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; };
+  x.fillStyle='#05130B';
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++){
+    if((i<8&&j<8)||(i<8&&j>n-9)||(i>n-9&&j<8)) continue;
+    if(rnd()>0.48) x.fillRect(qx+i*c,qy+j*c,c*0.94,c*0.94);
+  }
+  [[0,0],[n-7,0],[0,n-7]].forEach(p=>{
+    x.fillStyle='#05130B'; x.fillRect(qx+p[0]*c,qy+p[1]*c,c*7,c*7);
+    x.fillStyle=OFF;       x.fillRect(qx+(p[0]+1)*c,qy+(p[1]+1)*c,c*5,c*5);
+    x.fillStyle='#05130B'; x.fillRect(qx+(p[0]+2)*c,qy+(p[1]+2)*c,c*3,c*3);
+  });
+  x.textAlign='center'; x.font=F_MONO(700,34); x.fillStyle=OFF; x.fillText('MUESTRA ESTE QR',w/2,1050);
+  x.font=F_MONO(400,25); x.fillStyle=MUT; x.fillText('válido 3 min · un solo uso',w/2,1092);
+  x.fillStyle=MINT; rr(x,w/2-118,1126,236,8,4); x.fill();
+});
+
+// ════════════════ Materiales ════════════════
+const PALETTE={ acero:{body:0x59656e,door:0x44505a,dark:0x1e262b},
+                ink:  {body:0x263330,door:0x1a2622,dark:0x0d1512} };
+let skinColor='acero';
+const matBody =new THREE.MeshStandardMaterial({color:PALETTE.acero.body, roughness:.58, metalness:.5, bumpMap:texNoise, bumpScale:.03});
+const matDoor =new THREE.MeshStandardMaterial({color:PALETTE.acero.door, roughness:.6, metalness:.46, bumpMap:texNoise, bumpScale:.03});
+const matDark =new THREE.MeshStandardMaterial({color:PALETTE.acero.dark, roughness:.6, metalness:.4});
+const matMetal=new THREE.MeshStandardMaterial({color:0x424c53, roughness:.3, metalness:.88});
+const matChrome=new THREE.MeshStandardMaterial({color:0xa9b6bd, roughness:.18, metalness:.95});
+const matShelf=new THREE.MeshStandardMaterial({color:0x1b2420, roughness:.72, metalness:.22});
+const matGlass=new THREE.MeshPhysicalMaterial({color:0xcdeee2, roughness:.06, metalness:0,
+  transparent:true, opacity:.13, side:THREE.DoubleSide});
+const matBin=new THREE.MeshStandardMaterial({color:0x1a2521, roughness:.94, metalness:.06});
+const matSpiral=new THREE.MeshStandardMaterial({color:0xc2ccc7, roughness:.26, metalness:.92});
+const matPCB=new THREE.MeshStandardMaterial({color:0x0f4a2c, roughness:.7, metalness:.2});
+const matLed=new THREE.MeshBasicMaterial({color:0xe9fff4});
+const decal=(t,op)=>new THREE.MeshBasicMaterial({map:t, transparent:true,
+  opacity:op===undefined?1:op, side:THREE.DoubleSide, depthWrite:false});
+
+// ════════════════ Jerarquía ════════════════
+const machine=new THREE.Group(); scene.add(machine);
+const chassis=new THREE.Group(); machine.add(chassis);
+const doorPivot=new THREE.Group();                     // eje de giro: canto frontal izquierdo
+doorPivot.position.set(dL,0,ZF+0.25); machine.add(doorPivot);
+const door=new THREE.Group(); doorPivot.add(door);
+
+const skins=[];        // vinilos / calcomanías (toggle "Vinilos")
+const shellMeshes=[];  // láminas exteriores (toggle "Rayos X")
+
+function box(w,h,d,mat){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.castShadow=true; m.receiveShadow=true; return m; }
+function put(p,w,h,d,mat,x,y,z){ const m=box(w,h,d,mat); m.position.set(x,y,z); p.add(m); return m; }
+function shell(p,w,h,d,mat,x,y,z){ const m=put(p,w,h,d,mat,x,y,z); shellMeshes.push(m); return m; }
+function panel(p,w,h,t,x,y,z,rot,op){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h), decal(t,op));
+  m.position.set(x,y,z);
+  if(rot) m.rotation.set(rot[0]||0,rot[1]||0,rot[2]||0);
+  p.add(m); skins.push(m); return m;
+}
+
+/* ── Costados rectos: la caja es un prisma, sin chaflán ── */
+[-1,1].forEach(sx=>{
+  shell(chassis, T, H, D, matBody, sx*(W/2-T/2), H/2, 0);
+});
+shell(chassis, W, H, T, matBody, 0, H/2, -D/2+T/2);                    // trasera
+shell(chassis, W, T, D, matBody, 0, H-T/2, 0);                         // techo horizontal
+// calcomanía acostada en el techo (se ve en la vista de planta)
+panel(chassis, W*0.74, W*0.74/TOP_AR, texTop, 0, H+0.06, -3.0, [-Math.PI/2,0,0]);
+put(chassis, W-2*T, T, D-2*T, matDark, 0, T/2, 0);                     // piso interior
+[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{
+  const f=put(chassis,2.6,2.0,2.6,matDark, sx*(W/2-3.4), -1.0, sz*(D/2-3.4));
+  f.receiveShadow=false;
+});
+panel(chassis, 12, 7.5, texSpec, 0, 22, -D/2-0.12, [0,Math.PI,0]);     // placa técnica atrás
+
+/* ── Interior: estantes, divisor, bahía de electrónica ──
+   Los estantes terminan ~10 cm antes del vidrio: ése es el canal de caída. */
+const inW=W-2*T, inD=D-2*T;
+const SHD=inD-11, SHZ=-D/2+T+SHD/2+1.5;
+put(chassis, inW, .9, SHD, matShelf, 0, mullY, SHZ);                   // estante medio
+put(chassis, .8, winT-winB-2, SHD, matShelf, mullX, mullY, SHZ);       // divisor vertical
+put(chassis, inW, .9, SHD, matShelf, 0, winB-0.7, SHZ);                // piso de la fila baja
+put(chassis, inW, .6, SHD, matShelf, 0, winT+0.8, SHZ);                // techo de carriles
+
+const bay=new THREE.Group(); chassis.add(bay);                          // bahía derecha
+put(bay, 4.6, 22, 16, matDark, colR+2.4, 24, D/2-14);
+const pcb=put(bay, 3.4, 7.0, .4, matPCB, colR+2.4, 18.5, D/2-12); pcb.rotation.y=Math.PI/2;
+put(bay, 3.2, 5.0, .5, matPCB, colR+2.4, 29, D/2-11).rotation.y=Math.PI/2;
+const ledPwr=new THREE.Mesh(new THREE.SphereGeometry(.28,10,8), matLed);
+ledPwr.position.set(colR+0.15, 20.6, D/2-11); bay.add(ledPwr);
+
+/* ── Tolva y canasta de entrega ── */
+(function bin(){
+  const bz0=D/2-15, bz1=D/2-T, cz=(bz0+bz1)/2;
+  put(chassis, inW, .8, bz1-bz0, matBin, 0, slotB+0.5, cz).rotation.x=-0.10;   // rampa
+  put(chassis, inW, 5.4, .8, matBin, 0, slotB+3.1, bz0);                        // respaldo
+  put(chassis, .8, 6.2, bz1-bz0, matBin, -inW/2+.4, slotB+3.1, cz);
+  put(chassis, .8, 6.2, bz1-bz0, matBin,  inW/2-.4, slotB+3.1, cz);
+  // luz tenue dentro de la canasta: se ve dónde cae el producto
+  const l=new THREE.PointLight(0x9effcb,.28,26); l.position.set(0, slotT+1.0, D/2-8); chassis.add(l);
+})();
+
+/* ── 4 carriles: espiral + motor + producto + repuesto ── */
+function helix(radius,turns,len,tube){
+  const pts=[], seg=turns*22;
+  for(let i=0;i<=seg;i++){ const t=i/seg, a=t*turns*Math.PI*2;
+    pts.push(new THREE.Vector3(Math.cos(a)*radius, Math.sin(a)*radius, -len/2+t*len)); }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), seg, tube, 7, false);
+}
+function mkBag(name,sub,bg,fg,w,h){
+  const g=new THREE.Group();
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,2.5),
+    new THREE.MeshStandardMaterial({map:texLabel(name,sub,bg,fg), roughness:.42, metalness:.18}));
+  m.castShadow=true; g.add(m);
+  const seal=new THREE.Mesh(new THREE.BoxGeometry(w*.98,.8,.45),
+    new THREE.MeshStandardMaterial({color:0xdadfdb, roughness:.5}));
+  seal.position.y=h/2-0.1; g.add(seal);
+  const s2=seal.clone(); s2.position.y=-h/2+0.1; g.add(s2);
+  return g;
+}
+function mkBottle(){
+  const g=new THREE.Group();
+  const clear=new THREE.MeshStandardMaterial({color:0xd6f4ea, roughness:.08, metalness:0, transparent:true, opacity:.5});
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(2.05,2.05,6.2,24), clear);
+  body.position.y=-1.9; body.castShadow=true; g.add(body);
+  const lbl=new THREE.Mesh(new THREE.CylinderGeometry(2.1,2.1,3.4,24,1,true),
+    new THREE.MeshStandardMaterial({map:texLabel('AGUA','350 ml','#1668d8',OFF,true), roughness:.45, side:THREE.DoubleSide}));
+  // en CylinderGeometry u=0 cae en +Z, así que hay que girar media vuelta
+  // para que el centro de la etiqueta quede de frente
+  lbl.position.y=-2.2; lbl.rotation.y=Math.PI; g.add(lbl);
+  const shoulder=new THREE.Mesh(new THREE.CylinderGeometry(1.1,2.05,1.8,24), clear);
+  shoulder.position.y=2.1; g.add(shoulder);
+  const neck=new THREE.Mesh(new THREE.CylinderGeometry(1.05,1.05,1.0,18), clear); neck.position.y=3.5; g.add(neck);
+  const cap=new THREE.Mesh(new THREE.CylinderGeometry(1.15,1.15,1.3,20),
+    new THREE.MeshStandardMaterial({color:0x3be87f, roughness:.4}));
+  cap.position.y=4.65; cap.castShadow=true; g.add(cap);
+  return g;
+}
+function mkCan(name,col){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.5,9.0,26),
+    new THREE.MeshStandardMaterial({map:texLabel(name,'330 ml',col,OFF,true), roughness:.32, metalness:.55}));
+  body.rotation.y=Math.PI; body.castShadow=true; g.add(body);
+  const top=new THREE.Mesh(new THREE.CylinderGeometry(2.1,2.5,.8,26), matChrome); top.position.y=4.9; g.add(top);
+  const bot=new THREE.Mesh(new THREE.CylinderGeometry(2.5,2.1,.8,26), matChrome); bot.position.y=-4.9; g.add(bot);
+  return g;
+}
+const LANES=[
+  {name:'Platanitos',  price:'$ 3.000', build:()=>mkBag('PLATANITOS','75 g','#e8c33a','#0a0e0c',7.4,9.4)},
+  {name:'Maní salado', price:'$ 3.500', build:()=>mkBag('MANÍ','60 g','#c25a24',OFF,7.0,9.0)},
+  {name:'Agua 350 ml', price:'$ 2.500', build:()=>mkBottle()},
+  {name:'Speed Max',   price:'$ 5.000', build:()=>mkCan('SPEED MAX','#1d3fd0')}
+];
+const lanes=[];
+let li=0;
+for(let r=1;r>=0;r--) for(let c=0;c<2;c++){
+  const cx=paneCX[c], cy=paneCY[r], spec=LANES[li];
+  const spiral=new THREE.Mesh(helix(5.0,7,inD-16,.42), matSpiral);
+  spiral.position.set(cx, cy, -1.5); spiral.castShadow=true; chassis.add(spiral);
+  const motor=new THREE.Mesh(new THREE.CylinderGeometry(2.0,2.0,3.2,18), matMetal);
+  motor.rotation.x=Math.PI/2; motor.position.set(cx, cy, -inD/2+1.6); chassis.add(motor);
+
+  const prod=spec.build();
+  const home=new THREE.Vector3(cx, cy, D/2-11);
+  prod.position.copy(home);
+  prod.userData={id:li, home:home, spiral:spiral, anim:null, name:spec.name, price:spec.price};
+  chassis.add(prod); lanes.push(prod);
+
+  const spare=spec.build();                                  // repuesto: el carril se ve cargado
+  spare.position.set(cx, cy, D/2-11-9.5); spare.scale.setScalar(.98); chassis.add(spare);
+
+  // luz suave de carril, hacia el fondo (no crea brillos sobre el producto)
+  const led=new THREE.PointLight(0x8fffc4,.10,30); led.position.set(cx, cy+7.0, D/2-24); chassis.add(led);
+
+  li++;
+}
+
+/* ══ PUERTA (cara completa, abre desde la izquierda) ══
+   Coordenadas locales: x=0 en el eje de giro · z=0 en la cara exterior. */
+const DT=1.2;
+const dx=x=>x-dL;
+const dPut=(w,h,d,mat,xa,y,z)=>put(door,w,h,d,mat,dx(xa),y,z);
+const dShell=(w,h,d,mat,xa,y,z)=>{ const m=dPut(w,h,d,mat,xa,y,z); shellMeshes.push(m); return m; };
+const dPanel=(w,h,t,xa,y,z,rot,op)=>panel(door,w,h,t,dx(xa),y,z,rot,op);
+const Z0=-DT/2;
+
+// paneles (sin solaparse entre sí, para no tener caras coplanares):
+//   cabecera (todo el ancho) · franja izq · columna der · zócalo · banda · cruceta en cruz
+dShell(W, dTop-winT-0.2, DT, matDoor, 0, (winT+0.2+dTop)/2, Z0);
+dShell(railL-dL, winT-dBot, DT, matDoor, (dL+railL)/2, (dBot+winT)/2, Z0);
+dShell(dR-colR,  winT-dBot, DT, matDoor, (colR+dR)/2,  (dBot+winT)/2, Z0);
+dShell(winR-winL, slotB-dBot, DT, matDoor, (winL+winR)/2, (dBot+slotB)/2, Z0);
+dShell(winR-winL, winB-slotT, DT, matDoor, (winL+winR)/2, bandY, Z0);
+
+// marco fino de la vitrina (sin cruceta: los 4 carriles ya se separan por dentro)
+(function bezel(){
+  const cx=(winL+winR)/2, ww=winR-winL, wh=winT-winB, cy=(winB+winT)/2;
+  dPut(ww+2*BEZ, BEZ, 0.9, matMetal, cx, winT+BEZ/2, 0.10);
+  dPut(ww+2*BEZ, BEZ, 0.9, matMetal, cx, winB-BEZ/2, 0.10);
+  dPut(BEZ, wh+2*BEZ, 0.9, matMetal, winL-BEZ/2, cy, 0.10);
+  dPut(BEZ, wh+2*BEZ, 0.9, matMetal, winR+BEZ/2, cy, 0.10);
+})();
+// un solo vidrio plano + un reflejo muy tenue
+(function glazing(){
+  const cx=dx((winL+winR)/2), cy=(winB+winT)/2, gw=winR-winL-0.3, gh=winT-winB-0.3;
+  const g=new THREE.Mesh(new THREE.PlaneGeometry(gw,gh), matGlass);
+  g.position.set(cx, cy, -DT-0.15); door.add(g);
+  const gl=new THREE.Mesh(new THREE.PlaneGeometry(gw,gh),
+    new THREE.MeshBasicMaterial({color:0xbfeedd, transparent:true, opacity:.045, depthWrite:false}));
+  gl.position.set(cx, cy, -DT-0.04); door.add(gl);
+})();
+// marca en la cabecera + los 3 pasos en la columna derecha
+dPanel(W*0.88, W*0.88/HEADER_AR, texHeader, 0, (winT+0.2+dTop)/2, 0.06);
+dPanel(6.0, 17.0, texSteps, readerX, 21.5, 0.06);
+
+/* ── LECTOR QR GM65 · frente, esquina superior derecha ── */
+const readerGrp=new THREE.Group(); readerGrp.position.set(dx(readerX), readerY, 0); door.add(readerGrp);
+(function reader(){
+  const bz=box(readerW+readerBZ, readerH+readerBZ, 0.9, matMetal); bz.position.z=0.28; readerGrp.add(bz);
+  const face=box(readerW, readerH, 1.0,
+    new THREE.MeshStandardMaterial({color:0x070f0a, roughness:.42, metalness:.35}));
+  face.position.z=0.56; readerGrp.add(face);
+  const dec=new THREE.Mesh(new THREE.PlaneGeometry(readerW-0.18, readerH-0.18), decal(texReader));
+  dec.position.z=1.08; readerGrp.add(dec); skins.push(dec);
+  const lens=new THREE.Mesh(new THREE.CylinderGeometry(.5,.5,.3,20),
+    new THREE.MeshStandardMaterial({color:0x081c12, roughness:.12, metalness:.7,
+      emissive:0x0d4a2b, emissiveIntensity:1.1}));
+  lens.rotation.x=Math.PI/2; lens.position.set(0,0.26,1.16); readerGrp.add(lens);
+  // módulo hacia el interior + cable (se ve en Rayos X)
+  const bodyM=box(3.2,2.0,3.0, matDark); bodyM.position.z=-2.2; readerGrp.add(bodyM);
+  const cable=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,6.5,10), matDark);
+  cable.rotation.z=Math.PI/2; cable.position.set(-2.4,-.6,-3.4); readerGrp.add(cable);
+})();
+/* Haz de escaneo. Va en un pivote apuntado hacia donde se detiene el celular
+   (a la derecha del lente, para que el teléfono no tape el lector en cámara). */
+const beamPivot=new THREE.Group();
+beamPivot.position.set(0,0.3,1.3); beamPivot.rotation.set(-0.14,0.95,0);
+readerGrp.add(beamPivot);
+const beam=new THREE.Mesh(new THREE.ConeGeometry(2.6,7,22,1,true),
+  new THREE.MeshBasicMaterial({color:0x3be87f, transparent:true, opacity:0,
+    blending:THREE.AdditiveBlending, side:THREE.DoubleSide, depthWrite:false}));
+beam.rotation.x=-Math.PI/2; beam.position.z=3.5; beamPivot.add(beam);
+const scanLine=new THREE.Mesh(new THREE.PlaneGeometry(4.6,.3),
+  new THREE.MeshBasicMaterial({color:0xd9ffe9, transparent:true, opacity:0,
+    blending:THREE.AdditiveBlending, depthWrite:false}));
+scanLine.position.z=6.0; beamPivot.add(scanLine);
+
+/* ── Boca de entrega: recesada, sin compuerta ── */
+(function slot(){
+  const sw=winR-winL, cx=(winL+winR)/2, sh=slotT-slotB, cy=(slotB+slotT)/2;
+  dPut(sw+2*BEZ, BEZ, 1.0, matMetal, cx, slotT+BEZ/2, 0.08);
+  dPut(sw+2*BEZ, BEZ, 1.0, matMetal, cx, slotB-BEZ/2, 0.08);
+  dPut(BEZ, sh+2*BEZ, 1.0, matMetal, winL-BEZ/2, cy, 0.08);
+  dPut(BEZ, sh+2*BEZ, 1.0, matMetal, winR+BEZ/2, cy, 0.08);
+  dPanel(sw*0.76, 1.6, texSlot, cx, 11.6, 0.06);    // entre el labio y el marco de la vitrina
+})();
+// columna derecha: chip Bre-B + placa de máquina
+dPanel(5.8, 1.85, texBreb,  readerX, 8.6, 0.06);
+dPanel(5.6, 1.50, texPlate, readerX, 4.8, 0.06);
+
+/* Sin herrajes a la vista: bisagras internas, sin manija ni cerradura exterior.
+   La puerta sigue girando sobre `doorPivot`, en el canto izquierdo del frente. */
+
+/* ── Vinilos laterales (cubren casi todo el costado, como un wrap real) ── */
+panel(chassis, D*0.78, H*0.52, texWrap,  -W/2-0.20, H*0.50,  1.0, [0,-Math.PI/2,0]);
+// alto = ancho / 2.083, el mismo aspecto del canvas, para que no se deforme
+panel(chassis, D*0.72, H*0.512, texWrap2,  W/2+0.20, H*0.50, -2.0, [0, Math.PI/2,0]);
+
+/* ── Celular con el QR (demo de compra) ── */
+const phone=new THREE.Group(); phone.visible=false; scene.add(phone);
+(function(){
+  phone.add(box(7.0,14.0,.85, new THREE.MeshStandardMaterial({color:0x14191c, roughness:.35, metalness:.6})));
+  const scr=new THREE.Mesh(new THREE.PlaneGeometry(6.4,13.4), decal(texPhone));
+  scr.position.z=.46; phone.add(scr);
+  const gl=new THREE.PointLight(0x9effcb,.45,30); gl.position.set(0,0,3); phone.add(gl);
+})();
+// El celular se detiene a la derecha del lente (no justo delante) para que no lo tape
+// en cámara: el haz sale en diagonal hasta el QR, que queda a la altura del lector.
+const PH_A=new THREE.Vector3(readerX+16, readerY-11, ZF+30);   // mano lejos, a la derecha
+const PH_B=new THREE.Vector3(readerX+5.2, readerY-0.4, ZF+5.2);
+
+// ════════════════ Etiquetas 3D (HTML proyectado) ════════════════
+const TAGS=document.getElementById('tags');
+const anns=[];
+function ann(text,note,pos,opt){
+  const el=document.createElement('div'); el.className='tag';
+  el.innerHTML='<i></i><u></u><em>'+text+(note?' <s>· '+note+'</s>':'')+'</em>';
+  el.style.opacity='0'; TAGS.appendChild(el);
+  anns.push(Object.assign({el, pos:pos.clone()}, opt||{}));
+}
+// Anclas justo por fuera de la silueta, para que el hilo salga del borde y no tape la vitrina.
+// El lector y la boca van montados EN la puerta: se ocultan si la puerta está abierta.
+ann('Lector QR GM65','verifica offline', new THREE.Vector3(dR+1.0, readerY+1.4, ZF+2.0), {onDoor:1});
+ann('4 carriles 2×2','espirales',        new THREE.Vector3(winL-1.2, paneCY[1]+3.5, ZF+2.0));
+ann('Boca de entrega','',                new THREE.Vector3(winL-1.2, (slotB+slotT)/2, ZF+2.0), {onDoor:1});
+ann('Sin monedero · sin billetero','sin datáfono · sin pantalla', new THREE.Vector3(0, H+7.5, 0));
+ann('Vinilo publicitario','',            new THREE.Vector3(-W/2-1.5, H*0.62, 6.0));
+ann('Bahía ESP32','+ fuente · verificación offline', new THREE.Vector3(colR+2.4, 29.0, D/2-14), {onlyXray:1});
+
+const _v=new THREE.Vector3();
+/* Zona libre para las etiquetas: la franja izquierda la ocupan el HUD y el panel de
+   controles, así que el ancho se lee de --barW (cambia en la media query de móvil). */
+const SAFE={t:64, b:24, r:14, l:222};
+function measureSafe(){
+  const v=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--barW'));
+  SAFE.l=(isNaN(v)?196:v)+16;
+}
+measureSafe();
+function place(el, pos){
+  _v.copy(pos).project(camera);
+  if(_v.z>=1){ el.style.opacity='0'; return; }
+  const px=(_v.x*.5+.5)*innerWidth, py=(-_v.y*.5+.5)*innerHeight;
+  if(px<SAFE.l || px>innerWidth-SAFE.r || py<SAFE.t || py>innerHeight-SAFE.b){ el.style.opacity='0'; return; }
+  // Se despliega hacia AFUERA (lejos del centro) y se voltea si por ese lado no cabe.
+  // Si no cabe por ninguno de los dos, se oculta en vez de desbordarse.
+  const wl=el.offsetWidth||210;
+  const fitL = px-wl >= SAFE.l, fitR = px+wl <= innerWidth-SAFE.r;
+  let f = px < innerWidth*0.5;
+  if(f && !fitL) f=false;
+  if(!f && !fitR) f=true;
+  if((f && !fitL) || (!f && !fitR)){ el.style.opacity='0'; return; }
+  el.classList.toggle('flip',f);
+  el.style.opacity='1';
+  el.style.transform='translate('+(f?'-100%':'0')+',-50%) translate('+px.toFixed(1)+'px,'+py.toFixed(1)+'px)';
+}
+function updateTags(){
+  anns.forEach(a=>{
+    if(!showTags || (a.onlyXray && !xray) || (a.onDoor && doorOpen)){ a.el.style.opacity='0'; return; }
+    place(a.el, a.pos);
+  });
+}
+
+// ════════════════ Cotas ════════════════
+const dimsGrp=new THREE.Group(); dimsGrp.visible=false; scene.add(dimsGrp);
+const dimTags=[];
+(function dimensions(){
+  const mat=new THREE.LineBasicMaterial({color:0x3be87f, transparent:true, opacity:.75});
+  const line=(a,b)=>dimsGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a,b]), mat));
+  const tick=(p,dir)=>{ const d=dir.clone().multiplyScalar(1.6); line(p.clone().sub(d), p.clone().add(d)); };
+  const UP=new THREE.Vector3(0,1,0), RT=new THREE.Vector3(1,0,0), off=7;
+  let a,b;
+  a=new THREE.Vector3(-W/2,-4,ZF+off); b=new THREE.Vector3(W/2,-4,ZF+off);
+  line(a,b); tick(a,UP); tick(b,UP);
+  dimTags.push({t:'33.6 cm · ancho', p:new THREE.Vector3(0,-4,ZF+off)});
+  a=new THREE.Vector3(W/2+off,0,ZF+2); b=new THREE.Vector3(W/2+off,H,ZF+2);
+  line(a,b); tick(a,RT); tick(b,RT);
+  dimTags.push({t:'44.5 cm · alto', p:new THREE.Vector3(W/2+off,H/2,ZF+2)});
+  a=new THREE.Vector3(-W/2-off,0.4,-D/2); b=new THREE.Vector3(-W/2-off,0.4,D/2);
+  line(a,b); tick(a,UP); tick(b,UP);
+  dimTags.push({t:'66 cm · profundidad', p:new THREE.Vector3(-W/2-off,0.4,0)});
+  dimTags.push({t:'lector '+(readerW*10)+' × '+(readerH*10)+' mm',
+                p:new THREE.Vector3(readerX, readerY-3.4, ZF+3)});
+  dimTags.push({t:'boca '+(winR-winL).toFixed(0)+' × '+(slotT-slotB).toFixed(1)+' cm',
+                p:new THREE.Vector3((winL+winR)/2, slotB-2.2, ZF+3)});
+  dimTags.forEach(d=>{
+    const el=document.createElement('div'); el.className='tag';
+    el.innerHTML='<em style="border-color:#3be87f66">'+d.t+'</em>';
+    el.style.opacity='0'; TAGS.appendChild(el); d.el=el;
+  });
+})();
+function updateDimTags(){
+  dimTags.forEach(d=>{
+    if(!dimsGrp.visible){ d.el.style.opacity='0'; return; }
+    _v.copy(d.p).project(camera);
+    const px=(_v.x*.5+.5)*innerWidth, py=(-_v.y*.5+.5)*innerHeight;
+    if(_v.z>=1 || px<SAFE.l || px>innerWidth-SAFE.r || py<SAFE.t || py>innerHeight-SAFE.b){
+      d.el.style.opacity='0'; return;
+    }
+    d.el.style.opacity='1';
+    d.el.style.transform='translate(-50%,-50%) translate('+px.toFixed(1)+'px,'+py.toFixed(1)+'px)';
+  });
+}
+
+// ════════════════ Cámara orbital ════════════════
+const VIEW={
+  iso:   [-0.74, 1.06, 152, H*0.40,  0, 0],
+  front: [ 0,    Math.PI/2, 146, H*0.40, 0, 0],
+  reader:[ 0.28, 1.34,  46, readerY-3.0, readerX*0.75, ZF-2],
+  side:  [-1.52, 1.50, 158, H*0.52, 0, 0],
+  top:   [-0.62, 0.30, 168, H*0.40,  0, 0],
+  open:  [ 0.66, 1.02, 158, H*0.40,  0, 0],     // muestra el interior con la puerta abierta
+  buy:   [ 0.12, 1.28,  64, readerY-6.0, readerX*0.55, ZF-6],
+  pickup:[ 0.16, 1.42,  96, 6, 0, 0]            // contrapicado sobre la boca de entrega
+};
+const target=new THREE.Vector3(0, VIEW.iso[3], 0);
+const cam={th:VIEW.iso[0], ph:VIEW.iso[1], r:VIEW.iso[2]};
+const goal={th:cam.th, ph:cam.ph, r:cam.r, tx:0, ty:target.y, tz:0};
+let spin=true, easing=false, drag=false;
+function applyCam(){
+  camera.position.set(
+    target.x + cam.r*Math.sin(cam.ph)*Math.sin(cam.th),
+    target.y + cam.r*Math.cos(cam.ph),
+    target.z + cam.r*Math.sin(cam.ph)*Math.cos(cam.th));
+  camera.lookAt(target);
+}
+function flyTo(v){
+  goal.th=v[0]; goal.ph=v[1]; goal.r=v[2];
+  goal.ty=v[3]; goal.tx=v[4]||0; goal.tz=v[5]||0;
+  easing=true;
+}
+applyCam();
+
+const el=renderer.domElement;
+let px=0, py=0, dx0=0, dy0=0;
+const ray=new THREE.Raycaster(), ptr=new THREE.Vector2();
+el.style.touchAction='none';
+el.addEventListener('pointerdown',e=>{
+  drag=true; easing=false; setSpin(false);
+  px=dx0=e.clientX; py=dy0=e.clientY;
+  try{ el.setPointerCapture(e.pointerId); }catch(_){}
+});
+el.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  cam.th -= (e.clientX-px)*0.0075;
+  cam.ph  = Math.max(0.16, Math.min(1.52, cam.ph-(e.clientY-py)*0.0058));
+  px=e.clientX; py=e.clientY; applyCam();
+});
+el.addEventListener('pointerup',e=>{
+  drag=false;
+  if(Math.abs(e.clientX-dx0)<6 && Math.abs(e.clientY-dy0)<6) pick(e.clientX,e.clientY);
+});
+el.addEventListener('wheel',e=>{
+  e.preventDefault(); easing=false;
+  cam.r=Math.max(44, Math.min(340, cam.r+e.deltaY*0.085)); applyCam();
+},{passive:false});
+
+function pick(cx,cy){
+  ptr.x=(cx/innerWidth)*2-1; ptr.y=-(cy/innerHeight)*2+1;
+  ray.setFromCamera(ptr,camera);
+  const hr=ray.intersectObject(readerGrp,true), hl=ray.intersectObjects(lanes,true);
+  const dr=hr.length?hr[0].distance:Infinity, dl=hl.length?hl[0].distance:Infinity;
+  if(dr<dl && dr<Infinity){ simulate(); return; }
+  if(dl<Infinity){
+    let o=hl[0].object; while(o.parent && lanes.indexOf(o)<0) o=o.parent;
+    if(lanes.indexOf(o)>=0) dispense(o);
+  }
+}
+
+// ════════════════ Animaciones ════════════════
+let doorOpen=false, doorA=0, xray=false, showTags=true, showSkins=true;
+let phoneOn=false, phoneT0=0, buyIdx=0;
+
+/* Las secuencias se miden con el reloj de la escena, no acumulando dt: así la
+   demo dura lo mismo en un equipo lento que a 60 fps (dt va limitado por frame). */
+function dispense(p){
+  if(p.userData.anim) return;
+  p.userData.anim={t0:clock.elapsedTime, landed:false};
+  toast('Dispensando <b>'+p.userData.name+'</b> · '+p.userData.price);
+}
+function simulate(){
+  if(phoneOn) return;
+  phoneOn=true; phoneT0=clock.elapsedTime;
+  phone.visible=true; phone.userData.fired=false; phone.userData.moved=false;
+  btnBuy.disabled=true;
+  if(doorOpen) toggleDoor();
+  toast('Pago <b>Bre-B</b> confirmado · mostrando el QR al lector');
+  mark(''); flyTo(VIEW.buy);
+}
+function stepPhone(now,dt){
+  if(!phoneOn) return;
+  const t=now-phoneT0;
+  if(t<1.1){                                       // el celular se acerca
+    const e=1-Math.pow(1-t/1.1,3);
+    phone.position.lerpVectors(PH_A,PH_B,e);
+    phone.rotation.set(-0.10, -0.55*(1-e)-0.26, 0.20*(1-e));
+    phone.scale.setScalar(0.92+0.08*e);
+  } else if(t<2.6){                                 // escaneo
+    const k=(t-1.1)/1.5, w=Math.sin(k*Math.PI);
+    beam.material.opacity=0.11*w;
+    scanLine.material.opacity=0.85*w;
+    scanLine.position.y=-3.2+6.4*k;
+    halo.intensity=0.6+1.1*w;
+  } else if(t<3.4){                                 // token válido → gira el carril
+    beam.material.opacity=0; scanLine.material.opacity=0; halo.intensity=0.6;
+    if(!phone.userData.fired){
+      phone.userData.fired=true;
+      dispense(lanes[(buyIdx++)%4]);
+    }
+    phone.position.z += dt*24; phone.position.y -= dt*8;   // se retira la mano
+    phone.rotation.z += dt*0.6;
+  } else if(t<7.0){                                 // baja la cámara a la boca de entrega
+    phone.visible=false;
+    if(!phone.userData.moved){ phone.userData.moved=true; flyTo(VIEW.pickup); }
+  } else {
+    phone.userData.moved=false; phoneOn=false; btnBuy.disabled=false;
+    mark('vIso'); flyTo(VIEW.iso);
+  }
+}
+function stepLanes(now,dt){
+  lanes.forEach(p=>{
+    const a=p.userData.anim; if(!a) return;
+    const t=now-a.t0, h=p.userData.home;
+    if(!a.landed && t<1.35){                         // gira la espiral y el producto avanza
+      p.userData.spiral.rotation.z += dt*7.6;
+      p.position.z = h.z + 5.4*(t/1.35);
+      p.position.x = h.x + Math.sin(t*22)*0.06;
+    } else if(!a.landed){                            // cae a la canasta
+      const u=t-1.35;
+      p.position.z = h.z + 5.4 + u*1.6;
+      p.position.y = h.y - 0.5*95*u*u;
+      p.rotation.x += dt*3.4; p.rotation.z += dt*1.7;
+      const restY=slotB+2.6;
+      if(p.position.y<=restY){
+        p.position.y=restY;
+        p.position.z=Math.min(p.position.z, D/2-5.5);
+        p.rotation.set(Math.PI/2, p.rotation.y, 0.24);
+        a.landed=true; a.t0=now;
+        toast('Listo · <b>retira tu compra</b>');
+      }
+    } else if(t>2.8){                                // recarga el carril
+      p.position.copy(h); p.rotation.set(0,0,0); p.userData.anim=null;
+    }
+  });
+}
+
+// ════════════════ UI ════════════════
+const $=id=>document.getElementById(id);
+const btnSpin=$('tSpin'), btnDoor=$('tDoor'), btnXray=$('tXray'), btnDims=$('tDims'),
+      btnTags=$('tTags'), btnSkin=$('tSkin'), btnColor=$('tColor'), btnBuy=$('aBuy');
+const toastEl=$('toast'); let toastTid=0;
+function toast(html){
+  toastEl.innerHTML=html; toastEl.classList.add('show');
+  clearTimeout(toastTid); toastTid=setTimeout(()=>toastEl.classList.remove('show'),2200);
+}
+function setSpin(v){ spin=v; btnSpin.classList.toggle('on',v); }
+btnSpin.onclick=()=>setSpin(!spin);
+
+const VIEWS=['vIso','vFront','vReader','vSide','vTop'];
+function mark(id){ VIEWS.forEach(k=>$(k).classList.toggle('on',k===id)); setSpin(false); }
+$('vIso').onclick   =()=>{ mark('vIso');    flyTo(VIEW.iso); };
+$('vFront').onclick =()=>{ mark('vFront');  flyTo(VIEW.front); };
+$('vReader').onclick=()=>{ mark('vReader'); flyTo(VIEW.reader); };
+$('vSide').onclick  =()=>{ mark('vSide');   flyTo(VIEW.side); };
+$('vTop').onclick   =()=>{ mark('vTop');    flyTo(VIEW.top); };
+
+function toggleDoor(){
+  doorOpen=!doorOpen;
+  btnDoor.classList.toggle('on',doorOpen);
+  btnDoor.textContent=doorOpen?'Cerrar puerta':'Abrir puerta';
+  if(doorOpen){
+    toast('Puerta abierta · <b>abre desde la izquierda</b>');
+    mark(''); flyTo(VIEW.open);          // ángulo desde el que se ve el interior
+  }
+}
+btnDoor.onclick=toggleDoor;
+
+btnXray.onclick=()=>{
+  xray=!xray; btnXray.classList.toggle('on',xray);
+  shellMeshes.forEach(m=>{
+    m.material.transparent=xray;
+    m.material.opacity=xray?0.16:1;
+    m.material.depthWrite=!xray;
+    m.material.needsUpdate=true;
+  });
+  skins.forEach(s=>{ s.material.opacity=xray?0.25:1; });
+  if(xray) toast('Rayos X · espirales, motores y <b>bahía ESP32</b>');
+};
+btnDims.onclick=()=>{ dimsGrp.visible=!dimsGrp.visible; btnDims.classList.toggle('on',dimsGrp.visible); };
+btnTags.onclick=()=>{ showTags=!showTags; btnTags.classList.toggle('on',showTags); };
+btnSkin.onclick=()=>{
+  showSkins=!showSkins;
+  btnSkin.classList.toggle('on',!showSkins);
+  btnSkin.textContent=showSkins?'Vinilos':'Sin vinilos';
+  skins.forEach(s=>{ s.visible=showSkins; });
+};
+btnColor.onclick=()=>{
+  skinColor = skinColor==='acero' ? 'ink' : 'acero';
+  const p=PALETTE[skinColor];
+  matBody.color.setHex(p.body); matDoor.color.setHex(p.door); matDark.color.setHex(p.dark);
+  btnColor.textContent = skinColor==='acero' ? 'Acero' : 'Negro GRABI';
+  btnColor.classList.toggle('on', skinColor==='ink');
+};
+btnBuy.onclick=simulate;
+$('aShot').onclick=()=>{
+  renderer.render(scene,camera);
+  const a=document.createElement('a');
+  a.href=renderer.domElement.toDataURL('image/png');
+  a.download='grabi-dispensadora-v1.png'; a.click();
+  toast('PNG exportado');
+};
+$('aReset').onclick=()=>{
+  lanes.forEach(p=>{ p.position.copy(p.userData.home); p.rotation.set(0,0,0); p.userData.anim=null; });
+  phone.visible=false; phoneOn=false;
+  phone.userData.fired=false; phone.userData.moved=false; btnBuy.disabled=false;
+  beam.material.opacity=0; scanLine.material.opacity=0; halo.intensity=.6;
+  if(doorOpen) toggleDoor();
+  mark('vIso'); flyTo(VIEW.iso); setSpin(true);
+};
+addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(k>='1'&&k<='4') dispense(lanes[+k-1]);
+  else if(k==='d') toggleDoor();
+  else if(k==='x') btnXray.click();
+  else if(k==='m') btnDims.click();
+  else if(k===' '){ e.preventDefault(); simulate(); }
+});
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+  measureSafe();
+});
+
+// ════════════════ Loop ════════════════
+const clock=new THREE.Clock();
+function tick(){
+  const raw=Math.min(clock.getDelta(),0.5);   // para suavizados: independiente de los fps
+  const dt=Math.min(raw,0.05);                // para incrementos visuales por frame
+  const now=clock.elapsedTime;
+
+  if(spin && !drag && !easing){ cam.th+=dt*0.20; applyCam(); }
+  if(easing){
+    const s=1-Math.exp(-5.5*raw);
+    const d=goal.th-cam.th;
+    cam.th+=d*s; cam.ph+=(goal.ph-cam.ph)*s; cam.r+=(goal.r-cam.r)*s;
+    target.x+=(goal.tx-target.x)*s; target.y+=(goal.ty-target.y)*s; target.z+=(goal.tz-target.z)*s;
+    if(Math.abs(d)<0.002 && Math.abs(goal.ph-cam.ph)<0.002 && Math.abs(goal.r-cam.r)<0.3) easing=false;
+    applyCam();
+  }
+
+  const dGoal=doorOpen?-1.95:0;
+  if(Math.abs(doorA-dGoal)>0.001){
+    doorA += (dGoal-doorA)*(1-Math.exp(-4.5*raw));
+    doorPivot.rotation.y=doorA;
+  }
+
+  const pulse=0.5+0.5*Math.sin(now*2.2);
+  if(!phoneOn) halo.intensity=0.40+0.35*pulse;
+  matLed.color.setRGB(0.55+0.45*pulse, 1, 0.75+0.25*pulse);
+
+  stepPhone(now,dt);
+  stepLanes(now,dt);
+  updateTags();
+  updateDimTags();
+
+  renderer.render(scene,camera);
+  requestAnimationFrame(tick);
+}
+tick();
+setTimeout(()=>toast('Clic en un producto para <b>dispensar</b> · o pulsa ▶ Simular compra'),900);
+})();
+</script>
+</body>
+</html>

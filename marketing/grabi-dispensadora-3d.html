@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GRABI · Dispensadora 4 carriles — modelo 3D</title>
+<style>
+  :root{
+    --bg:#0A0E0C; --fg:#EAF4EE; --muted:#8FA79A; --accent:#3BE87F; --line:#26332B; --surface:#0D1210;
+    --font:'Space Grotesk',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:radial-gradient(120% 90% at 50% 8%,#1017130a,#04070699),var(--bg);color:var(--fg);font-family:var(--font);overflow:hidden;}
+  #app{position:fixed;inset:0;}
+  canvas{display:block;}
+  .hud{position:fixed;left:16px;top:14px;z-index:10;pointer-events:none;}
+  .brand{font-family:'Archivo',var(--font);font-weight:900;font-size:1.5rem;letter-spacing:.5px;}
+  .brand .dot{color:var(--accent);}
+  .tag{font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-top:2px;}
+  .dims{margin-top:8px;font-family:var(--mono);font-size:.7rem;color:var(--muted);line-height:1.6;}
+  .dims b{color:var(--fg);}
+  .controls{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:10;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:0 12px;}
+  button{background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:9px;padding:9px 14px;font-family:var(--mono);font-size:.78rem;font-weight:600;cursor:pointer;}
+  button:hover{border-color:var(--accent);color:var(--accent);}
+  button.on{background:var(--accent);color:#05130B;border-color:var(--accent);}
+  .hint{position:fixed;right:16px;top:14px;z-index:10;text-align:right;font-family:var(--mono);font-size:.7rem;color:var(--muted);line-height:1.7;}
+  .hint b{color:var(--accent);}
+  #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:var(--mono);color:var(--muted);z-index:20;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="hud">
+  <div class="brand">GRABI<span class="dot">.</span></div>
+  <div class="tag">Dispensadora · 4 carriles (2×2)</div>
+  <div class="dims"><b>66</b>cm prof · <b>33.6</b>cm ancho · <b>44.5</b>cm alto</div>
+</div>
+<div class="hint">arrastra: girar &nbsp;·&nbsp; rueda: zoom<br><b>clic en un producto: dispensar</b></div>
+<div class="controls">
+  <button id="btnRotate" class="on">⟳ Auto-girar</button>
+  <button id="btnFront">Frontal</button>
+  <button id="btnReader">Ver lector</button>
+  <button id="btnReset">Reiniciar</button>
+</div>
+<div id="err">No se pudo cargar Three.js (revisa tu conexión) — vuelve a abrir el archivo con internet.</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  if(typeof THREE==='undefined'){ document.getElementById('err').style.display='flex'; return; }
+
+  const APP=document.getElementById('app');
+  const scene=new THREE.Scene();
+  scene.fog=new THREE.Fog(0x04070a, 220, 700);
+  const camera=new THREE.PerspectiveCamera(36, innerWidth/innerHeight, 0.1, 6000);
+  const renderer=new THREE.WebGLRenderer({antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  APP.appendChild(renderer.domElement);
+
+  // ===== Medidas reales (1 unidad = 1 cm) =====
+  const W=33.6, H=44.5, D=66, T=1.4;
+  const target=new THREE.Vector3(0, H*0.5, 0);
+
+  // Luces
+  scene.add(new THREE.HemisphereLight(0xcdeadd, 0x0a0f0c, 0.6));
+  const key=new THREE.DirectionalLight(0xffffff, 1.12); key.position.set(-60,105,95); key.castShadow=true;
+  key.shadow.mapSize.set(1024,1024); key.shadow.camera.near=10; key.shadow.camera.far=480;
+  key.shadow.camera.left=-120; key.shadow.camera.right=120; key.shadow.camera.top=140; key.shadow.camera.bottom=-20;
+  scene.add(key);
+  const fillLight=new THREE.DirectionalLight(0x8fd5b0,0.35); fillLight.position.set(80,45,40); scene.add(fillLight);
+  const glow=new THREE.PointLight(0x3be87f,0.5,150); glow.position.set(W*0.35, H*0.72, D*0.5+8); scene.add(glow);
+
+  // Piso
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(1600,1600), new THREE.MeshStandardMaterial({color:0x0a0f0c, roughness:0.96}));
+  floor.rotation.x=-Math.PI/2; floor.receiveShadow=true; scene.add(floor);
+
+  // Materiales
+  const matBody =new THREE.MeshStandardMaterial({color:0x2a3138, roughness:0.5, metalness:0.55});
+  const matDoor =new THREE.MeshStandardMaterial({color:0x1b2228, roughness:0.55, metalness:0.5});
+  const matDark =new THREE.MeshStandardMaterial({color:0x11161a, roughness:0.6, metalness:0.4});
+  const matMetal=new THREE.MeshStandardMaterial({color:0x3a444c, roughness:0.35, metalness:0.8});
+  const matGold =new THREE.MeshStandardMaterial({color:0xbfa24a, roughness:0.35, metalness:0.9});
+  const matShelf=new THREE.MeshStandardMaterial({color:0x1a221e, roughness:0.7, metalness:0.2});
+  const matGlass=new THREE.MeshStandardMaterial({color:0x9fded0, roughness:0.05, metalness:0.0, transparent:true, opacity:0.13});
+  const matTray =new THREE.MeshStandardMaterial({color:0x050806, roughness:0.95, metalness:0.05});
+  const spiralMat=new THREE.MeshStandardMaterial({color:0xb4bfb9, roughness:0.3, metalness:0.9});
+
+  const machine=new THREE.Group(); scene.add(machine);
+  function box(w,h,d,mat){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat); m.castShadow=true; m.receiveShadow=true; return m; }
+  function add(w,h,d,mat,x,y,z){ const m=box(w,h,d,mat); m.position.set(x,y,z); machine.add(m); return m; }
+
+  // ---- Texturas de marca ----
+  const GREEN='#3be87f', INK='#eaf4ee', MUT='#8fa79a';
+  function tex(w,h,draw){ const c=document.createElement('canvas'); c.width=w;c.height=h; const x=c.getContext('2d'); draw(x,w,h); const t=new THREE.CanvasTexture(c); t.anisotropy=8; return t; }
+  function rr(x,rx,ry,rw,rh,r){ x.beginPath(); x.moveTo(rx+r,ry); x.arcTo(rx+rw,ry,rx+rw,ry+rh,r); x.arcTo(rx+rw,ry+rh,rx,ry+rh,r); x.arcTo(rx,ry+rh,rx,ry,r); x.arcTo(rx,ry,rx+rw,ry,r); x.closePath(); }
+  function stk(t){ return new THREE.MeshBasicMaterial({map:t, transparent:true, side:THREE.DoubleSide}); }
+  function addPanel(w,h,t,x,y,z,ry){ const p=new THREE.Mesh(new THREE.PlaneGeometry(w,h), stk(t)); p.position.set(x,y,z); if(ry)p.rotation.y=ry; machine.add(p); return p; }
+
+  const logoTex=tex(1024,200,(x,w,h)=>{ x.clearRect(0,0,w,h); x.textAlign='left';x.textBaseline='middle';
+    x.font='900 120px Archivo, Arial Black, sans-serif'; x.fillStyle=INK; x.fillText('GRABI',40,h/2);
+    const mw=x.measureText('GRABI').width; x.fillStyle=GREEN; x.beginPath(); x.arc(40+mw+28,h/2+42,20,0,Math.PI*2); x.fill(); });
+
+  // Lector horizontal (va en el FRENTE, arriba a la derecha — sketch)
+  const readerTex=tex(512,224,(x,w,h)=>{ x.fillStyle='#07100b'; rr(x,0,0,w,h,26); x.fill();
+    x.strokeStyle=INK;x.lineWidth=12;x.lineCap='round'; const mx=150,my=50,L=40;
+    const cr=(cx,cy,dx,dy)=>{x.beginPath();x.moveTo(cx,cy+dy*L);x.lineTo(cx,cy);x.lineTo(cx+dx*L,cy);x.stroke();};
+    cr(mx,my,1,1);cr(w-mx,my,-1,1);cr(mx,h-my,1,-1);cr(w-mx,h-my,-1,-1);
+    x.fillStyle=GREEN;x.beginPath();x.arc(w/2,h/2,28,0,Math.PI*2);x.fill();
+    x.fillStyle=INK;x.font='700 30px "IBM Plex Mono", monospace';x.textAlign='center';x.textBaseline='middle';
+    x.fillText('ESCANEA', w/2, h-24); });
+
+  function sideAd(){ return tex(1024,600,(x,w,h)=>{ x.fillStyle='#141b18'; x.fillRect(0,0,w,h);
+    x.fillStyle=GREEN; x.fillRect(0,0,16,h);
+    const cx=150,cy=155,s=140,L=48; x.strokeStyle=INK;x.lineWidth=15;x.lineCap='round';
+    const cr=(ax,ay,dx,dy)=>{x.beginPath();x.moveTo(ax,ay+dy*L);x.lineTo(ax,ay);x.lineTo(ax+dx*L,ay);x.stroke();};
+    cr(cx-s/2,cy-s/2,1,1);cr(cx+s/2,cy-s/2,-1,1);cr(cx-s/2,cy+s/2,1,-1);cr(cx+s/2,cy+s/2,-1,-1);
+    x.fillStyle=GREEN;x.beginPath();x.arc(cx,cy,30,0,Math.PI*2);x.fill();
+    x.textAlign='left'; x.font='900 84px Archivo, sans-serif'; x.fillStyle=INK;
+    x.fillText('Escanea,',66,305); x.fillText('paga,',66,393); x.fillStyle=GREEN; x.fillText('agárralo.',66,481);
+    x.font='600 34px "IBM Plex Mono", monospace'; x.fillStyle=MUT; x.fillText('Sin efectivo · Sin datáfono · Bre-B',66,556); }); }
+
+  const brebTex=tex(512,200,(x,w,h)=>{ x.clearRect(0,0,w,h); x.fillStyle='#0c1310'; rr(x,4,4,w-8,h-8,22); x.fill();
+    x.strokeStyle=GREEN; x.lineWidth=4; rr(x,4,4,w-8,h-8,22); x.stroke(); x.textAlign='left';x.textBaseline='middle';
+    x.font='800 60px Archivo, sans-serif'; x.fillStyle=INK; x.fillText('Bre-B',30,h/2-18);
+    x.font='600 24px "IBM Plex Mono", monospace'; x.fillStyle=GREEN; x.fillText('pago inmediato',32,h/2+30); });
+
+  const trayTex=tex(512,120,(x,w,h)=>{ x.clearRect(0,0,w,h); x.textAlign='center';x.textBaseline='middle';
+    x.font='700 46px "IBM Plex Mono", monospace'; x.fillStyle=INK; x.fillText('RETIRA AQUÍ ▾', w/2, h/2); });
+
+  const plateTex=tex(512,110,(x,w,h)=>{ x.clearRect(0,0,w,h); x.fillStyle='#0c1310'; rr(x,2,2,w-4,h-4,14); x.fill();
+    x.textAlign='left';x.textBaseline='middle';x.font='600 34px "IBM Plex Mono", monospace';
+    x.fillStyle=MUT; x.fillText('GRABI ',18,h/2); const mw=x.measureText('GRABI ').width; x.fillStyle=GREEN; x.fillText('M001 · Cali',18+mw,h/2); });
+
+  function prodLabel(name,bg,fg){ return tex(256,384,(x,w,h)=>{ x.fillStyle=bg; x.fillRect(0,0,w,h);
+    x.fillStyle=fg; x.fillRect(0,h*0.5-5,w,10); x.save(); x.translate(w/2,h/2); x.rotate(-Math.PI/2);
+    x.textAlign='center';x.textBaseline='middle'; x.font='800 40px Archivo, sans-serif'; x.fillStyle=fg; x.fillText(name,0,-14);
+    x.font='600 22px "IBM Plex Mono", monospace'; x.globalAlpha=.85; x.fillText('GRABI',0,24); x.restore(); }); }
+
+  // ===== LAYOUT DEL FRENTE (fiel al sketch) =====
+  // Columna izquierda del marco de la puerta, ventana descentrada a la izquierda,
+  // columna derecha con el LECTOR arriba, y ranura de entrega ancha abajo.
+  const zF = D/2 - 0.7;              // plano de la puerta
+  const doorL = -W/2 + 1.0;          // borde izq del frente
+  const doorR =  W/2 - 1.0;          // borde der del frente
+  const railL = 3.0;                 // franja izquierda del marco (sketch)
+  const headB = 37.6;                // base de la cabecera (logo) → arriba
+  const winL  = doorL + railL;       // ventana: izquierda
+  const winR  = doorR - 7.6;         // ventana: derecha (deja columna derecha)
+  const winB  = 14.6, winT = 36.0;   // ventana: abajo / arriba
+  const slotL = doorL + 4.2, slotR = doorR - 3.0;   // ranura de entrega
+  const slotB = 3.6,  slotT = 10.6;
+  const winCX = (winL+winR)/2, winW = winR-winL, winH = winT-winB;
+
+  // ---- Gabinete (frente abierto) ----
+  add(W,H,T,matBody, 0,H/2,-D/2+T/2);        // trasera
+  add(T,H,D,matBody, -W/2+T/2,H/2,0);        // costado izq
+  add(T,H,D,matBody,  W/2-T/2,H/2,0);        // costado der
+  add(W,T,D,matDark, 0,T/2,0);               // piso
+  add(W,T,D,matBody, 0,H-T/2,0);             // techo limpio
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=> add(2.4,2.2,2.4,matDark, sx*(W/2-3),-1,sz*(D/2-3)) );
+
+  // ---- Puerta: paneles alrededor de ventana / lector / ranura ----
+  add(W-1, H-headB, T, matDoor, 0, (headB+H)/2, zF);                       // cabecera (logo)
+  addPanel(W*0.74, (H-headB)*0.62, logoTex, -1.2, (headB+H)/2, D/2+0.05);
+  add(railL, headB-slotB, T, matDoor, doorL+railL/2, (slotB+headB)/2, zF); // franja izquierda
+  add(doorR-winR, headB-slotB, T, matDoor, (winR+doorR)/2, (slotB+headB)/2, zF); // columna derecha (aloja el lector)
+  add(winW, winB-slotT, T, matDoor, winCX, (slotT+winB)/2, zF);            // panel entre ventana y ranura
+  add(W-1, slotB, T, matDoor, 0, slotB/2, zF);                            // zócalo bajo la ranura
+
+  // ---- Ventana: marco elevado (bezel) + vidrio + interior ----
+  (function(){ const b=1.8;   // grosor del marco
+    add(winW+2*b, b, 2.0, matMetal, winCX, winT+b/2, D/2+0.3);
+    add(winW+2*b, b, 2.0, matMetal, winCX, winB-b/2, D/2+0.3);
+    add(b, winH+2*b, 2.0, matMetal, winL-b/2, (winB+winT)/2, D/2+0.3);
+    add(b, winH+2*b, 2.0, matMetal, winR+b/2, (winB+winT)/2, D/2+0.3); })();
+  const glass=new THREE.Mesh(new THREE.PlaneGeometry(winW-0.6, winH-0.6), matGlass);
+  glass.position.set(winCX,(winB+winT)/2, D/2-1.2); machine.add(glass);
+  add(winW, winH, 0.6, matShelf, winCX,(winB+winT)/2,-D/2+2.2);            // fondo interior
+  const shelfY=(winB+winT)/2;
+  add(winW, 0.9, D-9, matShelf, winCX, shelfY, -1);                        // estante medio (2 filas)
+  add(0.8, winH-1.4, D-12, matShelf, winCX, (winB+winT)/2, -1);            // divisor (2 columnas)
+
+  // ---- 4 carriles (2×2): espiral + producto ----
+  const products=[];
+  const xCol=[winCX-winW/4, winCX+winW/4];
+  const yRow=[ (winB+shelfY)/2+1.0, (shelfY+winT)/2+1.0 ];
+  function helix(radius,turns,len){ const pts=[],seg=turns*20; for(let i=0;i<=seg;i++){const t=i/seg,a=t*turns*Math.PI*2; pts.push(new THREE.Vector3(Math.cos(a)*radius,Math.sin(a)*radius,-len/2+t*len));} return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),seg,0.55,6,false); }
+  function bag(bg){ const g=new THREE.Group(); const b=new THREE.Mesh(new THREE.BoxGeometry(6.6,9,2.4), new THREE.MeshStandardMaterial({map:prodLabel('SNACK',bg,'#0a0e0c'),roughness:0.5})); b.castShadow=true; g.add(b); return g; }
+  function bottle(){ const g=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.2,9.6,20), new THREE.MeshStandardMaterial({color:0xbfeede,roughness:0.1,transparent:true,opacity:0.6})); body.castShadow=true; g.add(body);
+    const lbl=new THREE.Mesh(new THREE.CylinderGeometry(2.25,2.25,4,20,1,true), new THREE.MeshStandardMaterial({map:prodLabel('AGUA','#1c6fe0','#eaf4ee'),roughness:0.5,side:THREE.DoubleSide})); lbl.position.y=-1; g.add(lbl);
+    const cap=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.4,1.8,16), new THREE.MeshStandardMaterial({color:0x3be87f})); cap.position.y=5.7; g.add(cap); return g; }
+  function can(col){ const g=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.CylinderGeometry(2.3,2.3,10.5,22), new THREE.MeshStandardMaterial({map:prodLabel('SPEED',col,'#eaf4ee'),roughness:0.35,metalness:0.5})); body.castShadow=true; g.add(body);
+    const top=new THREE.Mesh(new THREE.CylinderGeometry(2.0,2.3,0.8,22), matMetal); top.position.y=5.6; g.add(top); return g; }
+  const builders=[()=>bag('#e8c33a'), ()=>bag('#c65a2b'), ()=>bottle(), ()=>can('#2a6cf0')];
+  const names=['Platanitos','Maní','Agua','Speed Max'];
+  let k=0;
+  for(let r=0;r<2;r++) for(let c=0;c<2;c++){
+    const cx=xCol[c], cy=yRow[r];
+    const sp=new THREE.Mesh(helix(4.6,6,D-18), spiralMat); sp.position.set(cx,cy,-1); sp.castShadow=true; machine.add(sp);
+    const prod=builders[k](); prod.position.set(cx,cy,D/2-9.5);
+    prod.userData={home:new THREE.Vector3(cx,cy,D/2-9.5), spiral:sp, anim:null, name:names[k]};
+    machine.add(prod); products.push(prod); k++;
+  }
+
+  // ---- LECTOR QR: FRENTE, arriba a la derecha (sketch) ----
+  const rW=6.4, rH=3.0, rCX=(winR+doorR)/2, rCY=winT-3.4;
+  add(rW+1.0, rH+1.0, 1.2, matMetal, rCX, rCY, D/2+0.15);          // bisel del lector
+  add(rW, rH, 1.4, new THREE.MeshStandardMaterial({color:0x06100b,roughness:0.5,metalness:0.4}), rCX, rCY, D/2+0.45);
+  addPanel(rW-0.3, rH-0.3, readerTex, rCX, rCY, D/2+1.2);
+  const lens=new THREE.Mesh(new THREE.CylinderGeometry(0.8,0.8,0.5,18), new THREE.MeshStandardMaterial({color:0x0a1f14,roughness:0.2,metalness:0.6,emissive:0x0b3a22,emissiveIntensity:0.9}));
+  lens.rotation.x=Math.PI/2; lens.position.set(rCX, rCY, D/2+1.3); machine.add(lens);
+
+  // ---- Ranura de entrega RECESADA, SIN puerta ----
+  const slotW=slotR-slotL, slotCX=(slotL+slotR)/2, slotH=slotT-slotB;
+  add(slotW, slotH, 5, matTray, slotCX,(slotB+slotT)/2, D/2-3.4);
+  add(slotW+1.4, 1.0, 1.6, matMetal, slotCX, slotT+0.5, D/2-0.6);
+  addPanel(slotW*0.62, 2.6, trayTex, slotCX, slotT+2.2, D/2+0.05);
+  addPanel(7.5, 3.0, brebTex, winL+4.0, (slotT+winB)/2, D/2+0.05);
+  addPanel(9.0, 1.9, plateTex, winR-4.6, (slotT+winB)/2, D/2+0.05);
+
+  // ---- Bisagras (borde frontal izquierdo) + cerradura ----
+  [14,26,35].forEach(hy=>{ const hg=new THREE.Mesh(new THREE.CylinderGeometry(0.85,0.85,3.0,12), matGold); hg.position.set(-W/2-0.2,hy,D/2-1.6); machine.add(hg); });
+  const lock=new THREE.Mesh(new THREE.CylinderGeometry(0.85,0.85,1.2,16), matMetal); lock.rotation.x=Math.PI/2; lock.position.set(doorR-2.6, 24, D/2+0.4); machine.add(lock);
+
+  // ---- Wrap lateral (marca) ----
+  addPanel(D*0.6, H*0.42, sideAd(), -W/2-0.25, H*0.5, 4, -Math.PI/2);
+  addPanel(D*0.42, H*0.30, sideAd(),  W/2+0.25, H*0.34, 2, Math.PI/2);
+
+  // ===== Cámara / controles =====
+  let theta=-0.85, phi=1.06, radius=122, autoRotate=true;
+  function applyCam(){ camera.position.set(target.x+radius*Math.sin(phi)*Math.sin(theta), target.y+radius*Math.cos(phi), target.z+radius*Math.sin(phi)*Math.cos(theta)); camera.lookAt(target); }
+  applyCam();
+  const el=renderer.domElement; let dragging=false,px=0,py=0,downX=0,downY=0;
+  const ray=new THREE.Raycaster(), mouse=new THREE.Vector2();
+  el.addEventListener('pointerdown',e=>{dragging=true;autoRotate=false;btnRotate.classList.remove('on');px=e.clientX;py=e.clientY;downX=e.clientX;downY=e.clientY;el.setPointerCapture(e.pointerId);});
+  el.addEventListener('pointerup',e=>{ dragging=false;
+    if(Math.abs(e.clientX-downX)<6 && Math.abs(e.clientY-downY)<6){
+      mouse.x=(e.clientX/innerWidth)*2-1; mouse.y=-(e.clientY/innerHeight)*2+1; ray.setFromCamera(mouse,camera);
+      const hits=ray.intersectObjects(products,true); if(hits.length){ let o=hits[0].object; while(o.parent && products.indexOf(o)<0) o=o.parent; if(o.userData && !o.userData.anim) o.userData.anim={t:0}; }
+    }});
+  el.addEventListener('pointermove',e=>{ if(!dragging)return; theta-=(e.clientX-px)*0.008; phi-=(e.clientY-py)*0.006; phi=Math.max(0.35,Math.min(1.5,phi)); px=e.clientX;py=e.clientY; applyCam(); });
+  el.addEventListener('wheel',e=>{e.preventDefault(); radius=Math.max(80,Math.min(300,radius+e.deltaY*0.09)); applyCam();},{passive:false});
+
+  // ===== Loop =====
+  const clock=new THREE.Clock();
+  function tick(){
+    const dt=Math.min(clock.getDelta(),0.05);
+    if(autoRotate){ theta+=dt*0.26; applyCam(); }
+    products.forEach(p=>{ const a=p.userData.anim; if(!a)return; a.t+=dt; p.userData.spiral.rotation.z+=dt*7; const h=p.userData.home;
+      if(a.t<1.5){ p.position.z=h.z+a.t*6; } else if(a.t<2.3){ p.position.y=h.y-(a.t-1.5)*17; p.position.z=h.z+9; p.rotation.x+=dt*4; } else if(a.t>=3.4){ p.position.copy(h); p.rotation.set(0,0,0); p.userData.anim=null; } });
+    renderer.render(scene,camera); requestAnimationFrame(tick);
+  }
+  tick();
+
+  // ===== UI =====
+  const btnRotate=document.getElementById('btnRotate');
+  btnRotate.onclick=()=>{autoRotate=!autoRotate; btnRotate.classList.toggle('on',autoRotate);};
+  document.getElementById('btnFront').onclick=()=>{theta=0;phi=1.35;radius=112;autoRotate=false;btnRotate.classList.remove('on');applyCam();};
+  document.getElementById('btnReader').onclick=()=>{theta=0.28;phi=1.18;radius=72;autoRotate=false;btnRotate.classList.remove('on');applyCam();};
+  document.getElementById('btnReset').onclick=()=>{theta=-0.85;phi=1.06;radius=122;autoRotate=true;btnRotate.classList.add('on');products.forEach(p=>{p.position.copy(p.userData.home);p.rotation.set(0,0,0);p.userData.anim=null;});applyCam();};
+  addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+})();
+</script>
+</body>
+</html>
