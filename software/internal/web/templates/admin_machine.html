@@ -76,6 +76,31 @@
   {{end}}
 </div>
 
+{{/* --- Kit físico: QR y calcomanías de ESTA máquina (se generan al vuelo) --- */}}
+<div class="card kitcard">
+  <div class="kithead">
+    <div>
+      <h3>Kit físico</h3>
+      <div class="muted">El QR que se pega en la máquina y las calcomanías, listos para imprimir. El QR abre <span class="kiturl">{{.QRURL}}</span>.</div>
+    </div>
+    <div class="kitbtns">
+      <a class="btn-sm" href="/admin/machines/{{.Machine.ID}}/qr.svg?size=1024" download="grabi-{{.Machine.ID}}-qr.svg">Descargar QR</a>
+      <a class="btn-sm kit-primary" href="/admin/machines/{{.Machine.ID}}/kit.zip">Descargar kit de stickers (.zip)</a>
+    </div>
+  </div>
+  <div class="kitprev">
+    <figure>
+      <img src="/admin/machines/{{.Machine.ID}}/qr.svg?size=180" width="180" height="180" alt="QR de la máquina {{.Machine.ID}}">
+      <figcaption>QR · nivel H con la marca al centro</figcaption>
+    </figure>
+    <figure class="kitplaca">
+      {{.PlacaSVG}}
+      <figcaption>placa.svg · 90 × 30 mm</figcaption>
+    </figure>
+  </div>
+  <div class="kitnote">El .zip trae <strong>qr.svg</strong>, <strong>qr.png</strong> (~1024 px), <strong>sticker-frente.svg</strong>, <strong>placa.svg</strong>, <strong>wrap-lateral.svg</strong> y un <strong>LEEME.txt</strong> con las indicaciones para la imprenta. Antes de pegar, escanea el impreso y comprueba que abra la página de la máquina.</div>
+</div>
+
 {{/* --- Modal: asignar / nuevo producto --- */}}
 <div class="modal-backdrop" id="prodModal" role="dialog" aria-modal="true">
   <div class="modal wide">

@@ -7,6 +7,44 @@
 
 ---
 
+## ADR-026 · Kit físico por máquina: QR con la marca encima (ECC H) + calcomanías, generados al vuelo
+- **Fecha:** 2026-08-11 · **Autor:** Agente de Software (02) + Daniel.
+- **Decisión:** el panel genera el **material físico de cada máquina** desde el **detalle de la
+  máquina** (`/admin/m/{id}`), **no** como sección aparte: bloque "Kit físico" con "Descargar QR",
+  "Descargar kit de stickers (.zip)" y previsualización del QR y de la placa. **Cierra el pendiente
+  de ADR-025** ("el QR de la máquina se hace a mano"). Es **capa nueva de admin**: no toca el
+  contrato del token, la conciliación, `/m/{id}` ni `/scan`.
+- **Endpoints** (`internal/kit` + `internal/web/kit.go`), todos con sesión de admin:
+  `GET /admin/machines/{id}/qr.svg`, `.../qr.png` (ambos con `?size=`, acotado a 128–2048) y
+  `.../kit.zip` (qr.svg · qr.png 1024 px · sticker-frente.svg · placa.svg · wrap-lateral.svg · LEEME.txt).
+- **El QR codifica la URL pública `https://grabi.napi.lat/m/{id}`**, no un token: es el mismo texto
+  que valida `/scan` (ADR-025), así que el escáner propio y la app de cámara llevan al mismo sitio.
+- **ECC nivel H + logo ≤ 20% del área.** El símbolo se genera con corrección **H** (~30% de
+  redundancia) *porque* encima va la marca compacta (visor + punto, identidad-visual-v1 §3) sobre un
+  **cuadro blanco opaco**. El cuadro mide **0,40 del lado del símbolo ⇒ ~16% de su área** (~10% del
+  área total con la zona de silencio), y se fuerza a un número **impar de módulos** para que quede
+  centrado sin partir ninguno por la mitad (un módulo a medias despista al lector más que uno tapado).
+- **Verificado decodificando, no mirando:** las pruebas **escanean el PNG generado** con `gozxing`
+  (decodificador independiente del generador) y exigen que devuelva la URL original **y** que el
+  símbolo reporte ECC `H`, para tres ids y tres tamaños. Nueva dependencia **solo de pruebas**.
+- **401, no 303, en los archivos.** El resto del panel redirige al login; estos endpoints devuelven
+  **401**: quien pide un `.svg`/`.png`/`.zip` recibiría el HTML del login disfrazado de imagen.
+- **Nada se persiste en disco.** Todo se arma en memoria en cada petición desde plantillas Go +
+  `skip2/go-qrcode`. No hay archivos que invalidar si cambia la marca ni basura que respaldar.
+- **Piezas en milímetros** (SVG a tamaño real para imprenta; PNG para digital): frente 100×140,
+  placa 90×30, wrap lateral 60×400. El **tagline va en dos líneas** en el frente porque en una sola no
+  cabe en 100 mm sin encogerlo — entero y sin reescribir (identidad-visual-v1 §1). Las tipografías se
+  declaran con sustituto (`Archivo, Arial Black`), y el `LEEME.txt` le pide a la imprenta pasarlas a
+  curvas, imprimir al 100% y **no recortar la zona de silencio**.
+- **La placa dice `GRABI {ID} · {nombre de la máquina}`:** el modelo **no tiene columna de ciudad**;
+  hoy el "nombre" del panel es el punto/ubicación. Si se quiere una ciudad propia, entra en el
+  **panel de Configuración** pendiente de ADR-022, no aquí.
+- **Pendiente (no bloquea):** el detalle de máquina ya tenía **desbordamiento horizontal a 390 px**
+  (los botones de la cabecera); medido `scrollWidth=477` **con y sin** el bloque nuevo — es previo y
+  queda anotado para arreglarlo aparte.
+
+---
+
 ## ADR-025 · Escáner propio del QR de la máquina (`GET /scan`) con destino validado
 - **Fecha:** 2026-08-11 · **Autor:** Agente de Software (02) + Daniel.
 - **Decisión:** GRABI tiene su **propia página de escaneo**, `GET /scan`: abre la cámara del celular,
@@ -72,8 +110,8 @@
   a 384 px el QR **sigue decodificando** y el coste baja de 16,6 a 6,3 ms; y el `box-shadow` animado
   repinta de más. Quedan como mejoras disponibles si hiciera falta más margen.
 
-- **Pendiente (no bloquea):** generar desde el panel la **calcomanía imprimible** del QR por máquina
-  (hoy el QR de la máquina se hace a mano); y decidir si `/{ID}` sin `/m/` debería redirigir en vez
+- **Pendiente (no bloquea):** ~~generar desde el panel la **calcomanía imprimible** del QR por máquina~~
+  → **HECHO en ADR-026**; y decidir si `/{ID}` sin `/m/` debería redirigir en vez
   de dar 404 — por ahora da 404 **a propósito**, y el 404 ofrece volver a escanear.
 
 ---
