@@ -161,12 +161,15 @@ var piezas = template.Must(template.New("piezas").Parse(`
      Space Grotesk (la mono cansa en frases, landing-v2 §7). */}}
 {{define "instrucciones"}}<svg xmlns="http://www.w3.org/2000/svg" width="300mm" height="160mm" viewBox="0 0 300 160">
   <defs><clipPath id="grabi-panel"><rect width="300" height="160" rx="5"/></clipPath></defs>
+  {{/* Todo el fondo va dentro del clip: así la barra verde puede ir de borde a
+       borde (alto completo) y las esquinas se las redondea el propio panel, sin
+       que asome un canto recto. La marca fantasma va ENTERA dentro del arte, en
+       el hueco libre bajo el paso 3: recortada por el borde se ve como un error
+       de montaje, no como una marca de agua. */}}
   <g clip-path="url(#grabi-panel)">
     <rect width="300" height="160" fill="{{.Surface}}"/>
-    {{/* La marca fantasma se sale por la esquina a propósito (el clip la recorta);
-         va desplazada para no meterse bajo la última línea del paso 3. */}}
-    <g transform="translate(236,108)">{{.MarcaFantasma 74}}</g>
-    <rect x="0" y="8" width="4" height="144" rx="2" fill="{{.Accent}}"/>
+    <g transform="translate(248,108)">{{.MarcaFantasma 40}}</g>
+    <rect x="0" y="0" width="4" height="160" fill="{{.Accent}}"/>
   </g>
 
   <g transform="translate(20,18)">{{.MarcaBadge 22}}</g>

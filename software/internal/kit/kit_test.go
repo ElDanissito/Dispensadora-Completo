@@ -240,6 +240,16 @@ func TestZipTraeLasPiezasEsperadas(t *testing.T) {
 	if n := strings.Count(pasos, `r="10" fill="`+ColorAccent+`"`); n != 3 {
 		t.Errorf("instrucciones.svg tiene %d círculos de paso, se esperaban 3", n)
 	}
+	// La barra verde va de borde a borde. Con márgenes se lee como un canto suelto
+	// en vez del filo de la pieza (reportado por Daniel sobre la primera versión).
+	if !strings.Contains(pasos, `<rect x="0" y="0" width="4" height="160" fill="`+ColorAccent+`"/>`) {
+		t.Error("instrucciones.svg: la barra verde no ocupa todo el lateral")
+	}
+	// Y la marca fantasma va ENTERA dentro del arte: recortada por el borde parece
+	// un error de montaje. 248+40 y 108+40 tienen que caber en 300×160.
+	if !strings.Contains(pasos, `transform="translate(248,108)"`) || !strings.Contains(pasos, `width="40" height="40"`) {
+		t.Error("instrucciones.svg: la marca fantasma cambió de sitio o de tamaño; revisa que siga cabiendo entera")
+	}
 	// El panel habla del sitio, no de una máquina concreta: es el mismo para todas.
 	if strings.Contains(pasos, "M001") {
 		t.Error("instrucciones.svg menciona una máquina concreta; debe servir para todas")

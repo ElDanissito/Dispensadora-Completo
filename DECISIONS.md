@@ -64,8 +64,11 @@
   Daniel): a la izquierda el argumento de venta (**"Sin efectivo. / Sin datáfono. / Solo tu celular."**,
   la última línea en verde) más el dominio en mono; a la derecha los **tres pasos numerados** en
   círculos verdes ("Escanea el QR de la máquina" · "Paga con Bre-B desde tu banco" · "Muestra el QR y
-  agárralo"), separados por un filete vertical. Barra verde en el canto izquierdo y marca fantasma
-  saliéndose por la esquina inferior derecha (recortada con `clipPath`).
+  agárralo"), separados por un filete vertical. **Barra verde de borde a borde** en el canto izquierdo
+  (dentro del `clipPath` del panel, para que las esquinas se las redondee la propia pieza) y **marca
+  fantasma ENTERA** en el hueco libre bajo el paso 3. Las dos cosas se corrigieron tras verlo impreso:
+  con márgenes la barra se lee como un canto suelto, y la marca recortada por el borde parece un error
+  de montaje, no una marca de agua. Ambas quedan fijadas por pruebas.
 - **Por qué reemplaza a la tira del costado:** el costado no lo mira nadie; **quien nunca ha comprado
   en una GRABI necesita saber qué hacer**, y eso se lee de frente, al lado del QR. El cuerpo del paso
   va en **Space Grotesk 700**, no en mono (la mono cansa en frases, landing-v2 §7).
