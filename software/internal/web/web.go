@@ -28,6 +28,7 @@ import (
 
 	"dispensadoras/software/internal/config"
 	"dispensadoras/software/internal/dsptoken"
+	"dispensadoras/software/internal/kit"
 	"dispensadoras/software/internal/qr"
 	"dispensadoras/software/internal/store"
 )
@@ -281,6 +282,11 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /admin/m/{id}/slot/{slot}/edit", s.auth(http.HandlerFunc(s.handleEditSlotForm)))
 	mux.Handle("POST /admin/m/{id}/slot/{slot}", s.auth(http.HandlerFunc(s.handleUpdateSlot)))
 	mux.Handle("POST /admin/m/{id}/slot/{slot}/delete", s.auth(http.HandlerFunc(s.handleDeleteSlot)))
+	// Kit físico de la máquina (QR + calcomanías). Archivos, no páginas: sin
+	// sesión responden 401, no un 303 al login (ver authAsset).
+	mux.Handle("GET /admin/machines/{id}/qr.svg", s.authAsset(http.HandlerFunc(s.handleMachineQRSVG)))
+	mux.Handle("GET /admin/machines/{id}/qr.png", s.authAsset(http.HandlerFunc(s.handleMachineQRPNG)))
+	mux.Handle("GET /admin/machines/{id}/kit.zip", s.authAsset(http.HandlerFunc(s.handleMachineKitZip)))
 	mux.Handle("GET /admin/orders", s.auth(http.HandlerFunc(s.handleAdminOrders)))
 	mux.Handle("GET /admin/movements", s.auth(http.HandlerFunc(s.handleAdminMovements)))
 	// Interesados de la landing (landing-v1 §4). PII: solo admin autenticado.
@@ -961,6 +967,14 @@ func (s *Server) handleAdminMachine(w http.ResponseWriter, r *http.Request) {
 			channels = append(channels, chanView{Slot: i})
 		}
 	}
+	// Previsualización de la placa del kit físico: se incrusta el SVG REAL que
+	// va en el ZIP, para que lo que ve el admin sea exactamente lo que imprime.
+	km := kit.Machine{ID: m.ID, Place: m.Name, Site: s.site}
+	placa, err := km.Placa()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	s.render(w, "admin_machine.html", page{
 		Title:  "Máquina " + m.ID + " · GRABI",
 		Admin:  true,
@@ -971,7 +985,10 @@ func (s *Server) handleAdminMachine(w http.ResponseWriter, r *http.Request) {
 			ProductCount int
 			Flash        string
 			FlashErr     string
-		}{m, channels, len(cat), flashText(r.URL.Query().Get("ok")), flashErrText(r.URL.Query().Get("err"))},
+			PlacaSVG     template.HTML
+			QRURL        string
+		}{m, channels, len(cat), flashText(r.URL.Query().Get("ok")), flashErrText(r.URL.Query().Get("err")),
+			template.HTML(placa), km.URL()},
 	})
 }
 

@@ -7,6 +7,81 @@
 
 ---
 
+## ADR-026 · Kit físico por máquina: QR con la marca encima (ECC H) + calcomanías, generados al vuelo
+- **Fecha:** 2026-08-11 · **Autor:** Agente de Software (02) + Daniel.
+- **Decisión:** el panel genera el **material físico de cada máquina** desde el **detalle de la
+  máquina** (`/admin/m/{id}`), **no** como sección aparte: bloque "Kit físico" con "Descargar QR",
+  "Descargar kit de stickers (.zip)" y previsualización del QR y de la placa. **Cierra el pendiente
+  de ADR-025** ("el QR de la máquina se hace a mano"). Es **capa nueva de admin**: no toca el
+  contrato del token, la conciliación, `/m/{id}` ni `/scan`.
+- **Endpoints** (`internal/kit` + `internal/web/kit.go`), todos con sesión de admin:
+  `GET /admin/machines/{id}/qr.svg`, `.../qr.png` (ambos con `?size=`, acotado a 128–2048) y
+  `.../kit.zip` (qr.svg · qr.png 1024 px · sticker-frente.svg · placa.svg · wrap-lateral.svg · LEEME.txt).
+- **El QR codifica la URL pública `https://grabi.napi.lat/m/{id}`**, no un token: es el mismo texto
+  que valida `/scan` (ADR-025), así que el escáner propio y la app de cámara llevan al mismo sitio.
+- **ECC nivel H + logo ≤ 20% del área.** El símbolo se genera con corrección **H** (~30% de
+  redundancia) *porque* encima va la marca compacta (visor + punto, identidad-visual-v1 §3) sobre un
+  **cuadro blanco opaco**. El cuadro mide **0,40 del lado del símbolo ⇒ ~16% de su área** (~10% del
+  área total con la zona de silencio), y se fuerza a un número **impar de módulos** para que quede
+  centrado sin partir ninguno por la mitad (un módulo a medias despista al lector más que uno tapado).
+- **Verificado decodificando, no mirando:** las pruebas **escanean el PNG generado** con `gozxing`
+  (decodificador independiente del generador) y exigen que devuelva la URL original **y** que el
+  símbolo reporte ECC `H`, para tres ids y tres tamaños. Nueva dependencia **solo de pruebas**.
+- **401, no 303, en los archivos.** El resto del panel redirige al login; estos endpoints devuelven
+  **401**: quien pide un `.svg`/`.png`/`.zip` recibiría el HTML del login disfrazado de imagen.
+- **Nada se persiste en disco.** Todo se arma en memoria en cada petición desde plantillas Go +
+  `skip2/go-qrcode`. No hay archivos que invalidar si cambia la marca ni basura que respaldar.
+- **Piezas en milímetros** (SVG a tamaño real para imprenta; PNG para digital) — arte definido por el
+  mockup de Daniel, ver addendum. Las tipografías se declaran con sustituto (`Archivo, Arial Black`),
+  y el `LEEME.txt` le pide a la imprenta pasarlas a curvas, imprimir al 100% y **no recortar la zona
+  de silencio**.
+- **La placa dice `GRABI {ID} · {nombre de la máquina}`:** el modelo **no tiene columna de ciudad**;
+  hoy el "nombre" del panel es el punto/ubicación. Si se quiere una ciudad propia, entra en el
+  **panel de Configuración** pendiente de ADR-022, no aquí.
+- **Pendiente (no bloquea):** el detalle de máquina ya tenía **desbordamiento horizontal a 390 px**
+  (los botones de la cabecera); medido `scrollWidth=477` **con y sin** el bloque nuevo — es previo y
+  queda anotado para arreglarlo aparte.
+
+### Addendum (2026-08-11) — arte de las calcomanías según el mockup, y el banner NO lleva QR
+- **Origen:** Daniel pasó el mockup (render 3D de la máquina) con el lenguaje visual definitivo. Se
+  **mantienen las tres piezas** (`sticker-frente` · `placa` · `wrap-lateral`): no se añaden `pasos.svg`
+  ni `cabecera.svg`. Cambia **solo el arte**.
+- **Lenguaje (aplicado a las tres):** composición **apaisada y alineada a la izquierda**; **filetes
+  verdes** arriba y abajo; **tagline en tres líneas** con las dos primeras en `--fg` y **"agárralo." en
+  verde**; la marca compacta dentro de un **cuadro verde** con la tinta oscura (nunca clara sobre el
+  verde, identidad-visual-v1 §4); **marca fantasma** gigante de fondo (`#151E19`, apenas más clara que
+  el panel: más contraste compite con el titular, menos desaparece al imprimir); bajada mono
+  **"Sin efectivo · sin datáfono · pago Bre-B"**.
+- **El banner del frente NO lleva QR** (decisión de Daniel). El QR se pega **aparte**, desde `qr.svg`,
+  **a la altura de la mano**, donde el celular lo encuadra sin agacharse. Ventaja operativa: el banner
+  es **idéntico para todas las máquinas** (se manda a imprimir en lote) y lo único personalizado por
+  máquina es el QR y la placa. Tamaño: **400×185 mm**.
+- **La placa va SIN FONDO** (90×30 mm), como en el mockup: vinilo transparente o impresa directa sobre
+  el cuerpo. Dice **`GRABI. · {ID}`** — el mockup **quita la ciudad**: quien está frente a la máquina
+  ya sabe dónde está, y el dato que importa para soporte es el id. El nombre del punto sigue en el
+  encabezado del `LEEME.txt`.
+- **`wrap-lateral.svg` se ELIMINA y en su lugar entra `instrucciones.svg`** (300×160 mm, mockup de
+  Daniel): a la izquierda el argumento de venta (**"Sin efectivo. / Sin datáfono. / Solo tu celular."**,
+  la última línea en verde) más el dominio en mono; a la derecha los **tres pasos numerados** en
+  círculos verdes ("Escanea el QR de la máquina" · "Paga con Bre-B desde tu banco" · "Muestra el QR y
+  agárralo"), separados por un filete vertical. **Barra verde de borde a borde** en el canto izquierdo
+  (dentro del `clipPath` del panel, para que las esquinas se las redondee la propia pieza) y **marca
+  fantasma ENTERA** en el hueco libre bajo el paso 3. Las dos cosas se corrigieron tras verlo impreso:
+  con márgenes la barra se lee como un canto suelto, y la marca recortada por el borde parece un error
+  de montaje, no una marca de agua. Ambas quedan fijadas por pruebas.
+- **Por qué reemplaza a la tira del costado:** el costado no lo mira nadie; **quien nunca ha comprado
+  en una GRABI necesita saber qué hacer**, y eso se lee de frente, al lado del QR. El cuerpo del paso
+  va en **Space Grotesk 700**, no en mono (la mono cansa en frases, landing-v2 §7).
+- **El panel de instrucciones no menciona ninguna máquina** (dice `grabi.napi.lat`, no `/m/{id}`): es
+  idéntico para todas, igual que el banner. Hay una prueba que lo fija.
+- **El tagline se parte por palabras, nunca se reescribe.** Hay una prueba que reconstruye las tres
+  líneas y exige que den exactamente `Tagline` (identidad-visual-v1 §1); si algún día deja de tener
+  tres palabras, cae entero en la primera línea en vez de romperse.
+- **Verificado (2026-08-11):** las tres piezas renderizadas en navegador **sin las tipografías de marca
+  instaladas** (el peor caso de la imprenta, sustituto más ancho): ninguna línea se sale del arte.
+
+---
+
 ## ADR-025 · Escáner propio del QR de la máquina (`GET /scan`) con destino validado
 - **Fecha:** 2026-08-11 · **Autor:** Agente de Software (02) + Daniel.
 - **Decisión:** GRABI tiene su **propia página de escaneo**, `GET /scan`: abre la cámara del celular,
@@ -72,8 +147,8 @@
   a 384 px el QR **sigue decodificando** y el coste baja de 16,6 a 6,3 ms; y el `box-shadow` animado
   repinta de más. Quedan como mejoras disponibles si hiciera falta más margen.
 
-- **Pendiente (no bloquea):** generar desde el panel la **calcomanía imprimible** del QR por máquina
-  (hoy el QR de la máquina se hace a mano); y decidir si `/{ID}` sin `/m/` debería redirigir en vez
+- **Pendiente (no bloquea):** ~~generar desde el panel la **calcomanía imprimible** del QR por máquina~~
+  → **HECHO en ADR-026**; y decidir si `/{ID}` sin `/m/` debería redirigir en vez
   de dar 404 — por ahora da 404 **a propósito**, y el 404 ofrece volver a escanear.
 
 ---
