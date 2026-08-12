@@ -31,17 +31,43 @@
   **401**: quien pide un `.svg`/`.png`/`.zip` recibiría el HTML del login disfrazado de imagen.
 - **Nada se persiste en disco.** Todo se arma en memoria en cada petición desde plantillas Go +
   `skip2/go-qrcode`. No hay archivos que invalidar si cambia la marca ni basura que respaldar.
-- **Piezas en milímetros** (SVG a tamaño real para imprenta; PNG para digital): frente 100×140,
-  placa 90×30, wrap lateral 60×400. El **tagline va en dos líneas** en el frente porque en una sola no
-  cabe en 100 mm sin encogerlo — entero y sin reescribir (identidad-visual-v1 §1). Las tipografías se
-  declaran con sustituto (`Archivo, Arial Black`), y el `LEEME.txt` le pide a la imprenta pasarlas a
-  curvas, imprimir al 100% y **no recortar la zona de silencio**.
+- **Piezas en milímetros** (SVG a tamaño real para imprenta; PNG para digital) — arte definido por el
+  mockup de Daniel, ver addendum. Las tipografías se declaran con sustituto (`Archivo, Arial Black`),
+  y el `LEEME.txt` le pide a la imprenta pasarlas a curvas, imprimir al 100% y **no recortar la zona
+  de silencio**.
 - **La placa dice `GRABI {ID} · {nombre de la máquina}`:** el modelo **no tiene columna de ciudad**;
   hoy el "nombre" del panel es el punto/ubicación. Si se quiere una ciudad propia, entra en el
   **panel de Configuración** pendiente de ADR-022, no aquí.
 - **Pendiente (no bloquea):** el detalle de máquina ya tenía **desbordamiento horizontal a 390 px**
   (los botones de la cabecera); medido `scrollWidth=477` **con y sin** el bloque nuevo — es previo y
   queda anotado para arreglarlo aparte.
+
+### Addendum (2026-08-11) — arte de las calcomanías según el mockup, y el banner NO lleva QR
+- **Origen:** Daniel pasó el mockup (render 3D de la máquina) con el lenguaje visual definitivo. Se
+  **mantienen las tres piezas** (`sticker-frente` · `placa` · `wrap-lateral`): no se añaden `pasos.svg`
+  ni `cabecera.svg`. Cambia **solo el arte**.
+- **Lenguaje (aplicado a las tres):** composición **apaisada y alineada a la izquierda**; **filetes
+  verdes** arriba y abajo; **tagline en tres líneas** con las dos primeras en `--fg` y **"agárralo." en
+  verde**; la marca compacta dentro de un **cuadro verde** con la tinta oscura (nunca clara sobre el
+  verde, identidad-visual-v1 §4); **marca fantasma** gigante de fondo (`#151E19`, apenas más clara que
+  el panel: más contraste compite con el titular, menos desaparece al imprimir); bajada mono
+  **"Sin efectivo · sin datáfono · pago Bre-B"**.
+- **El banner del frente NO lleva QR** (decisión de Daniel). El QR se pega **aparte**, desde `qr.svg`,
+  **a la altura de la mano**, donde el celular lo encuadra sin agacharse. Ventaja operativa: el banner
+  es **idéntico para todas las máquinas** (se manda a imprimir en lote) y lo único personalizado por
+  máquina es el QR y la placa. Tamaño: **400×185 mm**.
+- **La placa va SIN FONDO** (90×30 mm), como en el mockup: vinilo transparente o impresa directa sobre
+  el cuerpo. Dice **`GRABI. · {ID}`** — el mockup **quita la ciudad**: quien está frente a la máquina
+  ya sabe dónde está, y el dato que importa para soporte es el id. El nombre del punto sigue en el
+  encabezado del `LEEME.txt`.
+- **El wrap lateral usa UNA línea vertical**, no las tres apiladas: en una tira de 60 mm las tres
+  líneas no caben a un cuerpo que se lea de lejos. Conserva el lenguaje con la **última palabra en
+  verde** dentro de la misma línea.
+- **El tagline se parte por palabras, nunca se reescribe.** Hay una prueba que reconstruye las tres
+  líneas y exige que den exactamente `Tagline` (identidad-visual-v1 §1); si algún día deja de tener
+  tres palabras, cae entero en la primera línea en vez de romperse.
+- **Verificado (2026-08-11):** las tres piezas renderizadas en navegador **sin las tipografías de marca
+  instaladas** (el peor caso de la imprenta, sustituto más ancho): ninguna línea se sale del arte.
 
 ---
 

@@ -193,46 +193,66 @@ func TestZipTraeLasPiezasEsperadas(t *testing.T) {
 	}
 
 	// Las piezas SVG llevan la marca, el tagline y los datos de la máquina.
-	// El tagline va en dos líneas (una sola no cabe en 100 mm sin encogerlo), pero
-	// entero y sin reescribir: identidad-visual-v1 §1.
+	// El banner del frente: tagline en tres líneas (la última en verde), bajada
+	// mono y marca fantasma de fondo.
 	frente := string(dentro["sticker-frente.svg"])
-	for _, want := range []string{"Escanea, paga,", "agárralo.", "GRABI", "grabi.napi.lat/m/M001", `width="100mm"`, `height="140mm"`} {
+	for _, want := range []string{
+		"Escanea,", "paga,", "agárralo.",
+		"Sin efectivo · sin datáfono · pago Bre-B",
+		`width="400mm"`, `height="185mm"`,
+		ColorGhost, // la marca fantasma
+	} {
 		if !strings.Contains(frente, want) {
 			t.Errorf("sticker-frente.svg no contiene %q", want)
 		}
 	}
-	// El QR va INCRUSTADO (no enlazado): la pieza tiene que abrir sola en la
-	// imprenta. Se reconoce por sus cientos de rects de módulo dentro del panel.
-	if n := strings.Count(frente, "<rect"); n < 300 {
-		t.Errorf("sticker-frente.svg solo tiene %d <rect>: el QR no está incrustado", n)
+	// El banner NO lleva QR (decisión de Daniel: el QR se pega aparte, desde
+	// qr.svg, a la altura de la mano). Cientos de rects delatarían un QR dentro.
+	if n := strings.Count(frente, "<rect"); n > 20 {
+		t.Errorf("sticker-frente.svg tiene %d <rect>: parece llevar el QR incrustado", n)
 	}
+	// La placa va SIN fondo (vinilo transparente): un panel oscuro de lado a lado
+	// la delataría.
 	placa := string(dentro["placa.svg"])
-	for _, want := range []string{"GRABI M001", "Palmira", `width="90mm"`} {
+	for _, want := range []string{"GRABI", "· M001", `width="90mm"`} {
 		if !strings.Contains(placa, want) {
 			t.Errorf("placa.svg no contiene %q", want)
 		}
 	}
+	if strings.Contains(placa, `width="90" height="30"`) || strings.Contains(placa, ColorBG) {
+		t.Error("placa.svg trae fondo: debe ir sin panel, para vinilo transparente")
+	}
 	wrap := string(dentro["wrap-lateral.svg"])
-	for _, want := range []string{Tagline, `width="60mm"`, ColorAccent} {
+	for _, want := range []string{"Escanea,", "agárralo.", "grabi.napi.lat/m/M001", `width="60mm"`, ColorAccent} {
 		if !strings.Contains(wrap, want) {
 			t.Errorf("wrap-lateral.svg no contiene %q", want)
 		}
 	}
 }
 
-// El nombre de la máquina lo escribe el admin: un `&` sin escapar rompe el SVG y
-// la pieza deja de abrir en cualquier programa de diseño.
-func TestElNombreDeLaMaquinaSeEscapa(t *testing.T) {
-	m := Machine{ID: "M001", Place: `Bar "El Ñandú" & Cía <norte>`}
+// El tagline se parte por palabras para las piezas, pero NUNCA se reescribe ni se
+// traduce (identidad-visual-v1 §1): las tres líneas juntas tienen que reconstruirlo.
+func TestElTaglineSePartePeroNoSeReescribe(t *testing.T) {
+	d := Machine{ID: "M001"}.datos()
+	if got := d.Tag1 + " " + d.Tag2 + " " + d.Tag3; got != Tagline {
+		t.Errorf("las tres líneas dan %q, se esperaba %q", got, Tagline)
+	}
+}
+
+// El id de la máquina lo escribe el admin y se imprime en la placa: un `&` o un
+// `<` sin escapar rompen el SVG y la pieza deja de abrir en cualquier programa de
+// diseño.
+func TestLosDatosDeLaMaquinaSeEscapan(t *testing.T) {
+	m := Machine{ID: `M1 & <script>"x"`, Place: "Palmira"}
 	placa, err := m.Placa()
 	if err != nil {
 		t.Fatalf("Placa: %v", err)
 	}
 	s := string(placa)
-	if strings.Contains(s, "& C") || strings.Contains(s, "<norte>") {
-		t.Errorf("el nombre entra sin escapar en el SVG:\n%s", s)
+	if strings.Contains(s, "& <") || strings.Contains(s, "<script>") {
+		t.Errorf("el id entra sin escapar en el SVG:\n%s", s)
 	}
-	for _, want := range []string{"&amp;", "&lt;norte&gt;", "&quot;El Ñandú&quot;"} {
+	for _, want := range []string{"&amp;", "&lt;script&gt;", "&quot;x&quot;"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("falta el escape %q", want)
 		}

@@ -51,35 +51,58 @@ type datos struct {
 	Place   string
 	Short   string
 	Tagline string
-	Tag1    string // el tagline partido en dos líneas para las piezas angostas
-	Tag2    string
-	QR      string // fragmento SVG del QR, ya posicionado
+	// El tagline en tres líneas ("Escanea," / "paga," / "agárralo."), como en el
+	// mockup: las dos primeras en blanco y la última en verde.
+	Tag1, Tag2, Tag3 string
 	// Colores de marca, para no repetir literales en cada plantilla.
 	BG, FG, Muted, Accent, Line string
 }
 
-func (m Machine) datos(qr string) datos {
-	// El tagline se parte en dos líneas para las piezas angostas, pero no se
-	// reescribe (identidad-visual-v1 §1). Si algún día cambia y no tiene por
-	// dónde partirse, cae entero en la primera línea.
-	tag1, tag2 := Tagline, ""
-	if a, b, ok := strings.Cut(Tagline, " paga, "); ok {
-		tag1, tag2 = a+" paga,", b
+func (m Machine) datos() datos {
+	// El tagline se parte por palabras, no se reescribe (identidad-visual-v1 §1).
+	// Si algún día deja de tener tres palabras, cae entero en la primera línea.
+	tags := [3]string{Tagline}
+	if w := strings.Fields(Tagline); len(w) == 3 {
+		tags = [3]string{w[0], w[1], w[2]}
 	}
 	return datos{
 		ID: xmlEsc(m.ID), Place: xmlEsc(m.Place), Short: xmlEsc(m.short()),
-		Tagline: xmlEsc(Tagline), Tag1: xmlEsc(tag1), Tag2: xmlEsc(tag2), QR: qr,
+		Tagline: xmlEsc(Tagline),
+		Tag1:    xmlEsc(tags[0]), Tag2: xmlEsc(tags[1]), Tag3: xmlEsc(tags[2]),
 		BG: ColorBG, FG: ColorFG, Muted: ColorMuted, Accent: ColorAccent, Line: ColorLine,
 	}
 }
 
-// Marca devuelve el símbolo compacto (visor + punto) del tamaño pedido, en las
-// unidades de la pieza que lo llama.
+// Marca es el símbolo compacto suelto: visor claro + punto verde. Va sobre el
+// fondo oscuro de la pieza (identidad-visual-v1 §3).
 func (d datos) Marca(size float64) string {
-	return fmt.Sprintf(`<svg width="%s" height="%s" viewBox="0 0 100 100" overflow="visible">`+
-		`<path d="M41 24 L24 24 L24 41 M59 24 L76 24 L76 41 M41 76 L24 76 L24 59 M59 76 L76 76 L76 59" `+
+	return marcaSVG(size, "", d.FG, d.Accent)
+}
+
+// MarcaBadge es el símbolo dentro del cuadro verde. Sobre el verde acento
+// siempre va tinta oscura, nunca clara (identidad-visual-v1 §4).
+func (d datos) MarcaBadge(size float64) string {
+	return marcaSVG(size, d.Accent, ColorInk, ColorInk)
+}
+
+// MarcaFantasma es la marca gigante de fondo: apenas más clara que el panel, para
+// que dé textura sin competir con el titular.
+func (d datos) MarcaFantasma(size float64) string {
+	return marcaSVG(size, "", ColorGhost, ColorGhost)
+}
+
+// marcaSVG dibuja el símbolo compacto del tamaño pedido, en las unidades de la
+// pieza que lo llama. bg vacío ⇒ sin cuadro de fondo.
+func marcaSVG(size float64, bg, stroke, dot string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg width="%s" height="%s" viewBox="0 0 100 100" overflow="visible">`, f(size), f(size))
+	if bg != "" {
+		fmt.Fprintf(&b, `<rect width="100" height="100" rx="22" fill="%s"/>`, bg)
+	}
+	fmt.Fprintf(&b, `<path d="M41 24 L24 24 L24 41 M59 24 L76 24 L76 41 M41 76 L24 76 L24 59 M59 76 L76 76 L76 59" `+
 		`fill="none" stroke="%s" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/>`+
-		`<circle cx="50" cy="50" r="13" fill="%s"/></svg>`, f(size), f(size), d.FG, d.Accent)
+		`<circle cx="50" cy="50" r="13" fill="%s"/></svg>`, stroke, dot)
+	return b.String()
 }
 
 // xmlEsc escapa el texto que entra en las piezas. El nombre de la máquina lo
@@ -89,105 +112,94 @@ var escapador = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", `"`,
 
 func xmlEsc(s string) string { return escapador.Replace(s) }
 
-// qrFragment devuelve el QR como SVG anidado dentro del cuadrado (x,y,size) en
-// las unidades (mm) de la pieza que lo contiene.
-func qrFragment(content string, x, y, size float64) (string, error) {
-	m, err := Matrix(content)
-	if err != nil {
-		return "", err
-	}
-	var b strings.Builder
-	writeQRBody(&b, m, x, y, size)
-	return b.String(), nil
-}
-
+// Arte según el mockup de Daniel (2026-08-11): composición apaisada y alineada a
+// la IZQUIERDA, filetes verdes arriba y abajo, tagline en tres líneas con la
+// última en verde, marca compacta en cuadro verde y marca fantasma de fondo.
+//
 // Los tamaños de letra van holgados a propósito: si la imprenta no tiene Archivo
 // ni IBM Plex Mono, el sustituto (Arial Black, Courier) es más ancho, y una línea
-// que se sale del arte no se nota hasta que el vinilo ya está impreso.
+// que se sale del arte no se nota hasta que el vinilo ya está impreso. Por lo
+// mismo, el `· {id}` de la placa va como tspan del wordmark y no en una posición
+// fija: así no se solapan si la tipografía cambia de ancho.
 var piezas = template.Must(template.New("piezas").Parse(`
-{{define "sticker-frente"}}<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="140mm" viewBox="0 0 100 140">
-  <rect width="100" height="140" rx="6" fill="{{.BG}}"/>
-  <rect x="1.5" y="1.5" width="97" height="137" rx="4.5" fill="none" stroke="{{.Line}}" stroke-width="0.5"/>
+{{define "sticker-frente"}}<svg xmlns="http://www.w3.org/2000/svg" width="400mm" height="185mm" viewBox="0 0 400 185">
+  <rect width="400" height="185" fill="{{.BG}}"/>
+  <g transform="translate(268,37)">{{.MarcaFantasma 110}}</g>
+  <rect x="0" y="0" width="400" height="2.5" fill="{{.Accent}}"/>
+  <rect x="0" y="182.5" width="400" height="2.5" fill="{{.Accent}}"/>
 
-  <text x="50" y="20" text-anchor="middle" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="14" letter-spacing="0.4" fill="{{.FG}}">GRABI<tspan fill="{{.Accent}}">.</tspan></text>
-  <text x="50" y="27.5" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="3.2" letter-spacing="0.8" fill="{{.Muted}}">PAGA CON BRE-B · SIN EFECTIVO</text>
-
-  <rect x="17" y="34" width="66" height="66" rx="5" fill="#FFFFFF"/>
-  {{.QR}}
-
-  <text x="50" y="112" text-anchor="middle" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="10" fill="{{.FG}}">{{.Tag1}}</text>
-  <text x="50" y="123" text-anchor="middle" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="10" fill="{{.FG}}">{{.Tag2}}</text>
-  <text x="50" y="131" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="4" fill="{{.Accent}}">{{.Short}}</text>
-  <text x="50" y="136.5" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="2.8" letter-spacing="0.8" fill="{{.Muted}}">GRABI {{.ID}}</text>
+  <g transform="translate(26,20)">{{.MarcaBadge 32}}</g>
+  <text x="26" y="83" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="30" fill="{{.FG}}">{{.Tag1}}</text>
+  <text x="26" y="112" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="30" fill="{{.FG}}">{{.Tag2}}</text>
+  <text x="26" y="141" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="30" fill="{{.Accent}}">{{.Tag3}}</text>
+  <text x="26" y="159" font-family="IBM Plex Mono, monospace" font-size="9" letter-spacing="0.6" fill="{{.Muted}}">Sin efectivo · sin datáfono · pago Bre-B</text>
 </svg>
 {{end}}
 
 {{define "placa"}}<svg xmlns="http://www.w3.org/2000/svg" width="90mm" height="30mm" viewBox="0 0 90 30">
-  <rect width="90" height="30" rx="3" fill="{{.BG}}"/>
-  <rect width="3" height="30" rx="1.5" fill="{{.Accent}}"/>
-  <text x="9" y="15" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="8" letter-spacing="0.3" fill="{{.FG}}">GRABI {{.ID}}</text>
-  <text x="9" y="22" font-family="IBM Plex Mono, monospace" font-size="3.4" letter-spacing="0.4" fill="{{.Muted}}">· {{.Place}}</text>
-  <g transform="translate(70,8)">{{.Marca 14}}</g>
+  <g transform="translate(8,10)">{{.Marca 10}}</g>
+  <text x="22" y="19" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="10.5" letter-spacing="0.2" fill="{{.FG}}">GRABI<tspan fill="{{.Accent}}">.</tspan><tspan dx="4" font-family="IBM Plex Mono, monospace" font-weight="400" font-size="3.4" letter-spacing="0.4" fill="{{.Muted}}">· {{.ID}}</tspan></text>
 </svg>
 {{end}}
 
 {{define "wrap-lateral"}}<svg xmlns="http://www.w3.org/2000/svg" width="60mm" height="400mm" viewBox="0 0 60 400">
   <rect width="60" height="400" fill="{{.BG}}"/>
   <rect x="0" y="0" width="60" height="5" fill="{{.Accent}}"/>
-  <g transform="translate(16,22)">{{.Marca 28}}</g>
-  <text transform="translate(36,362) rotate(-90)" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="15" fill="{{.FG}}">{{.Tagline}}</text>
-  <text transform="translate(50,362) rotate(-90)" font-family="IBM Plex Mono, monospace" font-size="4.6" letter-spacing="1.2" fill="{{.Muted}}">{{.Short}}</text>
   <rect x="0" y="395" width="60" height="5" fill="{{.Accent}}"/>
+  <g transform="translate(16,24)">{{.MarcaBadge 28}}</g>
+  {{/* En una tira de 60 mm las tres líneas apiladas del banner no caben: el
+       tagline va en UNA línea vertical grande, con la última palabra en verde.
+       El cuerpo va a 20 para que, si la imprenta sustituye Archivo por una más
+       ancha, la línea siga sin chocar con el badge de arriba. */}}
+  <text transform="translate(35,380) rotate(-90)" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="20" fill="{{.FG}}">{{.Tag1}} {{.Tag2}} <tspan fill="{{.Accent}}">{{.Tag3}}</tspan></text>
+  <text x="30" y="388" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="4" letter-spacing="0.4" fill="{{.Muted}}">{{.Short}}</text>
 </svg>
 {{end}}
 `))
 
-// pieza renderiza una plantilla con el QR ya incrustado (si la pieza lo lleva).
-func (m Machine) pieza(name string, qr string) ([]byte, error) {
+// pieza renderiza una plantilla de calcomanía.
+func (m Machine) pieza(name string) ([]byte, error) {
 	var buf bytes.Buffer
-	if err := piezas.ExecuteTemplate(&buf, name, m.datos(qr)); err != nil {
+	if err := piezas.ExecuteTemplate(&buf, name, m.datos()); err != nil {
 		return nil, fmt.Errorf("render de %s: %w", name, err)
 	}
 	return bytes.TrimSpace(buf.Bytes()), nil
 }
 
-// StickerFrente es la calcomanía principal del frente de la máquina (100×140 mm):
-// marca + QR + tagline.
-func (m Machine) StickerFrente() ([]byte, error) {
-	// El QR ocupa 60 mm dentro del panel blanco de 66 mm (3 mm de aire por lado).
-	qr, err := qrFragment(m.URL(), 20, 37, 60)
-	if err != nil {
-		return nil, err
-	}
-	return m.pieza("sticker-frente", qr)
-}
+// StickerFrente es el banner del frente de la máquina (400×185 mm): marca,
+// tagline y bajada. NO lleva el QR: el QR se pega aparte, desde qr.svg, a la
+// altura de la mano y donde el celular lo pueda encuadrar sin agacharse.
+func (m Machine) StickerFrente() ([]byte, error) { return m.pieza("sticker-frente") }
 
-// Placa es la plaquita identificadora de la máquina (90×30 mm).
-func (m Machine) Placa() ([]byte, error) { return m.pieza("placa", "") }
+// Placa es la plaquita identificadora de la máquina (90×30 mm). Va SIN fondo:
+// se imprime en vinilo transparente o se aplica directa sobre el cuerpo.
+func (m Machine) Placa() ([]byte, error) { return m.pieza("placa") }
 
 // WrapLateral es la tira del costado de la máquina (60×400 mm).
-func (m Machine) WrapLateral() ([]byte, error) { return m.pieza("wrap-lateral", "") }
+func (m Machine) WrapLateral() ([]byte, error) { return m.pieza("wrap-lateral") }
 
 // leeme explica a la imprenta lo que no se ve en los archivos.
 const leeme = `KIT FÍSICO — GRABI %s (%s)
 QR: %s
 
 CONTENIDO
-  qr.svg              El QR solo, vectorial. Úsalo para imprenta.
+  qr.svg              El QR solo, vectorial. Es LA pieza que hace vender: imprímela
+                      aparte y pégala a la altura de la mano, junto al banner.
   qr.png              El mismo QR a %d px. Para piezas digitales (WhatsApp, redes).
-  sticker-frente.svg  Calcomanía del frente, 100 x 140 mm.
-  placa.svg           Plaquita identificadora, 90 x 30 mm.
+  sticker-frente.svg  Banner del frente, 400 x 185 mm. Sin QR: solo marca y mensaje.
+  placa.svg           Plaquita identificadora, 90 x 30 mm. SIN FONDO: va en vinilo
+                      transparente (o impresa directa) sobre el cuerpo de la máquina.
   wrap-lateral.svg    Tira del costado, 60 x 400 mm.
 
 IMPRESIÓN
   · Los SVG están en milímetros a tamaño real: imprime al 100%%, sin "ajustar a la página".
   · El QR NO se puede estirar, recortar ni cambiar de color. El blanco alrededor
     (zona de silencio) es parte del código: si lo recortas deja de leerse.
-  · Tamaño mínimo del QR impreso: 35 mm de lado. En el frente va a 60 mm.
+  · Tamaño mínimo del QR impreso: 35 mm de lado. Recomendado: 60 a 90 mm.
   · Tipografías: Archivo (900) para titulares e IBM Plex Mono para los datos. Si la
     imprenta no las tiene, conviértelas a curvas antes de enviar el archivo.
-  · Material sugerido para el frente: vinilo con laminado mate (el brillo dificulta
-    el escaneo bajo luz directa).
+  · Material sugerido: vinilo con laminado mate (el brillo dificulta el escaneo bajo
+    luz directa y ensucia la lectura del banner).
 
 VERIFICA ANTES DE PEGAR
   Escanea el QR impreso con la cámara del celular: debe abrir %s

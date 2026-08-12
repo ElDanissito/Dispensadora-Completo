@@ -34,6 +34,9 @@ const (
 	ColorAccent = "#3BE87F" // verde GRABI
 	ColorInk    = "#05130B" // tinta sobre claro/verde
 	ColorLine   = "#26332B"
+	// ColorGhost es la marca gigante de fondo del banner: apenas más clara que el
+	// panel. Más contraste y compite con el titular; menos y desaparece al imprimir.
+	ColorGhost = "#151E19"
 )
 
 // Tagline oficial (identidad-visual-v1 §1). No se traduce ni se reescribe.

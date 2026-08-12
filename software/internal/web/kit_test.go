@@ -210,8 +210,8 @@ func TestElDetalleDeLaMaquinaMuestraElKitFisico(t *testing.T) {
 		`href="/admin/machines/M001/qr.svg?size=1024"`,
 		`href="/admin/machines/M001/kit.zip"`,
 		`src="/admin/machines/M001/qr.svg?size=180"`, // previsualización del QR
-		"GRABI M001", // previsualización de la placa (SVG real)
-		"Palmira",
+		`width="90mm" height="30mm"`,                 // la placa real, incrustada
+		"· M001",
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("el detalle de la máquina no contiene %q", want)
