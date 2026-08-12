@@ -60,9 +60,17 @@
   el cuerpo. Dice **`GRABI. · {ID}`** — el mockup **quita la ciudad**: quien está frente a la máquina
   ya sabe dónde está, y el dato que importa para soporte es el id. El nombre del punto sigue en el
   encabezado del `LEEME.txt`.
-- **El wrap lateral usa UNA línea vertical**, no las tres apiladas: en una tira de 60 mm las tres
-  líneas no caben a un cuerpo que se lea de lejos. Conserva el lenguaje con la **última palabra en
-  verde** dentro de la misma línea.
+- **`wrap-lateral.svg` se ELIMINA y en su lugar entra `instrucciones.svg`** (300×160 mm, mockup de
+  Daniel): a la izquierda el argumento de venta (**"Sin efectivo. / Sin datáfono. / Solo tu celular."**,
+  la última línea en verde) más el dominio en mono; a la derecha los **tres pasos numerados** en
+  círculos verdes ("Escanea el QR de la máquina" · "Paga con Bre-B desde tu banco" · "Muestra el QR y
+  agárralo"), separados por un filete vertical. Barra verde en el canto izquierdo y marca fantasma
+  saliéndose por la esquina inferior derecha (recortada con `clipPath`).
+- **Por qué reemplaza a la tira del costado:** el costado no lo mira nadie; **quien nunca ha comprado
+  en una GRABI necesita saber qué hacer**, y eso se lee de frente, al lado del QR. El cuerpo del paso
+  va en **Space Grotesk 700**, no en mono (la mono cansa en frases, landing-v2 §7).
+- **El panel de instrucciones no menciona ninguna máquina** (dice `grabi.napi.lat`, no `/m/{id}`): es
+  idéntico para todas, igual que el banner. Hay una prueba que lo fija.
 - **El tagline se parte por palabras, nunca se reescribe.** Hay una prueba que reconstruye las tres
   líneas y exige que den exactamente `Tagline` (identidad-visual-v1 §1); si algún día deja de tener
   tres palabras, cae entero en la primera línea en vez de romperse.

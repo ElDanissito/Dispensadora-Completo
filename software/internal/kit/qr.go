@@ -28,12 +28,14 @@ import (
 // Colores de marca (identidad-visual-v1 §4). Se repiten aquí como literales
 // porque las piezas son archivos para imprenta, no HTML: no hay variables CSS.
 const (
-	ColorBG     = "#0A0E0C" // fondo kiosko
-	ColorFG     = "#EAF4EE" // texto sobre oscuro
-	ColorMuted  = "#8FA79A"
-	ColorAccent = "#3BE87F" // verde GRABI
-	ColorInk    = "#05130B" // tinta sobre claro/verde
-	ColorLine   = "#26332B"
+	ColorBG      = "#0A0E0C" // fondo kiosko
+	ColorSurface = "#0D1210" // superficie (paneles)
+	ColorFG      = "#EAF4EE" // texto sobre oscuro
+	ColorMuted   = "#8FA79A"
+	ColorAccent  = "#3BE87F" // verde GRABI
+	ColorInk     = "#05130B" // tinta sobre claro/verde
+	ColorLine    = "#26332B"
+	ColorLine2   = "#3A4A40"
 	// ColorGhost es la marca gigante de fondo del banner: apenas más clara que el
 	// panel. Más contraste y compite con el titular; menos y desaparece al imprimir.
 	ColorGhost = "#151E19"

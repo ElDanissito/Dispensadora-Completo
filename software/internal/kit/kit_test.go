@@ -222,11 +222,27 @@ func TestZipTraeLasPiezasEsperadas(t *testing.T) {
 	if strings.Contains(placa, `width="90" height="30"`) || strings.Contains(placa, ColorBG) {
 		t.Error("placa.svg trae fondo: debe ir sin panel, para vinilo transparente")
 	}
-	wrap := string(dentro["wrap-lateral.svg"])
-	for _, want := range []string{"Escanea,", "agárralo.", "grabi.napi.lat/m/M001", `width="60mm"`, ColorAccent} {
-		if !strings.Contains(wrap, want) {
-			t.Errorf("wrap-lateral.svg no contiene %q", want)
+	// El panel de instrucciones: los tres pasos completos y el argumento de venta.
+	pasos := string(dentro["instrucciones.svg"])
+	for _, want := range []string{
+		"Sin efectivo.", "Sin datáfono.", "Solo tu celular.",
+		"Escanea el QR de", "la máquina",
+		"Paga con Bre-B", "desde tu banco",
+		"Muestra el QR y", "agárralo",
+		"grabi.napi.lat", `width="300mm"`, `height="160mm"`,
+	} {
+		if !strings.Contains(pasos, want) {
+			t.Errorf("instrucciones.svg no contiene %q", want)
 		}
+	}
+	// Los tres números, cada uno en su círculo verde. Sin ellos el panel deja de
+	// ser una secuencia y pasa a ser una lista suelta.
+	if n := strings.Count(pasos, `r="10" fill="`+ColorAccent+`"`); n != 3 {
+		t.Errorf("instrucciones.svg tiene %d círculos de paso, se esperaban 3", n)
+	}
+	// El panel habla del sitio, no de una máquina concreta: es el mismo para todas.
+	if strings.Contains(pasos, "M001") {
+		t.Error("instrucciones.svg menciona una máquina concreta; debe servir para todas")
 	}
 }
 

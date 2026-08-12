@@ -29,20 +29,31 @@ type Machine struct {
 	Site  string // base del sitio; "" ⇒ SiteDefault
 }
 
-// URL devuelve lo que codifica el QR: la página pública de la máquina.
-func (m Machine) URL() string {
-	site := strings.TrimRight(m.Site, "/")
-	if site == "" {
-		site = SiteDefault
+// site devuelve la base del sitio sin barra final.
+func (m Machine) site() string {
+	if s := strings.TrimRight(m.Site, "/"); s != "" {
+		return s
 	}
-	return site + "/m/" + m.ID
+	return SiteDefault
 }
 
+// URL devuelve lo que codifica el QR: la página pública de la máquina.
+func (m Machine) URL() string { return m.site() + "/m/" + m.ID }
+
 // short devuelve la URL sin esquema, para imprimirla legible bajo el QR.
-func (m Machine) short() string {
-	u := m.URL()
-	u = strings.TrimPrefix(u, "https://")
-	return strings.TrimPrefix(u, "http://")
+func (m Machine) short() string { return sinEsquema(m.URL()) }
+
+// host es solo el dominio, para las piezas que no hablan de una máquina concreta.
+func (m Machine) host() string {
+	h := sinEsquema(m.site())
+	if i := strings.IndexByte(h, '/'); i >= 0 {
+		h = h[:i]
+	}
+	return h
+}
+
+func sinEsquema(u string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(u, "https://"), "http://")
 }
 
 // datos es lo que reciben las plantillas, con todo el texto ya escapado para XML.
@@ -50,12 +61,13 @@ type datos struct {
 	ID      string
 	Place   string
 	Short   string
+	Host    string
 	Tagline string
 	// El tagline en tres líneas ("Escanea," / "paga," / "agárralo."), como en el
 	// mockup: las dos primeras en blanco y la última en verde.
 	Tag1, Tag2, Tag3 string
 	// Colores de marca, para no repetir literales en cada plantilla.
-	BG, FG, Muted, Accent, Line string
+	BG, Surface, FG, Muted, Accent, Ink, Line, Line2 string
 }
 
 func (m Machine) datos() datos {
@@ -66,10 +78,11 @@ func (m Machine) datos() datos {
 		tags = [3]string{w[0], w[1], w[2]}
 	}
 	return datos{
-		ID: xmlEsc(m.ID), Place: xmlEsc(m.Place), Short: xmlEsc(m.short()),
+		ID: xmlEsc(m.ID), Place: xmlEsc(m.Place), Short: xmlEsc(m.short()), Host: xmlEsc(m.host()),
 		Tagline: xmlEsc(Tagline),
 		Tag1:    xmlEsc(tags[0]), Tag2: xmlEsc(tags[1]), Tag3: xmlEsc(tags[2]),
-		BG: ColorBG, FG: ColorFG, Muted: ColorMuted, Accent: ColorAccent, Line: ColorLine,
+		BG: ColorBG, Surface: ColorSurface, FG: ColorFG, Muted: ColorMuted,
+		Accent: ColorAccent, Ink: ColorInk, Line: ColorLine, Line2: ColorLine2,
 	}
 }
 
@@ -142,17 +155,42 @@ var piezas = template.Must(template.New("piezas").Parse(`
 </svg>
 {{end}}
 
-{{define "wrap-lateral"}}<svg xmlns="http://www.w3.org/2000/svg" width="60mm" height="400mm" viewBox="0 0 60 400">
-  <rect width="60" height="400" fill="{{.BG}}"/>
-  <rect x="0" y="0" width="60" height="5" fill="{{.Accent}}"/>
-  <rect x="0" y="395" width="60" height="5" fill="{{.Accent}}"/>
-  <g transform="translate(16,24)">{{.MarcaBadge 28}}</g>
-  {{/* En una tira de 60 mm las tres líneas apiladas del banner no caben: el
-       tagline va en UNA línea vertical grande, con la última palabra en verde.
-       El cuerpo va a 20 para que, si la imprenta sustituye Archivo por una más
-       ancha, la línea siga sin chocar con el badge de arriba. */}}
-  <text transform="translate(35,380) rotate(-90)" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="20" fill="{{.FG}}">{{.Tag1}} {{.Tag2}} <tspan fill="{{.Accent}}">{{.Tag3}}</tspan></text>
-  <text x="30" y="388" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="4" letter-spacing="0.4" fill="{{.Muted}}">{{.Short}}</text>
+{{/* Panel de instrucciones (300×160 mm): a la izquierda el argumento de venta, a
+     la derecha los tres pasos numerados. Es la pieza que responde "¿y esto cómo
+     se usa?" delante de la máquina, así que el cuerpo del texto va grande y en
+     Space Grotesk (la mono cansa en frases, landing-v2 §7). */}}
+{{define "instrucciones"}}<svg xmlns="http://www.w3.org/2000/svg" width="300mm" height="160mm" viewBox="0 0 300 160">
+  <defs><clipPath id="grabi-panel"><rect width="300" height="160" rx="5"/></clipPath></defs>
+  <g clip-path="url(#grabi-panel)">
+    <rect width="300" height="160" fill="{{.Surface}}"/>
+    {{/* La marca fantasma se sale por la esquina a propósito (el clip la recorta);
+         va desplazada para no meterse bajo la última línea del paso 3. */}}
+    <g transform="translate(236,108)">{{.MarcaFantasma 74}}</g>
+    <rect x="0" y="8" width="4" height="144" rx="2" fill="{{.Accent}}"/>
+  </g>
+
+  <g transform="translate(20,18)">{{.MarcaBadge 22}}</g>
+  <text x="20" y="67" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="16" fill="{{.FG}}">Sin efectivo.</text>
+  <text x="20" y="85" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="16" fill="{{.FG}}">Sin datáfono.</text>
+  <text x="20" y="103" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="16" fill="{{.Accent}}">Solo tu celular.</text>
+  <text x="20" y="132" font-family="IBM Plex Mono, monospace" font-size="7.5" letter-spacing="0.4" fill="{{.Muted}}">{{.Host}}</text>
+
+  <line x1="168" y1="18" x2="168" y2="140" stroke="{{.Line2}}" stroke-width="0.5"/>
+
+  <circle cx="189" cy="42" r="10" fill="{{.Accent}}"/>
+  <text x="189" y="45.5" text-anchor="middle" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="10" fill="{{.Ink}}">1</text>
+  <text x="205" y="38.5" font-family="Space Grotesk, Arial, sans-serif" font-weight="700" font-size="9" fill="{{.FG}}">Escanea el QR de</text>
+  <text x="205" y="49.5" font-family="Space Grotesk, Arial, sans-serif" font-weight="700" font-size="9" fill="{{.FG}}">la máquina</text>
+
+  <circle cx="189" cy="75" r="10" fill="{{.Accent}}"/>
+  <text x="189" y="78.5" text-anchor="middle" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="10" fill="{{.Ink}}">2</text>
+  <text x="205" y="71.5" font-family="Space Grotesk, Arial, sans-serif" font-weight="700" font-size="9" fill="{{.FG}}">Paga con Bre-B</text>
+  <text x="205" y="82.5" font-family="Space Grotesk, Arial, sans-serif" font-weight="700" font-size="9" fill="{{.FG}}">desde tu banco</text>
+
+  <circle cx="189" cy="108" r="10" fill="{{.Accent}}"/>
+  <text x="189" y="111.5" text-anchor="middle" font-family="Archivo, Arial Black, sans-serif" font-weight="900" font-size="10" fill="{{.Ink}}">3</text>
+  <text x="205" y="104.5" font-family="Space Grotesk, Arial, sans-serif" font-weight="700" font-size="9" fill="{{.FG}}">Muestra el QR y</text>
+  <text x="205" y="115.5" font-family="Space Grotesk, Arial, sans-serif" font-weight="700" font-size="9" fill="{{.FG}}">agárralo</text>
 </svg>
 {{end}}
 `))
@@ -175,8 +213,9 @@ func (m Machine) StickerFrente() ([]byte, error) { return m.pieza("sticker-frent
 // se imprime en vinilo transparente o se aplica directa sobre el cuerpo.
 func (m Machine) Placa() ([]byte, error) { return m.pieza("placa") }
 
-// WrapLateral es la tira del costado de la máquina (60×400 mm).
-func (m Machine) WrapLateral() ([]byte, error) { return m.pieza("wrap-lateral") }
+// Instrucciones es el panel de "cómo se usa" (300×160 mm): argumento de venta a
+// la izquierda y los tres pasos numerados a la derecha.
+func (m Machine) Instrucciones() ([]byte, error) { return m.pieza("instrucciones") }
 
 // leeme explica a la imprenta lo que no se ve en los archivos.
 const leeme = `KIT FÍSICO — GRABI %s (%s)
@@ -187,9 +226,10 @@ CONTENIDO
                       aparte y pégala a la altura de la mano, junto al banner.
   qr.png              El mismo QR a %d px. Para piezas digitales (WhatsApp, redes).
   sticker-frente.svg  Banner del frente, 400 x 185 mm. Sin QR: solo marca y mensaje.
+  instrucciones.svg   Panel "cómo se usa", 300 x 160 mm. Pégalo AL LADO DEL QR: es
+                      lo que lee quien nunca ha comprado en una GRABI.
   placa.svg           Plaquita identificadora, 90 x 30 mm. SIN FONDO: va en vinilo
                       transparente (o impresa directa) sobre el cuerpo de la máquina.
-  wrap-lateral.svg    Tira del costado, 60 x 400 mm.
 
 IMPRESIÓN
   · Los SVG están en milímetros a tamaño real: imprime al 100%%, sin "ajustar a la página".
@@ -216,7 +256,7 @@ func (m Machine) leemeBytes() []byte {
 }
 
 // ZipFiles es el orden y los nombres de las piezas dentro del kit.zip.
-var ZipFiles = []string{"qr.svg", "qr.png", "sticker-frente.svg", "placa.svg", "wrap-lateral.svg", "LEEME.txt"}
+var ZipFiles = []string{"qr.svg", "qr.png", "sticker-frente.svg", "instrucciones.svg", "placa.svg", "LEEME.txt"}
 
 // WriteZip escribe el kit completo de la máquina como ZIP. Se genera al vuelo en
 // cada petición: no hay nada que guardar ni que invalidar si cambia la marca.
@@ -237,13 +277,13 @@ func (m Machine) WriteZip(w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	wrap, err := m.WrapLateral()
+	pasos, err := m.Instrucciones()
 	if err != nil {
 		return err
 	}
 	contenido := map[string][]byte{
 		"qr.svg": svg, "qr.png": pngBytes, "sticker-frente.svg": frente,
-		"placa.svg": placa, "wrap-lateral.svg": wrap, "LEEME.txt": m.leemeBytes(),
+		"instrucciones.svg": pasos, "placa.svg": placa, "LEEME.txt": m.leemeBytes(),
 	}
 
 	zw := zip.NewWriter(w)
