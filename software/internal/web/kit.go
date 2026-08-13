@@ -105,9 +105,32 @@ func (s *Server) handleMachineKitZip(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="grabi-%s-kit.zip"`, m.ID))
-	w.Header().Set("Content-Length", strconv.Itoa(buf.Len()))
+	s.sirveDescarga(w, buf.Bytes(), "application/zip", fmt.Sprintf("grabi-%s-kit.zip", m.ID))
+}
+
+// handleMachineKitImposicion sirve la hoja de imposición: las seis piezas de la
+// máquina en un pliego 1:1 con las guías de kiss-cut, lista para la imprenta de
+// vinilo (identidad-visual-v1 §8).
+func (s *Server) handleMachineKitImposicion(w http.ResponseWriter, r *http.Request) {
+	m, ok := s.machineKit(w, r)
+	if !ok {
+		return
+	}
+	pliego, err := m.Imposicion()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	s.sirveDescarga(w, pliego, "application/pdf", fmt.Sprintf("grabi-%s-imposicion.pdf", m.ID))
+}
+
+// sirveDescarga manda un archivo ya armado como descarga. Sin
+// Content-Disposition el navegador abriría el PDF en una pestaña en vez de
+// bajarlo, y lo que hay que hacer con este archivo es reenviarlo a la imprenta.
+func (s *Server) sirveDescarga(w http.ResponseWriter, body []byte, tipo, nombre string) {
+	w.Header().Set("Content-Type", tipo)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename=%q`, nombre))
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.Header().Set("Cache-Control", "private, no-store")
-	_, _ = w.Write(buf.Bytes())
+	_, _ = w.Write(body)
 }

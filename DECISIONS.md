@@ -7,6 +7,90 @@
 
 ---
 
+## ADR-027 · Hoja de imposición para vinilo: un pliego por máquina, sin QRs sueltos de otras máquinas
+- **Fecha:** 2026-08-13 · **Autor:** Agente de Software (02) + Daniel.
+- **Decisión:** el panel exporta, además del `kit.zip`, una **hoja de imposición en PDF** lista para
+  imprenta: `GET /admin/machines/{id}/kit-imposicion.pdf` (sesión de admin, 401 sin ella). Es **un
+  pliego de 100 × 32 cm a escala 1:1** con las **6 piezas de ESA máquina** y las **guías de kiss-cut
+  en capa aparte**. Layout y medidas exactas en
+  [`especificaciones/identidad-visual-v1.md` §8.1](./especificaciones/identidad-visual-v1.md).
+  Sigue siendo **capa nueva de admin**: no toca el contrato del token, la conciliación ni `/m/{id}`.
+- **Por qué un pliego y no seis archivos:** la imprenta de vinilo **cobra un área mínima por pedido**.
+  Seis archivos sueltos son seis mínimos; un pliego es uno. Y el kiss-cut deja los stickers cortados
+  por el contorno pero **pegados al respaldo**, así que llegan en una sola lámina que se va despegando.
+
+### NO van QRs sueltos de otras máquinas en el pliego — el racional
+Era tentador meter en el pliego los QR de M002, M003… y aprovechar el hueco (el layout deja libre el
+40 % de la parte de abajo). Se descarta:
+- **El destino del QR puede cambiar.** `grabi.napi.lat` es un dominio **provisional** del piloto
+  (ADR-019: `grabi.lat`/`grabi.com.co` para cuando se escale). Un QR impreso es **inmutable**: el día
+  que cambie el dominio, cada QR impreso de más es vinilo a la basura.
+- **Imprimir es apostar a que la máquina existirá.** Las máquinas se dan de alta de a una y el piloto
+  es de **una**. Un QR impreso para una máquina que todavía no existe es inventario muerto, y si el
+  `machine_id` termina siendo otro, es peor: un QR válido que apunta a una página inexistente.
+- **Coste de equivocarse asimétrico.** Reimprimir un pliego cuesta un mínimo de imprenta. Pegar el QR
+  equivocado en una máquina cuesta **ventas perdidas y desconfianza** del cliente que escaneó y no
+  pudo comprar. La regla, entonces: **se imprime solo lo que corresponde a la máquina del pliego**, y
+  se imprime **cuando la máquina ya existe** en el panel.
+- **Consecuencia aceptada:** el hueco libre del pliego se desperdicia. Es el precio de no tener
+  papelería que caduque. Si algún día hace falta llenarlo, se llena **duplicando piezas de la MISMA
+  máquina** (un QR de repuesto, una placa de recambio), nunca con piezas de otra.
+
+### Color: RGB, no CMYK — a pesar de que se pidió CMYK
+- **Se probó CMYK y salió peor.** Sin perfil ICC (son licenciados, no van al repo) la conversión es
+  **a ciegas**: `#0A0E0C` sale como 29C/0M/14,5Y/94,5K, que un visor con gestión de color pinta gris
+  azulado en vez de casi negro, y el verde `#3BE87F` se vuelve turquesa. Verificado renderizando.
+- **Y es irreversible:** el RIP pasa el **DeviceCMYK a plancha tal cual**, sin corregirlo. En cambio
+  el **DeviceRGB lo convierte él**, con el perfil del **material** — y en vinilo (látex/eco-solvente)
+  ese gamut es más ancho que SWOP, así que reproduce mejor el verde, que está fuera del gamut CMYK.
+- **Bonus de coherencia:** así el pliego especifica **el mismo color que los SVG del `kit.zip`**; la
+  misma pieza impresa desde el ZIP y desde el pliego sale igual.
+- **Reversible si la imprenta lo exige:** es una sola función (`setFill`/`setStroke` en `pdf.go`).
+
+### PDF/X-1a: NO se declara, y por qué
+Se pidió PDF/X-1a y **no se puede cumplir de verdad** hoy: exige PDF 1.3 (**sin capas**, y la capa de
+corte era requisito), un **perfil ICC incrustado** y las **tipografías incrustadas**. Las tres
+implican meter archivos licenciados al repo. Antes que declarar una conformidad que un preflight
+tumbaría, el archivo **no la declara** y entrega lo que es la sustancia del pedido: **vectorial 1:1**,
+`TrimBox`/`BleedBox`, sin rasterizados (no hay DPI que se quede corto), capa de corte y `Trapped`.
+**Pendiente si una imprenta lo pide en firme:** incrustar un perfil CMYK + las fuentes en curvas.
+
+### Sin dependencias nuevas: el PDF se escribe a mano
+Las piezas son **geometría vectorial pura** (rectángulos, círculos, arcos, texto), así que
+`internal/kit/pdf.go` escribe el PDF directamente. Sale más barato que arrastrar una librería y da
+control sobre las dos cosas que la imprenta necesita y ninguna librería de Go expone bien: **capas**
+(contenido opcional) y un **color plano con nombre** para el corte. Detalles que importan:
+- El **kiss-cut va en un plano llamado `KissCut`** (magenta como alternativo), no en magenta de
+  cuatricromía: el plóter busca una **separación con nombre**; un magenta de proceso se imprimiría
+  como tinta encima del arte.
+- Se dibuja en **milímetros y con la y hacia abajo**, igual que los SVG del kit, para que el mismo
+  razonamiento de maquetación sirva en los dos sitios.
+- **Anchos de Helvetica-Bold a mano** (métricas AFM): sin ellos no se puede centrar un texto ni
+  comprobar que una línea cabe, y una línea que se sale **no se nota hasta que el vinilo ya está
+  impreso**. `fitSize` baja el cuerpo antes que desbordar el arte.
+- **Reproducible byte a byte** (sin fecha de creación): permite comparar lo que se mandó a imprimir
+  con lo que genera el servidor hoy.
+- El flujo va **sin comprimir**: son ~24 KB y así el archivo se audita en un editor de texto.
+
+### Verificado sobre el PDF, no sobre el generador
+Las pruebas **parsean el PDF ya escrito**: miden las guías de corte contra el borde de cada pieza
+(tolerancia 0,01 mm), comprueban las 6 medidas exactas y que ninguna pareja quede a menos de 3 mm, y
+**rasterizan el QR desde los operadores del propio flujo** para decodificarlo con `gozxing` y exigir
+la URL de la máquina + ECC `H` — igual que ADR-026 hace con el PNG. Comprobado con mutaciones: si una
+pieza cambia de medida, si una guía se desplaza 1 mm o si la marca tapa más QR del debido, fallan.
+
+### Dos diferencias a propósito con las piezas del `kit.zip`
+- **La placa del pliego VA CON FONDO** oscuro, al contrario que `placa.svg` (pensada para vinilo
+  transparente): en el pliego **todas las piezas comparten material**, y sobre vinilo blanco sin
+  imprimir el texto claro no se vería.
+- **La placa dice `GRABI M001`, sin el punto** del logotipo: aquí "GRABI" es **texto identificador**
+  junto al id, no el wordmark. El wordmark con punto verde es la **pieza 4** (cabecera).
+
+### Alcance dejado fuera (anotado, no hecho)
+- El PDF **no entra en el `kit.zip`**: son dos formas de pedir lo mismo (editar piezas vs. mandar a
+  imprimir) y meterlo obligaría a reabrir `ZipFiles` y su `LEEME.txt`. Trivial de añadir si conviene.
+- **No hay previsualización del pliego** en el panel, solo el botón de descarga.
+
 ## ADR-026 · Kit físico por máquina: QR con la marca encima (ECC H) + calcomanías, generados al vuelo
 - **Fecha:** 2026-08-11 · **Autor:** Agente de Software (02) + Daniel.
 - **Decisión:** el panel genera el **material físico de cada máquina** desde el **detalle de la
@@ -587,7 +671,7 @@ Hoy varias cosas de la máquina no se pueden editar tras crearla o dependen del 
 - [ ] **Número de WhatsApp público** para la landing → hoy se define con `GRABI_WHATSAPP` en el `.env` (el botón alterno ya aparece solo cuando existe, ADR-024 / `landing-v2.md` §9). **Pendiente evolucionarlo a editable desde el panel admin** (ver siguiente punto), para no depender del `.env`/redeploy al cambiarlo.
 - [ ] **Ajustes editables desde el panel admin (sin `.env`/redeploy)** — dirección de "configuración desde el panel": empezar por el **número de WhatsApp** (global) y converger con el **panel de Configuración por máquina** de ADR-022 (llave Bre-B por máquina, nº de canales, activar/desactivar, nombre, `kid`). Objetivo: operar y dar de alta sin tocar el `.env` ni redeployar.
 - [ ] **Soporte al cliente en la máquina — chatbot SIN humano, SIN WhatsApp** que atienda al usuario ante **fallos de envío/dispensado, reembolsos y dudas** durante/después de la compra, y **registre cada caso en la BD** (nueva tabla, ej. `support_tickets`, ligada a `machine_id`/`jti`/`order` cuando aplique). Es autoservicio (respuestas guionadas, sin asistencia humana en vivo); alimenta soporte/operación y auditoría. Definir spec propia cuando se priorice.
-- [x] **Branding / identidad visual v1** → guía en [`especificaciones/identidad-visual-v1.md`](./especificaciones/identidad-visual-v1.md). **Marca compacta = Ruta B** (punto verde en visor de escaneo, §3). Assets digital-first (favicon set, íconos de app, OG, manifest) **producidos y cableados** en el sitio (`static/brand/` + `<head>` de `base.html`, PR #4 `feature/branding`). Pendiente a futuro (no bloquea): branding **físico** (wrap/impresos) cuando el piloto valide.
+- [x] **Branding / identidad visual v1** → guía en [`especificaciones/identidad-visual-v1.md`](./especificaciones/identidad-visual-v1.md). **Marca compacta = Ruta B** (punto verde en visor de escaneo, §3). Assets digital-first (favicon set, íconos de app, OG, manifest) **producidos y cableados** en el sitio (`static/brand/` + `<head>` de `base.html`, PR #4 `feature/branding`). Branding **físico HECHO**: piezas por máquina en `kit.zip` (ADR-026) y **hoja de imposición 1:1 para la imprenta de vinilo** con las 6 piezas y las guías de kiss-cut (ADR-027, §8.1). Pendiente si una imprenta lo exige: PDF/X-1a de verdad (perfil CMYK incrustado + tipografías en curvas).
 - [ ] **Producto piloto concreto** (4 productos: qué snacks + bebidas) → define precios y surtido.
 - [ ] **Precios** por producto (salen del unit economics).
 - [x] **Landing pública** (home en `/` de `grabi.napi.lat`) + **captura de interesados** en una sección "Interesados" del admin (semilla de CRM). **HECHA y en producción** (ADR-023/024): landing v2, tabla `leads` persistida (`space_type` validado), y `GET /admin/leads` protegido. Opcional a futuro (no bloquea): estados del lead (nuevo/contactado/descartado) y notas.

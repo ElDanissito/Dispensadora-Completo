@@ -287,6 +287,9 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /admin/machines/{id}/qr.svg", s.authAsset(http.HandlerFunc(s.handleMachineQRSVG)))
 	mux.Handle("GET /admin/machines/{id}/qr.png", s.authAsset(http.HandlerFunc(s.handleMachineQRPNG)))
 	mux.Handle("GET /admin/machines/{id}/kit.zip", s.authAsset(http.HandlerFunc(s.handleMachineKitZip)))
+	// Hoja de imposición para la imprenta de vinilo: las 6 piezas en un pliego
+	// 1:1 con las guías de kiss-cut en capa aparte (identidad-visual-v1 §8).
+	mux.Handle("GET /admin/machines/{id}/kit-imposicion.pdf", s.authAsset(http.HandlerFunc(s.handleMachineKitImposicion)))
 	mux.Handle("GET /admin/orders", s.auth(http.HandlerFunc(s.handleAdminOrders)))
 	mux.Handle("GET /admin/movements", s.auth(http.HandlerFunc(s.handleAdminMovements)))
 	// Interesados de la landing (landing-v1 §4). PII: solo admin autenticado.
@@ -987,8 +990,10 @@ func (s *Server) handleAdminMachine(w http.ResponseWriter, r *http.Request) {
 			FlashErr     string
 			PlacaSVG     template.HTML
 			QRURL        string
+			// Medida del pliego de imposición, para no repetirla en la plantilla.
+			ImpAncho, ImpAlto float64
 		}{m, channels, len(cat), flashText(r.URL.Query().Get("ok")), flashErrText(r.URL.Query().Get("err")),
-			template.HTML(placa), km.URL()},
+			template.HTML(placa), km.URL(), kit.ImpAncho, kit.ImpAlto},
 	})
 }
 

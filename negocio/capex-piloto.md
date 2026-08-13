@@ -16,7 +16,7 @@
 | Fecha | Categoría | Concepto | Proveedor | Monto (COP) | Factura | Notas |
 |-------|-----------|----------|-----------|-------------|---------|-------|
 | 2026-08-XX | Herrajes | Rieles, bisagras, tornillos, cerraduras con llaves | *(por confirmar)* | **60.000** | pendiente | Compra en tienda física. Insumos para el ensamble del gabinete de M001. |
-| *pendiente* | Madera | Tablero(s) para el gabinete | *(por confirmar)* | *(por confirmar)* | pendiente | Compra prevista para mañana. |
+| 2026-08-XX | Madera | Tablero **MDF 4 mm · 183 × 244 cm** (con cortes hechos) | *(por confirmar)* | **103.000** | pendiente | Entrega prevista mañana. **Rinde para 1,5 máquinas**: ~2/3 (≈ 68.700 COP) se cargan a M001 y ~1/3 (≈ 34.300 COP) queda como material sobrante disponible para media M002 — al pedir madera para M002 solo se completa la otra mitad. Ajustar el reparto real cuando se corte. |
 
 > **Instrucciones para llenar:** cuando llegue una factura, agregar la fila con **fecha real**,
 > **proveedor**, **monto exacto** y **link/ruta de la factura**. No inventar montos.
@@ -24,10 +24,12 @@
 
 ## Totales (a la fecha)
 
-- **CAPEX M001 confirmado:** **60.000 COP** (herrajes).
-- **CAPEX M001 pendiente de confirmar:** madera (mañana) + hardware que ya estaba en stock (ESP32,
-  GM65, sensor E18, circuito de 4 motores, fuente 12V — heredado de proyecto anterior, sin costo
-  nuevo pero con **valor de reposición** por estimar).
+- **Salida de caja para M001 (efectivo real):** **163.000 COP** (60.000 herrajes + 103.000 madera).
+- **CAPEX imputable a M001 (contable):** **~128.700 COP** — herrajes 60.000 + **2/3 del tablero** (≈ 68.700).
+- **Material sobrante disponible para M002 (media máquina):** **~34.300 COP** — 1/3 del tablero MDF.
+- **CAPEX M001 pendiente de confirmar:** hardware que ya estaba en stock (ESP32, GM65, sensor E18,
+  circuito de 4 motores, fuente 12V — heredado de proyecto anterior, sin costo nuevo pero con
+  **valor de reposición** por estimar).
 
 ## Impacto en el unit economics
 
@@ -39,3 +41,5 @@ productos, no para bajar los brazos.
 ## Historial (resumen)
 
 - **2026-08-XX:** inicio del ledger. Primera compra de herrajes: 60.000 COP.
+- **2026-08-XX:** compra de madera MDF 4 mm (183 × 244 cm) con cortes hechos: 103.000 COP.
+  Rinde para 1,5 máquinas → 2/3 a M001, 1/3 sobra para M002.
