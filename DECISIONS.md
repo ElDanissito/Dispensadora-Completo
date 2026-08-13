@@ -86,6 +86,25 @@ pieza cambia de medida, si una guía se desplaza 1 mm o si la marca tapa más QR
 - **La placa dice `GRABI M001`, sin el punto** del logotipo: aquí "GRABI" es **texto identificador**
   junto al id, no el wordmark. El wordmark con punto verde es la **pieza 4** (cabecera).
 
+### Addendum (2026-08-13) — el wrap derecho copia la composición de `instrucciones.svg`
+- **Origen:** Daniel pasó como referencia el panel de `instrucciones.svg` y pidió que **el sticker de
+  "sin efectivo" se vea así**. Cambia solo la pieza 2; el resto del pliego queda igual.
+- **Copy:** deja de ser una línea con separadores (`"Sin efectivo · sin datáfono · solo tu celular"`)
+  y pasa a las **tres líneas con punto** de `instrucciones.svg` — **"Sin efectivo." / "Sin datáfono."
+  / "Solo tu celular."** — con la tercera en verde. Es el copy canónico del addendum de ADR-026.
+- **Composición:** **barra verde vertical de borde a borde** en el canto izquierdo (6 mm, la misma
+  proporción que los 4 mm sobre 300 de `instrucciones.svg`) **en vez de** los filetes horizontales, y
+  el **dominio en mono** debajo del bloque. Los **tres pasos** que acompañan a ese bloque en
+  `instrucciones.svg` **no se repiten**: en el pliego son la pieza 3.
+- **El copy vive en dos sitios** — la constante `CopySinEfectivo` (que compone el pliego pieza a
+  pieza) y un literal dentro de la plantilla de `instrucciones.svg`. Que no se separen sin que nadie
+  se entere lo vigila `TestElCopyDelWrapDerechoEsElDeInstruccionesSVG`, que renderiza el SVG real y
+  exige encontrar las tres líneas.
+- **Queda una asimetría en el par de wraps**, a la vista y consciente: el **izquierdo** conserva los
+  filetes horizontales del banner y el **derecho** ahora lleva barra vertical. Van uno al lado del
+  otro en la máquina. **Pendiente de decisión de Daniel:** unificar los dos (barra vertical en ambos)
+  o dejarlo como está a propósito.
+
 ### Alcance dejado fuera (anotado, no hecho)
 - El PDF **no entra en el `kit.zip`**: son dos formas de pedir lo mismo (editar piezas vs. mandar a
   imprimir) y meterlo obligaría a reabrir `ZipFiles` y su `LEEME.txt`. Trivial de añadir si conviene.

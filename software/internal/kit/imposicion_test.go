@@ -321,12 +321,8 @@ func TestImposicionCopyDeMarca(t *testing.T) {
 	_, doc := pliegoDePrueba(t)
 	c := flujo(t, doc)
 
-	l1, l2 := parteCopy(CopyWrapDer)
-	// Partido en dos líneas, las palabras y su orden son los del copy original.
-	if junto := l1 + " · " + l2; junto != CopyWrapDer {
-		t.Errorf("el wrap derecho se parte como %q + %q y eso reescribe el copy %q", l1, l2, CopyWrapDer)
-	}
-	quiere := []string{l1, l2, "ESCANEA AQUÍ", "GRABI"}
+	quiere := []string{"ESCANEA AQUÍ", "GRABI", "grabi.napi.lat"}
+	quiere = append(quiere, CopySinEfectivo[:]...)
 	tag := taglineLineas()
 	quiere = append(quiere, tag[:]...)
 	for _, pa := range pasosImp {
@@ -335,6 +331,22 @@ func TestImposicionCopyDeMarca(t *testing.T) {
 	for _, s := range quiere {
 		if !strings.Contains(c, "("+pdfString(s)+")") {
 			t.Errorf("el pliego no imprime %q", s)
+		}
+	}
+}
+
+// El wrap derecho del pliego y instrucciones.svg del kit.zip cuentan lo MISMO y
+// se ven igual (decisión de Daniel, 2026-08-13). El copy está en dos sitios —
+// una constante aquí y un literal dentro de la plantilla SVG — así que esta
+// prueba es lo único que impide que se separen sin que nadie se entere.
+func TestElCopyDelWrapDerechoEsElDeInstruccionesSVG(t *testing.T) {
+	svg, err := Machine{ID: "M001", Place: "Palmira"}.Instrucciones()
+	if err != nil {
+		t.Fatalf("Instrucciones(): %v", err)
+	}
+	for _, linea := range CopySinEfectivo {
+		if !strings.Contains(string(svg), xmlEsc(linea)) {
+			t.Errorf("instrucciones.svg ya no dice %q: el wrap derecho del pliego se salió de la referencia", linea)
 		}
 	}
 }

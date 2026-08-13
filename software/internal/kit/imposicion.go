@@ -52,10 +52,18 @@ const (
 	impQRLado    = 100.0
 )
 
-// CopyWrapDer es el copy del wrap derecho. Vive en una constante (y no partido
-// en el arte) porque es texto de marca: se parte en dos líneas por el ÚLTIMO
-// separador para que el tipo entre grande, pero no se reescribe.
-const CopyWrapDer = "Sin efectivo · sin datáfono · solo tu celular"
+// CopySinEfectivo es el argumento de venta, línea a línea y con el punto final,
+// tal cual está en instrucciones.svg: la tercera va en verde. Es copy de marca,
+// no se reescribe ni se recompone con separadores.
+//
+// Vive aquí porque el pliego lo compone pieza a pieza; instrucciones.svg lo
+// lleva literal dentro de su plantilla. Que no se separen lo vigila
+// TestElCopyDelWrapDerechoEsElDeInstruccionesSVG.
+var CopySinEfectivo = [3]string{"Sin efectivo.", "Sin datáfono.", "Solo tu celular."}
+
+// barraAncho es la barra verde vertical del canto. 6 mm en una pieza de 450 es
+// la misma proporción que los 4 mm de instrucciones.svg sobre 300.
+const barraAncho = 6.0
 
 // PiezaImp es una pieza ya colocada en el pliego. Ancho/Alto son las medidas
 // FÍSICAS del sticker y (X,Y) su esquina superior izquierda, ambas en mm.
@@ -194,31 +202,32 @@ func dibujaWrapIzq(p *pdf, c PiezaImp, _ Machine, _ [][]bool) {
 	}
 }
 
-// parteCopy corta el copy del wrap derecho en dos líneas por el ÚLTIMO
-// separador, y se COME ese separador: el salto de línea ya separa, y un "·"
-// colgando al final del renglón se lee como una errata. No se reescribe ninguna
-// palabra ni cambia el orden.
-func parteCopy(s string) (l1, l2 string) {
-	i := strings.LastIndex(s, "·")
-	if i <= 0 {
-		return s, ""
-	}
-	return strings.TrimSpace(s[:i]), strings.TrimSpace(s[i+len("·"):])
-}
+// dibujaWrapDer es el wrap derecho (450×180): la promesa de "sin efectivo".
+//
+// Reproduce la composición de instrucciones.svg (mockup de Daniel), no la del
+// wrap izquierdo: **barra verde vertical de borde a borde** en el canto en vez
+// de los filetes horizontales, las tres líneas **con punto** y la última en
+// verde, y el **dominio en mono** debajo. Los tres pasos que acompañan a ese
+// bloque en instrucciones.svg NO se repiten aquí: en el pliego son la pieza 3.
+func dibujaWrapDer(p *pdf, c PiezaImp, m Machine, _ [][]bool) {
+	p.rect(c.X, c.Y, c.Ancho, c.Alto, ColorBG)
+	// La barra va de canto a canto: con márgenes se lee como un filete suelto en
+	// vez de como el borde de la pieza (ADR-026 addendum).
+	p.rect(c.X, c.Y, barraAncho, c.Alto, ColorAccent)
+	// La fantasma va abajo a la derecha y ENTERA dentro del arte: recortada por
+	// el borde se lee como un error de montaje, no como marca de agua.
+	p.fantasma(c.X+310, c.Y+52, 112)
 
-// dibujaWrapDer es el wrap derecho (450×180): la promesa de "sin efectivo",
-// misma familia visual que el izquierdo para que se lean como un par.
-func dibujaWrapDer(p *pdf, c PiezaImp, _ Machine, _ [][]bool) {
-	fondoKiosko(p, c, 2.5)
-	p.fantasma(c.X+300, c.Y+34, 112)
-	p.badge(c.X+28, c.Y+20, 34)
-
-	maxW := c.Ancho - 2*28
-	l1, l2 := parteCopy(CopyWrapDer)
-	p.text(c.X+28, c.Y+108, fitSize(fontDisplay, 28, maxW, l1), fontDisplay, ColorFG, l1)
-	if l2 != "" {
-		p.text(c.X+28, c.Y+148, fitSize(fontDisplay, 28, maxW, l2), fontDisplay, ColorAccent, l2)
+	x := c.X + 34
+	maxW := c.Ancho - 34 - 28
+	p.badge(x, c.Y+14, 32)
+	colores := [3]string{ColorFG, ColorFG, ColorAccent}
+	for i, s := range CopySinEfectivo {
+		p.text(x, c.Y+82+float64(i)*34, fitSize(fontDisplay, 34, maxW, s), fontDisplay, colores[i], s)
 	}
+	// El dominio es el remate del bloque: quien lee el wrap ya sabe a dónde ir
+	// aunque no tenga el QR delante.
+	p.text(x, c.Y+168, fitSize(fontMono, 9, maxW, m.host()), fontMono, ColorMuted, m.host())
 }
 
 // pasosImp son los tres pasos del panel vertical. Mismo guion que
