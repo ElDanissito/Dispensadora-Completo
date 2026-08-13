@@ -61,9 +61,23 @@ const (
 // TestElCopyDelWrapDerechoEsElDeInstruccionesSVG.
 var CopySinEfectivo = [3]string{"Sin efectivo.", "Sin datáfono.", "Solo tu celular."}
 
-// barraAncho es la barra verde vertical del canto. 6 mm en una pieza de 450 es
-// la misma proporción que los 4 mm de instrucciones.svg sobre 300.
-const barraAncho = 6.0
+// PasosInstrucciones son los tres pasos tal como los parte instrucciones.svg:
+// dos líneas por paso, sin título suelto. Es el guion que lee quien nunca ha
+// comprado en una GRABI.
+var PasosInstrucciones = [3][2]string{
+	{"Escanea el QR de", "la máquina"},
+	{"Paga con Bre-B", "desde tu banco"},
+	{"Muestra el QR y", "agárralo"},
+}
+
+// Geometría del wrap derecho, que replica instrucciones.svg.
+const (
+	// barraAncho es la barra verde vertical del canto. 6 mm en una pieza de 450
+	// es la misma proporción que los 4 mm de instrucciones.svg sobre 300.
+	barraAncho = 6.0
+	// divisorX es el filete que separa el argumento de venta de los tres pasos.
+	divisorX = 252.0
+)
 
 // PiezaImp es una pieza ya colocada en el pliego. Ancho/Alto son las medidas
 // FÍSICAS del sticker y (X,Y) su esquina superior izquierda, ambas en mm.
@@ -202,32 +216,49 @@ func dibujaWrapIzq(p *pdf, c PiezaImp, _ Machine, _ [][]bool) {
 	}
 }
 
-// dibujaWrapDer es el wrap derecho (450×180): la promesa de "sin efectivo".
+// dibujaWrapDer es el wrap derecho (450×180): la réplica de instrucciones.svg
+// (mockup de Daniel) reproporcionada al formato del wrap.
 //
-// Reproduce la composición de instrucciones.svg (mockup de Daniel), no la del
-// wrap izquierdo: **barra verde vertical de borde a borde** en el canto en vez
-// de los filetes horizontales, las tres líneas **con punto** y la última en
-// verde, y el **dominio en mono** debajo. Los tres pasos que acompañan a ese
-// bloque en instrucciones.svg NO se repiten aquí: en el pliego son la pieza 3.
+// A la izquierda el argumento de venta —tres líneas CON punto, la última en
+// verde, y el dominio en mono debajo—; a la derecha los tres pasos numerados en
+// círculos verdes, separados por un filete. La barra verde va de canto a canto
+// en el borde izquierdo, no como filetes horizontales.
 func dibujaWrapDer(p *pdf, c PiezaImp, m Machine, _ [][]bool) {
 	p.rect(c.X, c.Y, c.Ancho, c.Alto, ColorBG)
 	// La barra va de canto a canto: con márgenes se lee como un filete suelto en
 	// vez de como el borde de la pieza (ADR-026 addendum).
 	p.rect(c.X, c.Y, barraAncho, c.Alto, ColorAccent)
-	// La fantasma va abajo a la derecha y ENTERA dentro del arte: recortada por
-	// el borde se lee como un error de montaje, no como marca de agua.
-	p.fantasma(c.X+310, c.Y+52, 112)
+	// La fantasma va abajo a la derecha, DETRÁS de los pasos (por eso se pinta
+	// antes) y entera dentro del arte: recortada por el borde se lee como un
+	// error de montaje y no como marca de agua.
+	p.fantasma(c.X+366, c.Y+98, 72)
 
+	// --- izquierda: el argumento de venta ---
 	x := c.X + 34
-	maxW := c.Ancho - 34 - 28
-	p.badge(x, c.Y+14, 32)
+	maxW := divisorX - 34 - 16
+	p.badge(x, c.Y+16, 30)
 	colores := [3]string{ColorFG, ColorFG, ColorAccent}
 	for i, s := range CopySinEfectivo {
-		p.text(x, c.Y+82+float64(i)*34, fitSize(fontDisplay, 34, maxW, s), fontDisplay, colores[i], s)
+		p.text(x, c.Y+84+float64(i)*30, fitSize(fontDisplay, 28, maxW, s), fontDisplay, colores[i], s)
 	}
-	// El dominio es el remate del bloque: quien lee el wrap ya sabe a dónde ir
-	// aunque no tenga el QR delante.
-	p.text(x, c.Y+168, fitSize(fontMono, 9, maxW, m.host()), fontMono, ColorMuted, m.host())
+	// El dominio remata el bloque: quien lee el wrap ya sabe a dónde ir aunque no
+	// tenga el QR delante.
+	p.text(x, c.Y+166, fitSize(fontMono, 9, maxW, m.host()), fontMono, ColorMuted, m.host())
+
+	// --- filete divisor ---
+	p.rect(c.X+divisorX, c.Y+22, 0.6, 136, ColorLine2)
+
+	// --- derecha: los tres pasos ---
+	cx, tx := c.X+284, c.X+308
+	tmax := c.Ancho - 308 - 18
+	for i, pa := range PasosInstrucciones {
+		cy := c.Y + 52 + float64(i)*44
+		p.circle(cx, cy, 13, ColorAccent)
+		p.textCentro(cx, cy+capAlto*14/2, 14, fontDisplay, ColorInk, strconv.Itoa(i+1))
+		for j, linea := range pa {
+			p.text(tx, cy-2+float64(j)*16, fitSize(fontDisplay, 13, tmax, linea), fontDisplay, ColorFG, linea)
+		}
+	}
 }
 
 // pasosImp son los tres pasos del panel vertical. Mismo guion que

@@ -120,7 +120,7 @@ archivos sueltos son seis mínimos, un pliego es uno.
 | # | Pieza | Medida | Contenido |
 |---|---|---|---|
 | 1 | `wrap-izquierdo` | 45 × 18 cm | tagline **"Escanea, paga, agárralo."** en tres líneas (la última en verde) + marca compacta en cuadro verde |
-| 2 | `wrap-derecho` | 45 × 18 cm | **"Sin efectivo. / Sin datáfono. / Solo tu celular."** (tres líneas, la última en verde) + marca compacta + dominio en mono. **Composición de `instrucciones.svg`**: barra verde vertical de borde a borde en el canto, no filetes horizontales |
+| 2 | `wrap-derecho` | 45 × 18 cm | **Réplica de `instrucciones.svg`**: a la izquierda **"Sin efectivo. / Sin datáfono. / Solo tu celular."** (la última en verde) + marca compacta + dominio en mono; **filete divisor**; a la derecha los **3 pasos numerados** en círculos verdes. Barra verde vertical de borde a borde en el canto (no filetes horizontales) y marca fantasma abajo a la derecha, detrás del paso 3 |
 | 3 | `instrucciones-3-pasos` | 8 × 18 cm | los **3 pasos numerados** en círculos verdes: ① ESCANEA *(el QR de la máquina)* ② PAGA *(con Bre-B desde tu banco)* ③ MUESTRA *(el QR y agárralo)* |
 | 4 | `cabecera-grabi` | 28 × 7 cm | **solo el wordmark `GRABI.`** con el punto verde. SIN dominio y SIN "pago con Bre-B" |
 | 5 | `placa` | 25 × 5 cm | **`GRABI {id}`** (ej. `GRABI M001`) |

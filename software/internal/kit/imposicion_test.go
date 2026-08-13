@@ -323,6 +323,9 @@ func TestImposicionCopyDeMarca(t *testing.T) {
 
 	quiere := []string{"ESCANEA AQUÍ", "GRABI", "grabi.napi.lat"}
 	quiere = append(quiere, CopySinEfectivo[:]...)
+	for _, paso := range PasosInstrucciones {
+		quiere = append(quiere, paso[:]...)
+	}
 	tag := taglineLineas()
 	quiere = append(quiere, tag[:]...)
 	for _, pa := range pasosImp {
@@ -335,16 +338,21 @@ func TestImposicionCopyDeMarca(t *testing.T) {
 	}
 }
 
-// El wrap derecho del pliego y instrucciones.svg del kit.zip cuentan lo MISMO y
-// se ven igual (decisión de Daniel, 2026-08-13). El copy está en dos sitios —
-// una constante aquí y un literal dentro de la plantilla SVG — así que esta
-// prueba es lo único que impide que se separen sin que nadie se entere.
+// El wrap derecho del pliego es la RÉPLICA de instrucciones.svg del kit.zip
+// (decisión de Daniel, 2026-08-13): mismo argumento de venta y mismos tres
+// pasos, partidos igual. El texto vive en dos sitios —constantes aquí y
+// literales dentro de la plantilla SVG— así que esta prueba es lo único que
+// impide que se separen sin que nadie se entere.
 func TestElCopyDelWrapDerechoEsElDeInstruccionesSVG(t *testing.T) {
 	svg, err := Machine{ID: "M001", Place: "Palmira"}.Instrucciones()
 	if err != nil {
 		t.Fatalf("Instrucciones(): %v", err)
 	}
-	for _, linea := range CopySinEfectivo {
+	lineas := CopySinEfectivo[:]
+	for _, paso := range PasosInstrucciones {
+		lineas = append(lineas, paso[:]...)
+	}
+	for _, linea := range lineas {
 		if !strings.Contains(string(svg), xmlEsc(linea)) {
 			t.Errorf("instrucciones.svg ya no dice %q: el wrap derecho del pliego se salió de la referencia", linea)
 		}

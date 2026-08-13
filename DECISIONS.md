@@ -92,14 +92,19 @@ pieza cambia de medida, si una guía se desplaza 1 mm o si la marca tapa más QR
 - **Copy:** deja de ser una línea con separadores (`"Sin efectivo · sin datáfono · solo tu celular"`)
   y pasa a las **tres líneas con punto** de `instrucciones.svg` — **"Sin efectivo." / "Sin datáfono."
   / "Solo tu celular."** — con la tercera en verde. Es el copy canónico del addendum de ADR-026.
-- **Composición:** **barra verde vertical de borde a borde** en el canto izquierdo (6 mm, la misma
-  proporción que los 4 mm sobre 300 de `instrucciones.svg`) **en vez de** los filetes horizontales, y
-  el **dominio en mono** debajo del bloque. Los **tres pasos** que acompañan a ese bloque en
-  `instrucciones.svg` **no se repiten**: en el pliego son la pieza 3.
-- **El copy vive en dos sitios** — la constante `CopySinEfectivo` (que compone el pliego pieza a
-  pieza) y un literal dentro de la plantilla de `instrucciones.svg`. Que no se separen sin que nadie
-  se entere lo vigila `TestElCopyDelWrapDerechoEsElDeInstruccionesSVG`, que renderiza el SVG real y
-  exige encontrar las tres líneas.
+- **Composición: la pieza 2 es la RÉPLICA COMPLETA del panel**, no solo su bloque de texto. Lleva
+  **barra verde vertical de borde a borde** en el canto izquierdo (6 mm, la misma proporción que los
+  4 mm sobre 300 de `instrucciones.svg`) **en vez de** los filetes horizontales; el **dominio en
+  mono** bajo el argumento de venta; el **filete divisor** vertical; y a la derecha los **tres pasos
+  numerados** en círculos verdes, partidos en dos líneas como en el panel. La **marca fantasma** va
+  abajo a la derecha, **detrás del paso 3** (se pinta antes) y entera dentro del arte.
+- **Los tres pasos quedan en DOS piezas del pliego:** la 2 (wrap derecho) y la 3 (panel vertical de
+  8 × 18 cm). Es deliberado —Daniel pidió las dos— y no es un descuido: son sitios distintos de la
+  máquina y el que compra solo mira uno. Si algún día sobra, se cae la pieza 3, que es la pequeña.
+- **El copy vive en dos sitios** — las constantes `CopySinEfectivo` y `PasosInstrucciones` (que
+  componen el pliego pieza a pieza) y literales dentro de la plantilla de `instrucciones.svg`. Que no
+  se separen sin que nadie se entere lo vigila `TestElCopyDelWrapDerechoEsElDeInstruccionesSVG`, que
+  renderiza el SVG real y exige encontrar las nueve líneas.
 - **Queda una asimetría en el par de wraps**, a la vista y consciente: el **izquierdo** conserva los
   filetes horizontales del banner y el **derecho** ahora lleva barra vertical. Van uno al lado del
   otro en la máquina. **Pendiente de decisión de Daniel:** unificar los dos (barra vertical en ambos)
