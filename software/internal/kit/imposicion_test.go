@@ -38,9 +38,9 @@ var piezasEsperadas = []struct {
 	{"wrap-izquierdo", 450, 180},
 	{"wrap-derecho", 450, 180},
 	{"instrucciones-3-pasos", 80, 180},
-	{"cabecera-grabi", 280, 70},
+	{"cabecera-grabi", 240, 60},
 	{"placa", 250, 50},
-	{"qr", 100, 100},
+	{"qr", 80, 80},
 }
 
 func TestImposicionTieneLasSeisPiezasConSusMedidas(t *testing.T) {

@@ -122,18 +122,18 @@ archivos sueltos son seis mínimos, un pliego es uno.
 | 1 | `wrap-izquierdo` | 45 × 18 cm | tagline **"Escanea, paga, agárralo."** en tres líneas (la última en verde) + marca compacta en cuadro verde |
 | 2 | `wrap-derecho` | 45 × 18 cm | **Réplica de `instrucciones.svg`**: a la izquierda **"Sin efectivo. / Sin datáfono. / Solo tu celular."** (la última en verde) + marca compacta + dominio en mono; **filete divisor**; a la derecha los **3 pasos numerados** en círculos verdes. Barra verde vertical de borde a borde en el canto (no filetes horizontales) y marca fantasma abajo a la derecha, detrás del paso 3 |
 | 3 | `instrucciones-3-pasos` | 8 × 18 cm | los **3 pasos numerados** en círculos verdes: ① ESCANEA *(el QR de la máquina)* ② PAGA *(con Bre-B desde tu banco)* ③ MUESTRA *(el QR y agárralo)*. Todo **centrado**, con la jerarquía hecha de contraste y no de alineación: número en círculo, título en display grande, detalle en **mono negrita más pequeña** — los dos en `--fg`, no en `--muted` — y un **filete corto** entre pasos (el último no lleva). Se maqueta **en flujo**, no con retícula fija, porque el paso 2 lleva una línea de detalle más |
-| 4 | `cabecera-grabi` | 28 × 7 cm | **solo el wordmark `GRABI.`** con el punto verde. SIN dominio y SIN "pago con Bre-B" |
+| 4 | `cabecera-grabi` | 24 × 6 cm | **solo el wordmark `GRABI.`** con el punto verde. SIN dominio y SIN "pago con Bre-B" |
 | 5 | `placa` | 25 × 5 cm | **`GRABI {id}`** (ej. `GRABI M001`) |
-| 6 | `qr` | 10 × 10 cm | el QR de `https://grabi.napi.lat/m/{id}` con la marca al centro (ECC **H**, cuadro blanco opaco ≤ 20 % del área) y **"ESCANEA AQUÍ"** debajo |
+| 6 | `qr` | 8 × 8 cm | el QR de `https://grabi.napi.lat/m/{id}` con la marca al centro (ECC **H**, cuadro blanco opaco ≤ 20 % del área) y **"ESCANEA AQUÍ"** debajo |
 
-**Layout del pliego** — 100 × 32 cm:
+**Layout del pliego** — 100 × 31 cm:
 
 ```
  ┌──────────────────────────────────────────────────────────────────────────┐
  │  ① wrap izquierdo 450×180   ② wrap derecho 450×180        ③ 3 pasos 80×180│
  │                                                                          │
  ├──────────────────────────────────────────────────────────────────────────┤
- │  ④ cabecera 280×70           ⑥ QR 100×100                                │
+ │  ④ cabecera 240×60           ⑥ QR 80×80                                  │
  │  ⑤ placa    250×50                                                       │
  └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -141,10 +141,12 @@ archivos sueltos son seis mínimos, un pliego es uno.
 - **Fila de arriba:** los dos wraps y el panel de 3 pasos (todos de 180 mm de alto).
 - **Fila de abajo:** cabecera y placa **apiladas**, y el **QR a su derecha**.
 - **Márgenes: 3 mm entre piezas y 5 mm al borde** del pliego.
-- **El pliego mide 100 × 32 cm, no 100 × 30.** El mínimo de la imprenta son 30 cm de alto, pero las
-  alturas de las piezas ya suman **300 mm exactos** (180 + 70 + 50): a 300 no cabría ni el margen de
-  5 mm ni las separaciones de 3 mm. 320 mm es el alto más cercano que respeta la retícula, y sigue
-  **por encima** del mínimo, así que no cambia el precio del pedido.
+- **El pliego mide 100 × 31 cm, no 100 × 30.** El mínimo de la imprenta son 30 cm de alto, pero las
+  alturas de las piezas suman **290 mm** (180 + 60 + 50) y con el margen de 5 y las dos separaciones
+  de 3 hacen **306**, que no entra en 300. 310 mm es el alto más cercano que respeta la retícula, y
+  sigue **por encima** del mínimo, así que no cambia el precio del pedido.
+- **El QR se separa de la pieza más ancha de la columna apilada** (la placa, 250), no de la cabecera:
+  midiéndolo contra la cabecera se monta sobre la placa en cuanto la cabecera es más estrecha.
 - La retícula se **calcula** desde `ImpMargen`/`ImpGap`, no está cableada: cambiar una medida
   recoloca el pliego solo, y las pruebas fallan si dos piezas quedan a menos de 3 mm.
 

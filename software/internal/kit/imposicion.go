@@ -21,12 +21,11 @@ import (
 const (
 	// ImpAncho es el ancho del pliego: el mínimo de facturación de la imprenta.
 	ImpAncho = 1000.0
-	// ImpAlto son 320 mm y no los 300 del mínimo porque las alturas de las
-	// piezas ya suman 300 exactos (180 de la fila de arriba + 70 de la cabecera
-	// + 50 de la placa): a 300 no cabrían ni el margen ni las separaciones. 320
-	// es el alto más cercano que respeta la retícula, y sigue por encima del
-	// mínimo de la imprenta, así que no cambia el precio del pedido.
-	ImpAlto = 320.0
+	// ImpAlto son 310 mm: las alturas de las piezas suman 290 (180 de la fila de
+	// arriba + 60 de la cabecera + 50 de la placa) y con el margen de 5 y las dos
+	// separaciones de 3 hacen 306, que no entra en los 300 del mínimo de
+	// imprenta. 310 es el alto más cercano que respeta la retícula.
+	ImpAlto = 310.0
 	// ImpMargen es el aire al borde del pliego (la zona que las cuchillas no
 	// pisan). ImpGap es la separación entre piezas vecinas.
 	ImpMargen = 5.0
@@ -45,11 +44,14 @@ const (
 	impWrapAlto  = 180.0
 	impPasosW    = 80.0
 	impPasosH    = 180.0
-	impCabAncho  = 280.0
-	impCabAlto   = 70.0
-	impPlacaW    = 250.0
-	impPlacaH    = 50.0
-	impQRLado    = 100.0
+	// La cabecera y el QR bajaron de 280×70 y 100×100 (Daniel, 2026-08-14): a las
+	// medidas viejas el QR no cabía en la franja de cabecera de la máquina, que
+	// mide 92,5 mm, y el wordmark salía desproporcionado sobre el frente.
+	impCabAncho = 240.0
+	impCabAlto  = 60.0
+	impPlacaW   = 250.0
+	impPlacaH   = 50.0
+	impQRLado   = 80.0
 )
 
 // CopySinEfectivo es el argumento de venta, línea a línea y con el punto final,
@@ -114,7 +116,11 @@ func piezasImp() []piezaImp {
 
 	cab := PiezaImp{"cabecera-grabi", impCabAncho, impCabAlto, ImpMargen, fila2}
 	placa := PiezaImp{"placa", impPlacaW, impPlacaH, ImpMargen, fila2 + impCabAlto + ImpGap}
-	qr := PiezaImp{"qr", impQRLado, impQRLado, ImpMargen + impCabAncho + ImpGap, fila2}
+	// El QR se separa de la pieza MÁS ANCHA de la columna apilada, no solo de la
+	// cabecera: midiéndolo contra la cabecera se montaba sobre la placa en cuanto
+	// la cabecera se quedaba más estrecha que ella.
+	qr := PiezaImp{"qr", impQRLado, impQRLado,
+		ImpMargen + max(impCabAncho, impPlacaW) + ImpGap, fila2}
 
 	return []piezaImp{
 		{izq, dibujaWrapIzq},
@@ -322,7 +328,9 @@ func dibujaPasos(p *pdf, c PiezaImp, _ Machine, _ [][]bool) {
 func dibujaCabecera(p *pdf, c PiezaImp, _ Machine, _ [][]bool) {
 	fondoKiosko(p, c, 2.5)
 
-	size := fitSize(fontDisplay, 60, c.Ancho-2*20, "GRABI.")
+	// Cuerpo y aire salen de la MEDIDA DE LA PIEZA, no de números fijos: así la
+	// cabecera se puede redimensionar sin que el wordmark quede descolocado.
+	size := fitSize(fontDisplay, c.Alto*0.857, c.Ancho*0.857, "GRABI.")
 	wG := textWidth(fontDisplay, size, "GRABI")
 	total := wG + textWidth(fontDisplay, size, ".")
 	x := c.X + (c.Ancho-total)/2
@@ -360,14 +368,15 @@ func dibujaPlaca(p *pdf, c PiezaImp, m Machine, _ [][]bool) {
 func dibujaQRPieza(p *pdf, c PiezaImp, _ Machine, mat [][]bool) {
 	p.rect(c.X, c.Y, c.Ancho, c.Alto, ColorBG)
 
-	// 74 mm de lado (zona de silencio incluida) ⇒ el símbolo sale muy por encima
-	// del mínimo imprimible de 35 mm que exige el LEEME del kit.
-	const lado = 74.0
-	p.drawQR(mat, c.X+(c.Ancho-lado)/2, c.Y+9, lado)
+	// El QR ocupa el 74% del lado de la pieza (zona de silencio incluida) y el
+	// rótulo va debajo. Todo en proporción, no en milímetros fijos: la pieza ha
+	// cambiado de tamaño una vez y volverá a cambiar.
+	lado := c.Ancho * 0.74
+	p.drawQR(mat, c.X+(c.Ancho-lado)/2, c.Y+c.Alto*0.09, lado)
 
 	const rotulo = "ESCANEA AQUÍ"
-	p.textCentro(c.X+c.Ancho/2, c.Y+94, fitSize(fontDisplay, 9, c.Ancho-16, rotulo),
-		fontDisplay, ColorAccent, rotulo)
+	p.textCentro(c.X+c.Ancho/2, c.Y+c.Alto*0.94,
+		fitSize(fontDisplay, c.Alto*0.09, c.Ancho*0.84, rotulo), fontDisplay, ColorAccent, rotulo)
 }
 
 // Altura de caja alta de cada fuente, como fracción del cuerpo. Se usa para

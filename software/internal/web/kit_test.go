@@ -259,7 +259,7 @@ func TestElDetalleDeLaMaquinaMuestraElKitFisico(t *testing.T) {
 		"Hoja para imprenta (.pdf)",
 		`href="/admin/machines/M001/kit-imposicion.pdf"`,
 		`src="/admin/machines/M001/qr.svg?size=180"`, // previsualización del QR
-		"1000 × 320 mm a escala 1:1",                 // medida del pliego, desde las constantes
+		"1000 × 310 mm a escala 1:1",                 // medida del pliego, desde las constantes
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("el detalle de la máquina no contiene %q", want)

@@ -86,6 +86,33 @@ pieza cambia de medida, si una guía se desplaza 1 mm o si la marca tapa más QR
 - **La placa dice `GRABI M001`, sin el punto** del logotipo: aquí "GRABI" es **texto identificador**
   junto al id, no el wordmark. El wordmark con punto verde es la **pieza 4** (cabecera).
 
+### Addendum (2026-08-14) — la cabecera y el QR se achican para caber en la máquina real
+- **Origen:** al cuadrar el mockup 3D con la **carcasa ya cortada** (38 × 46 × 68 cm, seis láminas:
+  68×46 ×2 · 38×46 ×2 · 38×68 ×2) salió que la franja de cabecera del frente mide **92,5 mm**, y ahí
+  **un QR de 100 mm no cabe**. La madera ya estaba en corte; los stickers, no.
+- **Pieza 4 (cabecera): 280×70 → 240×60 mm.** **Pieza 6 (QR): 100×100 → 80×80 mm.** El símbolo queda
+  en ~49 mm de lado, muy por encima del mínimo imprimible de 35 mm, y **sigue decodificando** (la
+  prueba lo rasteriza del PDF y lo lee con `gozxing`).
+- **El pliego baja de 320 a 310 mm de alto.** Las alturas suman 290 (180 + 60 + 50) y con margen y
+  separaciones dan 306, que aún no entra en los 300 del mínimo de imprenta.
+- **Bug que cazó la prueba de retícula:** la X del QR se calculaba como *margen + ancho de la
+  cabecera + separación*. Al estrechar la cabecera a 240, el QR se corrió a la izquierda y **se montó
+  sobre la placa** (que sigue midiendo 250 de ancho). Ahora se mide contra la pieza **más ancha** de
+  la columna apilada. Es el valor de tener la retícula verificada: el solape era de 7 mm y en pantalla
+  no se ve.
+- **Cabecera y QR pasan a dimensionarse por proporción** dentro de su pieza (cuerpo del wordmark,
+  lado del QR, rótulo), no con milímetros fijos: la pieza ya cambió de tamaño una vez.
+- **En el mockup los dos stickers van a su medida real**, no estirados para llenar la franja. Antes se
+  derivaban del alto disponible, así que cualquier cambio en la caja los redimensionaba y el modelo
+  dejaba de mostrar lo que se manda a imprimir.
+- **De paso, el modelo 3D no era fiel a las láminas cortadas:** el frente estaba dibujado 38 × **44**
+  (perdía 0,6 abajo, holgura de cuando giraba como puerta, y 1,4 arriba, porque moría bajo el techo en
+  vez de tapar su canto) y el piso 35,2 × 65,2 en vez de 38 × 68. Corregidos: las seis caras coinciden
+  ya con la lista de corte. **Ojo para el ensamble:** las seis medidas describen cada cara como la
+  exterior completa, lo que con espesor real no encaja a tope — alguna lámina tiene que ir por dentro
+  o el exterior crecerá el espesor en dos direcciones. El modelo asume que **38 × 46 × 68 es el
+  exterior acabado** y que el frente tapa los cantos.
+
 ### Addendum (2026-08-13) — el wrap derecho copia la composición de `instrucciones.svg`
 - **Origen:** Daniel pasó como referencia el panel de `instrucciones.svg` y pidió que **el sticker de
   "sin efectivo" se vea así**. Cambia solo la pieza 2; el resto del pliego queda igual.
