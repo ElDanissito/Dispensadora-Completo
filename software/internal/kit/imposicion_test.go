@@ -334,7 +334,8 @@ func TestImposicionCopyDeMarca(t *testing.T) {
 	tag := taglineLineas()
 	quiere = append(quiere, tag[:]...)
 	for _, pa := range pasosImp {
-		quiere = append(quiere, pa.Titulo, pa.L1, pa.L2)
+		quiere = append(quiere, pa.Titulo)
+		quiere = append(quiere, pa.Sub...)
 	}
 	for _, s := range quiere {
 		if !strings.Contains(c, "("+pdfString(s)+")") {

@@ -105,6 +105,14 @@ pieza cambia de medida, si una guía se desplaza 1 mm o si la marca tapa más QR
   componen el pliego pieza a pieza) y literales dentro de la plantilla de `instrucciones.svg`. Que no
   se separen sin que nadie se entere lo vigila `TestElCopyDelWrapDerechoEsElDeInstruccionesSVG`, que
   renderiza el SVG real y exige encontrar las nueve líneas.
+- **La pieza 3 (panel vertical de 3 pasos) se rehace CENTRADA**, con otra referencia de Daniel. Deja
+  de ir alineada a la izquierda con el título en verde: ahora la jerarquía la hace el **contraste**
+  —número en círculo verde, **título grande y claro**, **detalle en mono pequeño y atenuado**— y un
+  **filete corto centrado** separa cada paso del siguiente. El **último no lleva filete**: cerraría
+  el panel por abajo y se leería como que falta un cuarto paso. Se maqueta **en flujo** (cada
+  elemento empuja al siguiente) y no con retícula fija, porque el paso 2 lleva una línea de detalle
+  más que los otros: con posiciones fijas o queda descuadrado o hay que darle a los tres el hueco del
+  más alto. El detalle del paso 2 se parte **"con Bre-B / desde tu banco"**, no por donde desborda.
 - **Fuera la línea de identificación del margen inferior** (decisión de Daniel). Iba en el respaldo
   que se tira y no ensuciaba ningún sticker, pero el pliego se quiere limpio: **todo lo que se
   imprime es sticker**. Consecuencia a tener presente: el archivo ya **no lleva encima** el "1:1, no

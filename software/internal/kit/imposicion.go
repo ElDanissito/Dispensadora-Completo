@@ -249,29 +249,70 @@ func dibujaWrapDer(p *pdf, c PiezaImp, m Machine, _ [][]bool) {
 }
 
 // pasosImp son los tres pasos del panel vertical. Mismo guion que
-// instrucciones.svg: es lo que lee quien nunca ha comprado en una GRABI.
-var pasosImp = [3]struct{ Titulo, L1, L2 string }{
-	{"ESCANEA", "el QR de la", "máquina"},
-	{"PAGA", "con Bre-B desde", "tu banco"},
-	{"MUESTRA", "el QR y", "agárralo"},
+// instrucciones.svg (es lo que lee quien nunca ha comprado en una GRABI), pero
+// con el detalle partido para el ancho de esta pieza, que es estrecha.
+var pasosImp = [3]struct {
+	Titulo string
+	Sub    []string
+}{
+	{"ESCANEA", []string{"el QR de la máquina"}},
+	{"PAGA", []string{"con Bre-B", "desde tu banco"}},
+	{"MUESTRA", []string{"el QR y agárralo"}},
 }
 
-// dibujaPasos es el panel de instrucciones vertical (80×180). La barra verde va
-// de borde a borde: con márgenes se lee como un canto suelto (ADR-026 addendum).
+// Ritmo vertical del panel de pasos. Se maqueta EN FLUJO (cada elemento empuja
+// al siguiente) y no con posiciones fijas, porque el paso 2 lleva una línea de
+// detalle más que los otros: con una retícula fija o quedaría descuadrado o
+// habría que dejarle a todos el hueco del más alto.
+const (
+	pasoMargen      = 5.0
+	pasoArranque    = 13.0
+	pasoRadio       = 8.5
+	pasoNumero      = 11.0
+	pasoAireCirculo = 6.0
+	pasoTitulo      = 11.5
+	pasoAireTitulo  = 4.5
+	pasoSub         = 5.4
+	pasoLeadingSub  = 6.5
+	pasoAireSep     = 5.5
+	pasoSepAncho    = 50.0
+	pasoSepGrosor   = 0.5
+)
+
+// dibujaPasos es el panel de instrucciones vertical (80×180), según la
+// referencia que pasó Daniel (2026-08-13): todo **centrado** y con la jerarquía
+// hecha de contraste, no de alineación — número en círculo verde, título en
+// display grande y claro, detalle en mono pequeño y atenuado, y un filete corto
+// separando cada paso del siguiente.
 func dibujaPasos(p *pdf, c PiezaImp, _ Machine, _ [][]bool) {
 	p.rect(c.X, c.Y, c.Ancho, c.Alto, ColorSurface)
-	p.rect(c.X, c.Y, 4, c.Alto, ColorAccent)
 
-	x := c.X + 13
-	maxW := c.Ancho - 13 - 5
+	cx := c.X + c.Ancho/2
+	maxW := c.Ancho - 2*pasoMargen
+	y := c.Y + pasoArranque
 	for i, pa := range pasosImp {
-		top := c.Y + 10 + float64(i)*55
 		// Número en círculo verde, con la tinta oscura encima (nunca clara).
-		p.circle(x+8, top+8, 8, ColorAccent)
-		p.textCentro(x+8, top+11.6, 10, fontDisplay, ColorInk, strconv.Itoa(i+1))
-		p.text(x, top+31, fitSize(fontDisplay, 10, maxW, pa.Titulo), fontDisplay, ColorAccent, pa.Titulo)
-		p.text(x, top+40, fitSize(fontDisplay, 6, maxW, pa.L1), fontDisplay, ColorFG, pa.L1)
-		p.text(x, top+47.5, fitSize(fontDisplay, 6, maxW, pa.L2), fontDisplay, ColorFG, pa.L2)
+		p.circle(cx, y+pasoRadio, pasoRadio, ColorAccent)
+		p.textCentro(cx, y+pasoRadio+capAlto*pasoNumero/2, pasoNumero, fontDisplay, ColorInk, strconv.Itoa(i+1))
+		y += 2*pasoRadio + pasoAireCirculo
+
+		st := fitSize(fontDisplay, pasoTitulo, maxW, pa.Titulo)
+		p.textCentro(cx, y+capAlto*st, st, fontDisplay, ColorFG, pa.Titulo)
+		y += capAlto*st + pasoAireTitulo
+
+		for _, linea := range pa.Sub {
+			ss := fitSize(fontMono, pasoSub, maxW, linea)
+			p.textCentro(cx, y+capAltoMono*ss, ss, fontMono, ColorMuted, linea)
+			y += pasoLeadingSub
+		}
+
+		// El último paso no lleva filete: cerraría el panel por abajo y se leería
+		// como que falta un cuarto paso.
+		if i < len(pasosImp)-1 {
+			y += pasoAireSep
+			p.rect(cx-pasoSepAncho/2, y, pasoSepAncho, pasoSepGrosor, ColorLine2)
+			y += pasoAireSep
+		}
 	}
 }
 
@@ -329,7 +370,10 @@ func dibujaQRPieza(p *pdf, c PiezaImp, _ Machine, mat [][]bool) {
 		fontDisplay, ColorAccent, rotulo)
 }
 
-// capAlto es la altura de caja alta de Helvetica-Bold como fracción del cuerpo.
-// Se usa para centrar texto verticalmente: sin ella el bloque queda alto, porque
-// la línea base no es el centro óptico.
-const capAlto = 0.718
+// Altura de caja alta de cada fuente, como fracción del cuerpo. Se usa para
+// centrar y para maquetar en flujo: sin ella el bloque queda alto, porque la
+// línea base no es el centro óptico ni el borde superior del texto.
+const (
+	capAlto     = 0.718 // Helvetica-Bold
+	capAltoMono = 0.562 // Courier
+)
