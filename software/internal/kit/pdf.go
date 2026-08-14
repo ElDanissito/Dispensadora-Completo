@@ -31,13 +31,16 @@ const ptPerMM = 72.0 / 25.4
 // Nombres de recurso de las dos fuentes. Son base-14 (van en todo lector sin
 // incrustar): sustitutos de las de marca, que son de pago y no están en el repo.
 //   - fontDisplay ← Archivo 900 (titulares) y Space Grotesk 700 (texto).
-//   - fontMono    ← IBM Plex Mono (datos y labels).
+//   - fontMonoBold ← IBM Plex Mono (datos y labels).
 //
 // La imprenta debe pasarlas a curvas si quiere la tipografía real (igual que en
 // los SVG del kit); las métricas de abajo son las de estas dos, no las de marca.
 const (
 	fontDisplay = "F1" // Helvetica-Bold
-	fontMono    = "F2" // Courier
+	// La mono va SIEMPRE en negrita: Courier a secas tiene el trazo demasiado
+	// fino para vinilo y a cuerpos pequeños sobre fondo oscuro el impreso se lo
+	// come. Por eso no se declara la redonda: el archivo solo lleva lo que usa.
+	fontMonoBold = "F2" // Courier-Bold
 )
 
 // kissCutName es el nombre del color plano de las guías de corte. Las máquinas
@@ -299,8 +302,8 @@ func textWidth(font string, size float64, s string) float64 {
 }
 
 func glifo(font string, r rune) int16 {
-	if font == fontMono {
-		return 600 // Courier es de paso fijo
+	if font == fontMonoBold {
+		return 600 // Courier es de paso fijo, y la negrita mide lo mismo
 	}
 	if r >= 32 && r <= 126 {
 		return anchoHB[r-32]
@@ -340,6 +343,12 @@ const (
 	objCount   = 11
 )
 
+// ref escribe una referencia indirecta a un objeto. Se usa SIEMPRE en vez del
+// número a pelo: los enlaces entre objetos son una decena, y basta con meter uno
+// nuevo en medio para que un literal olvidado apunte a otra cosa y el PDF se
+// abra roto sin que ninguna prueba se entere.
+func ref(n int) string { return strconv.Itoa(n) + " 0 R" }
+
 // contenido arma el flujo completo: la matriz de página (mm y y hacia abajo) y
 // las dos capas envueltas en su marca de contenido opcional.
 func (p *pdf) contenido() string {
@@ -363,21 +372,24 @@ func (p *pdf) documento(titulo string) []byte {
 	// hay demasía que recortar y el borde del archivo ES el borde del material.
 	caja := fmt.Sprintf("[0 0 %s %s]", wpt, hpt)
 
+	capas := "[" + ref(objOCArte) + " " + ref(objOCCorte) + "]"
 	objs := map[int]string{
-		objCatalog: "<< /Type /Catalog /Pages 2 0 R " +
-			"/OCProperties << /OCGs [7 0 R 8 0 R] /D << /Order [7 0 R 8 0 R] /ON [7 0 R 8 0 R] >> >> >>",
-		objPages: "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-		objPage: "<< /Type /Page /Parent 2 0 R /MediaBox " + caja + " /TrimBox " + caja +
+		objCatalog: "<< /Type /Catalog /Pages " + ref(objPages) +
+			" /OCProperties << /OCGs " + capas + " /D << /Order " + capas + " /ON " + capas + " >> >> >>",
+		objPages: "<< /Type /Pages /Kids [" + ref(objPage) + "] /Count 1 >>",
+		objPage: "<< /Type /Page /Parent " + ref(objPages) + " /MediaBox " + caja + " /TrimBox " + caja +
 			" /BleedBox " + caja + " /CropBox " + caja +
-			" /Resources << /Font << /" + fontDisplay + " 5 0 R /" + fontMono + " 6 0 R >>" +
-			" /ColorSpace << /" + kissCutName + " 9 0 R >>" +
-			" /Properties << /ocArte 7 0 R /ocCorte 8 0 R >> >> /Contents 4 0 R >>",
+			" /Resources << /Font << /" + fontDisplay + " " + ref(objFontD) +
+			" /" + fontMonoBold + " " + ref(objFontM) + " >>" +
+			" /ColorSpace << /" + kissCutName + " " + ref(objKissCS) + " >>" +
+			" /Properties << /ocArte " + ref(objOCArte) + " /ocCorte " + ref(objOCCorte) + " >> >>" +
+			" /Contents " + ref(objContent) + " >>",
 		objContent: fmt.Sprintf("<< /Length %d >>\nstream\n%sendstream", len(content), content),
 		objFontD:   "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
-		objFontM:   "<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>",
+		objFontM:   "<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>",
 		objOCArte:  "<< /Type /OCG /Name " + pdfTexto("GRABI · arte") + " >>",
 		objOCCorte: "<< /Type /OCG /Name " + pdfTexto("GRABI · corte kiss-cut") + " >>",
-		objKissCS:  "[/Separation /" + kissCutName + " /DeviceCMYK 10 0 R]",
+		objKissCS:  "[/Separation /" + kissCutName + " /DeviceCMYK " + ref(objTint) + "]",
 		// El color plano interpola de nada (0) a magenta pleno (1): así el
 		// trazado se VE magenta en pantalla pero sale como separación aparte.
 		objTint: "<< /FunctionType 2 /Domain [0 1] /C0 [0 0 0 0] /C1 [0 1 0 0] /N 1 >>",

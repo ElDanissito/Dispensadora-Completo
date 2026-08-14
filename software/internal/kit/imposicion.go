@@ -230,7 +230,7 @@ func dibujaWrapDer(p *pdf, c PiezaImp, m Machine, _ [][]bool) {
 	}
 	// El dominio remata el bloque: quien lee el wrap ya sabe a dónde ir aunque no
 	// tenga el QR delante.
-	p.text(x, c.Y+166, fitSize(fontMono, 9, maxW, m.host()), fontMono, ColorMuted, m.host())
+	p.text(x, c.Y+166, fitSize(fontMonoBold, 9, maxW, m.host()), fontMonoBold, ColorMuted, m.host())
 
 	// --- filete divisor ---
 	p.rect(c.X+divisorX, c.Y+22, 0.6, 136, ColorLine2)
@@ -301,8 +301,8 @@ func dibujaPasos(p *pdf, c PiezaImp, _ Machine, _ [][]bool) {
 		y += capAlto*st + pasoAireTitulo
 
 		for _, linea := range pa.Sub {
-			ss := fitSize(fontMono, pasoSub, maxW, linea)
-			p.textCentro(cx, y+capAltoMono*ss, ss, fontMono, ColorMuted, linea)
+			ss := fitSize(fontMonoBold, pasoSub, maxW, linea)
+			p.textCentro(cx, y+capAltoMono*ss, ss, fontMonoBold, ColorFG, linea)
 			y += pasoLeadingSub
 		}
 
@@ -343,15 +343,15 @@ func dibujaPlaca(p *pdf, c PiezaImp, m Machine, _ [][]bool) {
 
 	const marcaSize, aire = 18.0, 8.0
 	sTxt := 22.0
-	sID := fitSize(fontMono, 16, c.Ancho*0.4, m.ID)
+	sID := fitSize(fontMonoBold, 16, c.Ancho*0.4, m.ID)
 	wTxt := textWidth(fontDisplay, sTxt, "GRABI")
-	wID := textWidth(fontMono, sID, m.ID)
+	wID := textWidth(fontMonoBold, sID, m.ID)
 
 	x := c.X + (c.Ancho-(marcaSize+aire+wTxt+aire+wID))/2
 	p.marca(x, c.Y+(c.Alto-marcaSize)/2, marcaSize, ColorFG, ColorAccent)
 	y := c.Y + c.Alto/2 + capAlto*sTxt/2
 	p.text(x+marcaSize+aire, y, sTxt, fontDisplay, ColorFG, "GRABI")
-	p.text(x+marcaSize+aire+wTxt+aire, y, sID, fontMono, ColorAccent, m.ID)
+	p.text(x+marcaSize+aire+wTxt+aire, y, sID, fontMonoBold, ColorAccent, m.ID)
 }
 
 // dibujaQRPieza es el sticker del QR (100×100): el símbolo con la marca al

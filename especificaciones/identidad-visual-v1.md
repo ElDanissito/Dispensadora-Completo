@@ -121,7 +121,7 @@ archivos sueltos son seis mínimos, un pliego es uno.
 |---|---|---|---|
 | 1 | `wrap-izquierdo` | 45 × 18 cm | tagline **"Escanea, paga, agárralo."** en tres líneas (la última en verde) + marca compacta en cuadro verde |
 | 2 | `wrap-derecho` | 45 × 18 cm | **Réplica de `instrucciones.svg`**: a la izquierda **"Sin efectivo. / Sin datáfono. / Solo tu celular."** (la última en verde) + marca compacta + dominio en mono; **filete divisor**; a la derecha los **3 pasos numerados** en círculos verdes. Barra verde vertical de borde a borde en el canto (no filetes horizontales) y marca fantasma abajo a la derecha, detrás del paso 3 |
-| 3 | `instrucciones-3-pasos` | 8 × 18 cm | los **3 pasos numerados** en círculos verdes: ① ESCANEA *(el QR de la máquina)* ② PAGA *(con Bre-B desde tu banco)* ③ MUESTRA *(el QR y agárralo)*. Todo **centrado**, con la jerarquía hecha de contraste y no de alineación: número en círculo, título en display grande y claro, detalle en **mono** pequeño y atenuado, y un **filete corto** entre pasos (el último no lleva). Se maqueta **en flujo**, no con retícula fija, porque el paso 2 lleva una línea de detalle más |
+| 3 | `instrucciones-3-pasos` | 8 × 18 cm | los **3 pasos numerados** en círculos verdes: ① ESCANEA *(el QR de la máquina)* ② PAGA *(con Bre-B desde tu banco)* ③ MUESTRA *(el QR y agárralo)*. Todo **centrado**, con la jerarquía hecha de contraste y no de alineación: número en círculo, título en display grande, detalle en **mono negrita más pequeña** — los dos en `--fg`, no en `--muted` — y un **filete corto** entre pasos (el último no lleva). Se maqueta **en flujo**, no con retícula fija, porque el paso 2 lleva una línea de detalle más |
 | 4 | `cabecera-grabi` | 28 × 7 cm | **solo el wordmark `GRABI.`** con el punto verde. SIN dominio y SIN "pago con Bre-B" |
 | 5 | `placa` | 25 × 5 cm | **`GRABI {id}`** (ej. `GRABI M001`) |
 | 6 | `qr` | 10 × 10 cm | el QR de `https://grabi.napi.lat/m/{id}` con la marca al centro (ECC **H**, cuadro blanco opaco ≤ 20 % del área) y **"ESCANEA AQUÍ"** debajo |
@@ -171,8 +171,10 @@ archivos sueltos son seis mínimos, un pliego es uno.
   CMYK). Además así el pliego especifica **el mismo color que los SVG del `kit.zip`**.
 - **NO es PDF/X-1a** y no lo declara: exigiría PDF 1.3 (sin capas), un perfil ICC incrustado y las
   tipografías incrustadas. Ninguna de las tres es posible hoy sin meter archivos licenciados al repo.
-- **Tipografías no incrustadas:** Helvetica-Bold (por Archivo 900 / Space Grotesk 700) y Courier (por
-  IBM Plex Mono). Si la imprenta las sustituye, hay que pasarlas a curvas — igual que en los SVG.
+- **Tipografías no incrustadas:** Helvetica-Bold (por Archivo 900 / Space Grotesk 700) y
+  **Courier-Bold** (por IBM Plex Mono). Si la imprenta las sustituye, hay que pasarlas a curvas —
+  igual que en los SVG. La mono va **siempre en negrita**: la redonda tiene el trazo demasiado fino
+  para vinilo y a cuerpos pequeños sobre fondo oscuro el impreso se la come.
 - **Reproducible byte a byte:** sin fecha de creación, para poder comparar lo que se mandó a imprimir
   con lo que genera el servidor hoy.
 - **El pliego no lleva nada fuera de las piezas** (decisión de Daniel, 2026-08-13): ni línea de

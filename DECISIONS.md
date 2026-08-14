@@ -113,6 +113,18 @@ pieza cambia de medida, si una guía se desplaza 1 mm o si la marca tapa más QR
   elemento empuja al siguiente) y no con retícula fija, porque el paso 2 lleva una línea de detalle
   más que los otros: con posiciones fijas o queda descuadrado o hay que darle a los tres el hueco del
   más alto. El detalle del paso 2 se parte **"con Bre-B / desde tu banco"**, no por donde desborda.
+- **Toda la mono del pliego pasa a Courier-Bold, y el detalle de los pasos de `--muted` a `--fg`**
+  (Daniel, viendo el impreso: *"el blanco está muy oscuro y la letra delgada"*). Tiene razón y la
+  razón es física, no de gusto: `--muted` (#8FA79A) es texto **atenuado de pantalla**, y a 5,4 mm de
+  cuerpo con un trazo tan fino como el de Courier, sobre fondo casi negro y en vinilo, se apaga. Con
+  `--fg` el contraste sube de ~7:1 a ~16:1. **La redonda ya no se declara** en el PDF: el archivo
+  solo lleva las dos fuentes que usa.
+- **Sigue en `--muted` el dominio del wrap derecho** (`grabi.napi.lat`): ahí es deliberadamente
+  secundario, va a 9 mm de cuerpo —el triple— y así está también en `instrucciones.svg`. Si al ver
+  el impreso se pierde, se sube igual.
+- **Los números de objeto del PDF pasan a escribirse con `ref()`** en vez de a pelo. Al meter la
+  fuente nueva hubo que renumerar una decena de enlaces entre objetos, y basta con olvidar uno para
+  que el PDF se abra roto sin que ninguna prueba lo note.
 - **Fuera la línea de identificación del margen inferior** (decisión de Daniel). Iba en el respaldo
   que se tira y no ensuciaba ningún sticker, pero el pliego se quiere limpio: **todo lo que se
   imprime es sticker**. Consecuencia a tener presente: el archivo ya **no lleva encima** el "1:1, no
