@@ -157,8 +157,10 @@ if(typeof THREE==='undefined'){ document.getElementById('err').style.display='fl
 
 /* ══════════════════════════════════════════════════════════════════════════
    GRABI · Dispensadora V1 (variante 2) — modelo 3D interactivo
-   1 unidad = 1 cm. Medidas reales del piloto:
-       profundidad D = 66 · ancho W = 33.6 · alto H = 44.5
+   1 unidad = 1 cm. Medidas REALES de la carcasa externa del piloto:
+       ancho W = 38 · alto H = 46 · profundidad D = 68
+   Es decir, las seis láminas que se piden a corte:
+       68 × 46 ×2 (costados) · 38 × 46 ×2 (frente y trasera) · 38 × 68 ×2 (techo y piso)
    Frente = +Z. Puerta de cara completa que abre desde la izquierda (bisagras internas).
    VARIANTE 2: caja recta, sin el chaflán frontal. El frente sube plano hasta el
    techo, así que la cabecera de marca es más alta y el techo es horizontal.
@@ -167,14 +169,21 @@ if(typeof THREE==='undefined'){ document.getElementById('err').style.display='fl
    ══════════════════════════════════════════════════════════════════════════ */
 
 // ── Envolvente ──
-const W=33.6, H=44.5, D=66;
+const W=38, H=46, D=68;
 const T=1.4;              // espesor de lámina (exagerado para que se lea en 3D)
 const ZF=D/2;             // plano frontal
 
 // ── Retícula del frente (todo derivado, nada suelto) ──
-const dL=-W/2, dR=W/2;                  // bordes laterales de la puerta
-// La puerta sube hasta justo debajo del techo: si lo pasara, al abrirse lo atravesaría
-const dBot=0.6, dTop=H-T-0.3;
+/* dL/dR/dBot/dTop son los bordes de la CHAPA DEL FRENTE, que va fija al chasis.
+   Lo único que se abre es la vitrina (winL..winR × winB..winT): es la boca por la
+   que entran y salen las dos bandejas. */
+const dL=-W/2, dR=W/2;                  // bordes laterales del frente
+/* El frente es la LÁMINA COMPLETA de 38 × 46 que ya está cortada: cubre la cara
+   entera y tapa por delante los cantos de los costados y del techo. Antes moría
+   en 0,6 por abajo (holgura de cuando giraba como puerta) y bajo el techo por
+   arriba, así que el modelo dibujaba un frente de 38 × 44 y todo el reparto
+   vertical salía de 2 cm menos de los que hay. */
+const dBot=0, dTop=H;
 const railL=dL+1.6;                     // franja izquierda de la puerta (lado del giro)
 const colR =dR-7.8;                     // inicio de la columna derecha (lector + electrónica)
 const slotB=2.8,  slotT=9.8;            // boca de entrega
@@ -248,6 +257,11 @@ floor.rotation.x=-Math.PI/2; floor.position.y=-0.02; floor.receiveShadow=true; s
 
 // ════════════════ Marca: texturas dibujadas en canvas ════════════════
 const MINT='#3BE87F', OFF='#EAF4EE', MUT='#8FA79A';
+/* Marca fantasma de fondo: un color SÓLIDO apenas más claro que el panel, el
+   mismo para el visor y para el punto (identidad-visual-v1 §8.1). Con dos
+   colores distintos o con alfa, el punto relleno gana al trazo del visor y la
+   marca se lee como un círculo en vez de como el símbolo. */
+const GHOST='#151E19';
 const REG=[];
 function tex(w,h,draw,rep){
   const c=document.createElement('canvas'); c.width=w; c.height=h;
@@ -321,25 +335,31 @@ function drawQR(x, qx, qy, qs, n, seed, dark, light){
   });
 }
 
-/* Cabecera de la puerta (variante 3): sólo la marca, corrida a la izquierda para
-   dejarle la derecha al QR de la máquina. */
-const HEADER_AR=4.32;                                   // = 1240/287, ver el panel
-const texHeader=tex(1240,287,(x,w,h)=>{
-  x.clearRect(0,0,w,h);
-  const s=104, gap=26, bx=30;
-  x.font=F_BRAND(100);
-  drawMark(x, bx+s/2, 104, s, null, OFF, MINT);
-  const wmW=wordmark(x, bx+s+gap, 100, 100, OFF, MINT);
-  x.strokeStyle='#26332c'; x.lineWidth=3;
-  x.beginPath(); x.moveTo(bx,178); x.lineTo(Math.min(w-30,bx+s+gap+wmW),178); x.stroke();
-  x.textAlign='left'; x.textBaseline='middle';
-  x.font=F_MONO(600,38);
-  const dom='grabi.napi.lat', sep='  ·  ', pay='pago con Bre-B';
-  x.fillStyle=OFF;  x.fillText(dom, bx, 226);
-  const wd=x.measureText(dom).width;
-  x.fillStyle=MUT;  x.fillText(sep, bx+wd, 226);
-  const ws=x.measureText(sep).width;
-  x.fillStyle=MINT; x.fillText(pay, bx+wd+ws, 226);
+/* Cabecera del frente = pieza 4 de la hoja de imposición (24 × 6 cm,
+   identidad-visual-v1 §8.1): SOLO el wordmark con el punto verde, centrado,
+   sobre el fondo kiosko con sus dos filetes.
+   Nada de dominio ni de "pago con Bre-B": eso ya lo dicen el wrap lateral y la
+   tira de pasos, y repetido en la cabecera satura el frente. */
+const HEADER_AR=4.0;                                    // = 240/60 mm, la pieza real
+const texHeader=tex(1240,310,(x,w,h)=>{
+  x.fillStyle='#0A0E0C'; x.fillRect(0,0,w,h);
+  const filete=Math.round(h*2.5/70);                    // 2,5 mm sobre 70 de alto
+  x.fillStyle=MINT; x.fillRect(0,0,w,filete); x.fillRect(0,h-filete,w,filete);
+  // Cuerpo a partir del ancho útil, igual que el fitSize del PDF: la caja manda
+  // sobre el tamaño elegido, para que el wordmark nunca toque los costados.
+  const maxW=w-2*Math.round(w*20/280);                  // 20 mm de aire a cada lado
+  let fs=Math.round(h*60/70);
+  x.textAlign='left'; x.textBaseline='alphabetic'; x.font=F_BRAND(fs);
+  let total=x.measureText('GRABI.').width;
+  if(total>maxW){ fs=Math.floor(fs*maxW/total); x.font=F_BRAND(fs); total=x.measureText('GRABI.').width; }
+  /* El punto es el GLIFO "." de la tipografía —cuadrado en Archivo—, no un
+     círculo dibujado a mano como en wordmark(): así sale en el PDF, que compone
+     "GRABI" en --fg y el punto en verde a continuación.
+     La base se sitúa como allí: centro de la pieza + media altura de caja alta
+     (0,718 del cuerpo), que es lo que centra ópticamente unas mayúsculas. */
+  const base=h/2+0.718*fs/2;
+  x.fillStyle=OFF;  x.fillText('GRABI', (w-total)/2, base);
+  x.fillStyle=MINT; x.fillText('.', (w-total)/2+x.measureText('GRABI').width, base);
 });
 
 /* QR DE LA MÁQUINA: va en la cabecera, a la derecha, sobre el mismo eje que el lector
@@ -379,19 +399,26 @@ function wrapLines(x,text,maxW,cx,cy,lineH){
   });
   flush(); return n;
 }
-// columna derecha: los 3 pasos, apilados en vertical y con el texto derecho
+/* Columna derecha: los 3 pasos. Réplica de la pieza 3 de la hoja de imposición
+   (especificaciones/identidad-visual-v1.md §8.1), así que aquí manda ella:
+   - El detalle va en mono NEGRITA y en OFF, no en MUT. El gris atenuado es color
+     de pantalla: impreso a ese cuerpo, sobre fondo casi negro y en vinilo, se
+     apaga (ADR-027).
+   - Las líneas del detalle van partidas A MANO, no por desbordamiento, para que
+     "banco" no quede huérfano en su renglón. */
 const texSteps=tex(480,1360,(x,w,h)=>{
   x.clearRect(0,0,w,h);
   const blk=h/3, cx=w/2;
-  [['1','ESCANEA','el QR de la máquina'],
-   ['2','PAGA','con Bre-B desde tu banco'],
-   ['3','MUESTRA','el QR y agárralo']].forEach((s,i)=>{
+  [['1','ESCANEA',['el QR de la máquina']],
+   ['2','PAGA',['con Bre-B','desde tu banco']],
+   ['3','MUESTRA',['el QR y agárralo']]].forEach((s,i)=>{
     const y0=i*blk;
     x.textAlign='center'; x.textBaseline='middle';
     x.fillStyle=MINT; x.beginPath(); x.arc(cx, y0+110, 54, 0, Math.PI*2); x.fill();
     x.font=F_BRAND(64); x.fillStyle='#05130B'; x.fillText(s[0], cx, y0+114);
     x.font=F_BRAND(74); x.fillStyle=OFF;       x.fillText(s[1], cx, y0+240);
-    x.font=F_MONO(400,34); x.fillStyle=MUT;    wrapLines(x, s[2], w*0.86, cx, y0+310, 42);
+    x.font=F_MONO(700,34); x.fillStyle=OFF;
+    s[2].forEach((ln,j)=> x.fillText(ln, cx, y0+310+j*42));
     if(i<2){ x.strokeStyle='#25332c'; x.lineWidth=5;
       x.beginPath(); x.moveTo(w*0.16, y0+blk-14); x.lineTo(w*0.84, y0+blk-14); x.stroke(); }
   });
@@ -403,7 +430,7 @@ const texWrap=tex(1600,900,(x,w,h)=>{
   g.addColorStop(0,'#0d1512'); g.addColorStop(.55,'#101d17'); g.addColorStop(1,'#080f0c');
   x.fillStyle=g; x.fillRect(0,0,w,h);
   x.fillStyle=MINT; x.fillRect(0,0,w,15); x.fillRect(0,h-15,w,15);
-  x.save(); x.globalAlpha=.05; drawMark(x,w-250,h-240,680,null,OFF,MINT); x.restore();
+  drawMark(x,w-250,h-250,680,null,GHOST,GHOST);   // fantasma, entera dentro del arte
   drawMark(x,148,148,148,MINT,'#05130B','#05130B');
   x.textAlign='left'; x.textBaseline='alphabetic';
   x.font=F_BRAND(130); x.fillStyle=OFF;
@@ -418,7 +445,7 @@ const texWrap=tex(1600,900,(x,w,h)=>{
 const texWrap2=tex(1200,576,(x,w,h)=>{
   x.fillStyle='#0c1411'; x.fillRect(0,0,w,h);
   x.fillStyle=MINT; x.fillRect(0,0,14,h);
-  x.save(); x.globalAlpha=.05; drawMark(x,w-180,h-140,460,null,OFF,MINT); x.restore();
+  drawMark(x,w-180,h-158,440,null,GHOST,GHOST);   // fantasma, entera dentro del arte
   // titular
   drawMark(x,88,84,86,MINT,'#05130B','#05130B');
   x.textAlign='left'; x.textBaseline='alphabetic';
@@ -468,26 +495,6 @@ const texTop=tex(1380,300,(x,w,h)=>{
 const texSlot=tex(900,120,(x,w,h)=>{
   x.clearRect(0,0,w,h); x.textAlign='center'; x.textBaseline='middle';
   x.font=F_MONO(700,56); x.fillStyle=OFF; x.fillText('▾  RETIRA TU COMPRA AQUÍ  ▾',w/2,h/2);
-});
-
-// chip Bre-B
-const texBreb=tex(600,190,(x,w,h)=>{
-  x.clearRect(0,0,w,h);
-  x.fillStyle='#0b1310'; rr(x,4,4,w-8,h-8,34); x.fill();
-  x.strokeStyle=MINT; x.lineWidth=5; rr(x,4,4,w-8,h-8,34); x.stroke();
-  x.textAlign='center'; x.textBaseline='middle';
-  x.font=F_BRAND(66); x.fillStyle=OFF;  x.fillText('Bre-B',w/2,h/2-26);
-  x.font=F_MONO(600,30); x.fillStyle=MINT; x.fillText('pago inmediato',w/2,h/2+42);
-});
-
-// placa de identificación de la máquina
-const texPlate=tex(600,160,(x,w,h)=>{
-  x.clearRect(0,0,w,h);
-  x.fillStyle='#0a110e'; rr(x,2,2,w-4,h-4,18); x.fill();
-  x.strokeStyle='#22302a'; x.lineWidth=4; rr(x,2,2,w-4,h-4,18); x.stroke();
-  x.textAlign='center'; x.textBaseline='middle';
-  x.font=F_MONO(700,50); x.fillStyle=OFF; x.fillText('M001',w/2,h/2-18);
-  x.font=F_MONO(400,28); x.fillStyle=MUT; x.fillText('CALI · CO',w/2,h/2+34);
 });
 
 // placa técnica trasera
@@ -565,7 +572,13 @@ const decal=(t,op)=>new THREE.MeshBasicMaterial({map:t, transparent:true,
 // ════════════════ Jerarquía ════════════════
 const machine=new THREE.Group(); scene.add(machine);
 const chassis=new THREE.Group(); machine.add(chassis);
-const doorPivot=new THREE.Group();                     // eje de giro: canto frontal izquierdo
+/* Lo que se abre NO es el frente entero: es la VITRINA más la franja estrecha
+   que queda a su izquierda, donde va la bisagra POR DENTRO. Por esa boca entran
+   y salen las dos bandejas. El resto del frente —cabecera, columna del lector,
+   banda, zócalo y el trozo de franja bajo la ventana— va fijo al chasis. */
+const frente=new THREE.Group();                        // cara frontal fija
+frente.position.z=ZF+0.25; chassis.add(frente);
+const doorPivot=new THREE.Group();                     // eje de giro: canto izquierdo de la máquina
 doorPivot.position.set(dL,0,ZF+0.25); machine.add(doorPivot);
 const door=new THREE.Group(); doorPivot.add(door);
 
@@ -590,7 +603,7 @@ shell(chassis, W, H, T, matBody, 0, H/2, -D/2+T/2);                    // traser
 shell(chassis, W, T, D, matBody, 0, H-T/2, 0);                         // techo horizontal
 // calcomanía acostada en el techo (se ve en la vista de planta)
 panel(chassis, W*0.74, W*0.74/TOP_AR, texTop, 0, H+0.06, -3.0, [-Math.PI/2,0,0]);
-put(chassis, W-2*T, T, D-2*T, matDark, 0, T/2, 0);                     // piso interior
+put(chassis, W, T, D, matDark, 0, T/2, 0);                             // piso: lámina 38 × 68
 [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{
   const f=put(chassis,2.6,2.0,2.6,matDark, sx*(W/2-3.4), -1.0, sz*(D/2-3.4));
   f.receiveShadow=false;
@@ -702,21 +715,38 @@ for(let r=1;r>=0;r--) for(let c=0;c<2;c++){
 /* ══ PUERTA (cara completa, abre desde la izquierda) ══
    Coordenadas locales: x=0 en el eje de giro · z=0 en la cara exterior. */
 const DT=1.2;
+/* Helpers del frente FIJO: van en coordenadas de máquina, sin desplazar. */
+const fPut=(w,h,d,mat,x,y,z)=>put(frente,w,h,d,mat,x,y,z);
+const fShell=(w,h,d,mat,x,y,z)=>{ const m=fPut(w,h,d,mat,x,y,z); shellMeshes.push(m); return m; };
+const fPanel=(w,h,t,x,y,z,rot,op)=>panel(frente,w,h,t,x,y,z,rot,op);
+/* Helpers de la PUERTA: su origen es el canto izquierdo de la máquina, donde
+   está el eje de giro. */
 const dx=x=>x-dL;
 const dPut=(w,h,d,mat,xa,y,z)=>put(door,w,h,d,mat,dx(xa),y,z);
 const dShell=(w,h,d,mat,xa,y,z)=>{ const m=dPut(w,h,d,mat,xa,y,z); shellMeshes.push(m); return m; };
-const dPanel=(w,h,t,xa,y,z,rot,op)=>panel(door,w,h,t,dx(xa),y,z,rot,op);
 const Z0=-DT/2;
 
-// paneles (sin solaparse entre sí, para no tener caras coplanares):
-//   cabecera (todo el ancho) · franja izq · columna der · zócalo · banda · cruceta en cruz
-dShell(W, dTop-winT-0.2, DT, matDoor, 0, (winT+0.2+dTop)/2, Z0);
-dShell(railL-dL, winT-dBot, DT, matDoor, (dL+railL)/2, (dBot+winT)/2, Z0);
-dShell(dR-colR,  winT-dBot, DT, matDoor, (colR+dR)/2,  (dBot+winT)/2, Z0);
-dShell(winR-winL, slotB-dBot, DT, matDoor, (winL+winR)/2, (dBot+slotB)/2, Z0);
-dShell(winR-winL, winB-slotT, DT, matDoor, (winL+winR)/2, bandY, Z0);
+/* Alto de la hoja: la vitrina con su marco. Ancho: desde el canto de la máquina
+   hasta el otro lado del marco, así la franja de la izquierda viaja con ella. */
+const hojaB=winB-BEZ, hojaT=winT+BEZ;
 
-// marco fino de la vitrina (sin cruceta: los 4 carriles ya se separan por dentro)
+// Chapa fija del frente, sin solaparse entre sí (nada de caras coplanares):
+//   cabecera (todo el ancho) · franja bajo la ventana · columna del lector · zócalo · banda
+fShell(W, dTop-hojaT, DT, matDoor, 0, (hojaT+dTop)/2, Z0);
+fShell(railL-dL, hojaB-dBot, DT, matDoor, (dL+railL)/2, (dBot+hojaB)/2, Z0);
+/* La columna del lector sube hasta el borde de la cabecera, no hasta el techo de
+   la vitrina: ahí no hay puerta que la solape, así que si muriera en winT
+   dejaría una ranura pasante del grosor del marco (0,55) bajo la cabecera. */
+fShell(dR-colR,  hojaT-dBot, DT, matDoor, (colR+dR)/2,  (dBot+hojaT)/2, Z0);
+fShell(winR-winL, slotB-dBot, DT, matDoor, (winL+winR)/2, (dBot+slotB)/2, Z0);
+fShell(winR-winL, winB-slotT, DT, matDoor, (winL+winR)/2, bandY, Z0);
+
+/* Pestaña de la hoja: el trozo de chapa a la izquierda de la ventana. No es
+   decorativo — es donde se atornillan las bisagras por dentro, y por eso viaja
+   con la puerta en vez de quedarse en el chasis. */
+dShell(winL-dL, hojaT-hojaB, DT, matDoor, (dL+winL)/2, (hojaB+hojaT)/2, Z0);
+
+// marco de la vitrina: los cuatro lados van con la hoja
 (function bezel(){
   const cx=(winL+winR)/2, ww=winR-winL, wh=winT-winB, cy=(winB+winT)/2;
   dPut(ww+2*BEZ, BEZ, 0.9, matMetal, cx, winT+BEZ/2, 0.10);
@@ -737,18 +767,23 @@ dShell(winR-winL, winB-slotT, DT, matDoor, (winL+winR)/2, bandY, Z0);
 /* La cabecera se reparte: marca a la izquierda, QR de la máquina sobre el eje readerX.
    El borde inferior arranca por encima del bisel de la vitrina, que sobresale y
    taparía el rótulo del QR. */
+/* Los dos stickers van a su MEDIDA REAL de la hoja de imposición, no estirados
+   para llenar la franja: cabecera 24 × 6 cm (pieza 4) y QR 8 × 8 cm (pieza 6).
+   Antes se derivaban del alto disponible, así que cualquier cambio en la caja los
+   redimensionaba y el mockup dejaba de mostrar lo que se manda a imprimir. */
+const CAB_W=24, CAB_H=6, QR_LADO=8;
 (function headerRow(){
-  const top=dTop-0.3, bot=winT+BEZ+0.4;
-  const bh=top-bot, cy=(top+bot)/2;
-  dPanel(bh, bh, texMachineQR, readerX, cy, 0.06);            // cuadrado
-  const avail=(readerX-bh/2-0.8)-(dL+1.0);                    // hueco a la izquierda del QR
-  const mw=Math.min(avail, bh*HEADER_AR);
-  dPanel(mw, mw/HEADER_AR, texHeader, (dL+1.0+readerX-bh/2-0.8)/2, cy, 0.06);
+  const cy=(hojaT+dTop)/2, aire=1.0;
+  // El QR se arrima al canto derecho; la cabecera se centra en lo que queda.
+  const qrX=dR-aire-QR_LADO/2;
+  fPanel(QR_LADO, QR_LADO, texMachineQR, qrX, cy, 0.06);
+  const izq=dL+aire, der=qrX-QR_LADO/2-0.8;
+  fPanel(CAB_W, CAB_H, texHeader, (izq+der)/2, cy, 0.06);
 })();
-dPanel(6.0, 17.0, texSteps, readerX, 21.5, 0.06);
+fPanel(6.0, 17.0, texSteps, readerX, 21.5, 0.06);
 
 /* ── LECTOR QR GM65 · frente, esquina superior derecha ── */
-const readerGrp=new THREE.Group(); readerGrp.position.set(dx(readerX), readerY, 0); door.add(readerGrp);
+const readerGrp=new THREE.Group(); readerGrp.position.set(readerX, readerY, 0); frente.add(readerGrp);
 (function reader(){
   const bz=box(readerW+readerBZ, readerH+readerBZ, 0.9, matMetal); bz.position.z=0.28; readerGrp.add(bz);
   const face=box(readerW, readerH, 1.0,
@@ -782,18 +817,17 @@ scanLine.position.z=6.0; beamPivot.add(scanLine);
 /* ── Boca de entrega: recesada, sin compuerta ── */
 (function slot(){
   const sw=winR-winL, cx=(winL+winR)/2, sh=slotT-slotB, cy=(slotB+slotT)/2;
-  dPut(sw+2*BEZ, BEZ, 1.0, matMetal, cx, slotT+BEZ/2, 0.08);
-  dPut(sw+2*BEZ, BEZ, 1.0, matMetal, cx, slotB-BEZ/2, 0.08);
-  dPut(BEZ, sh+2*BEZ, 1.0, matMetal, winL-BEZ/2, cy, 0.08);
-  dPut(BEZ, sh+2*BEZ, 1.0, matMetal, winR+BEZ/2, cy, 0.08);
-  dPanel(sw*0.76, 1.6, texSlot, cx, 11.6, 0.06);    // entre el labio y el marco de la vitrina
+  fPut(sw+2*BEZ, BEZ, 1.0, matMetal, cx, slotT+BEZ/2, 0.08);
+  fPut(sw+2*BEZ, BEZ, 1.0, matMetal, cx, slotB-BEZ/2, 0.08);
+  fPut(BEZ, sh+2*BEZ, 1.0, matMetal, winL-BEZ/2, cy, 0.08);
+  fPut(BEZ, sh+2*BEZ, 1.0, matMetal, winR+BEZ/2, cy, 0.08);
+  fPanel(sw*0.76, 1.6, texSlot, cx, 11.6, 0.06);    // entre el labio y el marco de la vitrina
 })();
-// columna derecha: chip Bre-B + placa de máquina
-dPanel(5.8, 1.85, texBreb,  readerX, 8.6, 0.06);
-dPanel(5.6, 1.50, texPlate, readerX, 4.8, 0.06);
+// La esquina inferior derecha va limpia: sin chip Bre-B ni placa de máquina.
 
 /* Sin herrajes a la vista: bisagras internas, sin manija ni cerradura exterior.
-   La puerta sigue girando sobre `doorPivot`, en el canto izquierdo del frente. */
+   La puerta es SOLO la vitrina y gira sobre `doorPivot`, en el canto izquierdo de
+   la ventana; el resto del frente no se mueve. */
 
 /* ── Vinilos laterales (cubren casi todo el costado, como un wrap real) ── */
 panel(chassis, D*0.78, H*0.52, texWrap,  -W/2-0.20, H*0.50,  1.0, [0,-Math.PI/2,0]);

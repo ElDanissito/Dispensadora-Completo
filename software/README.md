@@ -19,6 +19,7 @@ software/
   internal/imapmail/  cliente IMAP mínimo (lee el buzón de conciliación grabibot)
   internal/config/    carga de .env + credenciales IMAP + mapa de llaves Bre-B
   internal/concil/    servicio de conciliación (casa pago↔orden, dispara el QR)
+  internal/kit/       kit físico por máquina: QR con la marca, calcomanías SVG y hoja de imposición PDF
   .keys/              llaves privadas — IGNORADO por git (nunca commitear)
   .env                credenciales locales (IMAP, llaves Bre-B) — IGNORADO por git
 ```
@@ -108,6 +109,12 @@ ADMIN_PASS=algo-seguro ./dispensadoras-web -seed   # -seed carga datos de demo
   `exp`; no aplica a órdenes pendientes, dispensadas ni canceladas.
 - Rutas admin: `GET /admin`, `POST /admin/machines`, `POST /admin/products`, `GET /admin/m/{id}`,
   `POST /admin/m/{id}/slot`, `GET /admin/orders`, `GET /admin/movements`, `GET /admin/leads`.
+- **Kit físico de la máquina** (`internal/kit`, ADR-026/027; archivos, así que sin sesión dan **401**
+  y no un 303 al login): `GET /admin/machines/{id}/qr.svg` y `qr.png` (con `?size=`, 128–2048),
+  `.../kit.zip` (piezas SVG + `LEEME.txt`) y `.../kit-imposicion.pdf` (**hoja de imposición**: las 6
+  piezas en un pliego de 100 × 32 cm a escala 1:1, con las guías de kiss-cut en capa aparte). Todo se
+  genera al vuelo desde el `machine_id`; nada se persiste. Especificación:
+  [`identidad-visual-v1.md` §8](../especificaciones/identidad-visual-v1.md).
 - **Interesados en el panel** (`GET /admin/leads`, landing-v1 §4): lista los leads de `leads`
   (fecha, nombre, tipo de espacio, ciudad, WhatsApp, origen), más recientes primero. Es **PII**:
   ruta protegida por sesión, nunca en páginas públicas.

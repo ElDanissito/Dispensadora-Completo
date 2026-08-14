@@ -35,6 +35,7 @@ func TestKitFisicoExigeSesion(t *testing.T) {
 		"/admin/machines/M001/qr.svg",
 		"/admin/machines/M001/qr.png",
 		"/admin/machines/M001/kit.zip",
+		"/admin/machines/M001/kit-imposicion.pdf",
 	} {
 		res, err := sinRedirect.Get(srv.URL + path)
 		if err != nil {
@@ -192,6 +193,52 @@ func TestKitFisicoDescargaElZip(t *testing.T) {
 	}
 }
 
+// La hoja de imposición: un PDF de verdad, con el pliego a escala 1:1 y las seis
+// piezas. El contenido lo verifica en detalle internal/kit; aquí se comprueba lo
+// que es del endpoint (tipo, descarga, 404) más que el pliego llegue completo.
+func TestKitFisicoDescargaLaImposicion(t *testing.T) {
+	s, st := newTestServerConBase(t)
+	if err := st.CreateMachine(context.Background(), "M001", "Palmira", "k1", 4); err != nil {
+		t.Fatalf("CreateMachine: %v", err)
+	}
+	srv := httptest.NewServer(s.Routes())
+	defer srv.Close()
+	c := clienteConSesion(t, srv.URL)
+
+	res, body := pide(t, c, srv.URL+"/admin/machines/M001/kit-imposicion.pdf")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("kit-imposicion.pdf = %d, se esperaba 200", res.StatusCode)
+	}
+	if ct := res.Header.Get("Content-Type"); ct != "application/pdf" {
+		t.Errorf("kit-imposicion.pdf Content-Type = %q", ct)
+	}
+	// Sin Content-Disposition el navegador lo abre en una pestaña; lo que hay que
+	// hacer con este archivo es reenviarlo a la imprenta.
+	if cd := res.Header.Get("Content-Disposition"); !strings.Contains(cd, `filename="grabi-M001-imposicion.pdf"`) {
+		t.Errorf("kit-imposicion.pdf Content-Disposition = %q", cd)
+	}
+	if !bytes.HasPrefix(body, []byte("%PDF-1.")) {
+		t.Fatalf("el cuerpo no es un PDF: %.16q", body)
+	}
+
+	// El endpoint sirve EXACTAMENTE el pliego de esta máquina, sin recortarlo ni
+	// recomponerlo: así las pruebas de geometría de internal/kit (seis piezas con
+	// sus medidas exactas, guías de corte y QR escaneable) valen también aquí.
+	quiso, err := kit.Machine{ID: "M001", Place: "Palmira", Site: s.site}.Imposicion()
+	if err != nil {
+		t.Fatalf("kit.Imposicion(): %v", err)
+	}
+	if !bytes.Equal(body, quiso) {
+		t.Errorf("el PDF servido (%d bytes) no es el pliego de M001 (%d bytes)", len(body), len(quiso))
+	}
+
+	// Una máquina que no existe no genera papelería fantasma.
+	res, _ = pide(t, c, srv.URL+"/admin/machines/M999/kit-imposicion.pdf")
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("kit-imposicion.pdf de una máquina inexistente = %d, se esperaba 404", res.StatusCode)
+	}
+}
+
 // El bloque vive DENTRO del detalle de la máquina, no en una sección aparte.
 func TestElDetalleDeLaMaquinaMuestraElKitFisico(t *testing.T) {
 	s, st := newTestServerConBase(t)
@@ -209,12 +256,20 @@ func TestElDetalleDeLaMaquinaMuestraElKitFisico(t *testing.T) {
 		"Descargar kit de stickers (.zip)",
 		`href="/admin/machines/M001/qr.svg?size=1024"`,
 		`href="/admin/machines/M001/kit.zip"`,
+		"Hoja para imprenta (.pdf)",
+		`href="/admin/machines/M001/kit-imposicion.pdf"`,
 		`src="/admin/machines/M001/qr.svg?size=180"`, // previsualización del QR
-		`width="90mm" height="30mm"`,                 // la placa real, incrustada
-		"· M001",
+		"1000 × 310 mm a escala 1:1",                 // medida del pliego, desde las constantes
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("el detalle de la máquina no contiene %q", want)
+		}
+	}
+	// La placa ya NO se previsualiza (decisión de Daniel, 2026-08-13): se descarga
+	// con el resto de piezas. Si vuelve a colarse el SVG incrustado, esto avisa.
+	for _, noQuiere := range []string{`width="90mm" height="30mm"`, "kitplaca"} {
+		if strings.Contains(html, noQuiere) {
+			t.Errorf("el detalle de la máquina sigue incrustando la placa (%q)", noQuiere)
 		}
 	}
 }
