@@ -151,7 +151,6 @@ func (m Machine) Imposicion() ([]byte, error) {
 	for _, pz := range piezas {
 		pz.dibuja(p, pz.PiezaImp, m, mat)
 	}
-	slug(p, m)
 
 	// Las guías van en su propia capa y en un color PLANO llamado "KissCut": el
 	// plóter de corte busca una separación con nombre, no un magenta de
@@ -165,18 +164,6 @@ func (m Machine) Imposicion() ([]byte, error) {
 	p.op("Q")
 
 	return p.documento("GRABI " + m.ID + " · hoja de imposición"), nil
-}
-
-// slug escribe la línea de identificación del pliego en el margen inferior.
-// Cae FUERA de todos los kiss-cut, así que se queda en el respaldo que se tira:
-// no ensucia ningún sticker y le dice a la imprenta lo que no se ve en el arte.
-func slug(p *pdf, m Machine) {
-	txt := "GRABI " + m.ID + " · " + m.URL() +
-		" · hoja de imposición " + num(ImpAncho) + "x" + num(ImpAlto) + " mm · escala 1:1 · NO reescalar" +
-		" · corte kiss-cut en la capa y separación \"" + kissCutName + "\", no imprimir" +
-		" · arte vectorial en RGB: convertir con el perfil del material" +
-		" · tipografías NO incrustadas (Helvetica-Bold / Courier): pasar a curvas si se sustituyen"
-	p.text(ImpMargen, ImpAlto-2.6, 3, fontMono, ColorMuted, txt)
 }
 
 // --- piezas ---

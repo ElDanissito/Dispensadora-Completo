@@ -130,9 +130,14 @@ func TestImposicionEsUnPDFConLaPaginaDelTamanoDelPliego(t *testing.T) {
 		}
 	}
 	// Las guías van en su propia capa y en el color plano que busca el plóter.
+	// El nombre de la capa se busca YA CODIFICADO (UTF-16, como lo escribe
+	// pdfTexto): buscarlo en claro daría un falso verde si esa cadena apareciera
+	// suelta en cualquier otra parte del archivo.
 	for _, clave := range []string{
-		"/Type /OCG", "corte kiss-cut", "/OC /ocCorte BDC",
-		"[/Separation /" + kissCutName + " /DeviceCMYK",
+		"/Type /OCG /Name " + pdfTexto("GRABI · corte kiss-cut"),
+		"/Type /OCG /Name " + pdfTexto("GRABI · arte"),
+		"/OC /ocCorte BDC", "/OC /ocArte BDC",
+		"/OCProperties", "[/Separation /" + kissCutName + " /DeviceCMYK",
 	} {
 		if !bytes.Contains(doc, []byte(clave)) {
 			t.Errorf("el PDF no trae %q (¿se perdió la capa de corte?)", clave)

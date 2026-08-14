@@ -175,8 +175,10 @@ archivos sueltos son seis mínimos, un pliego es uno.
   IBM Plex Mono). Si la imprenta las sustituye, hay que pasarlas a curvas — igual que en los SVG.
 - **Reproducible byte a byte:** sin fecha de creación, para poder comparar lo que se mandó a imprimir
   con lo que genera el servidor hoy.
-- **Línea de identificación** en el margen inferior (fuera de todos los cortes, se queda en el
-  respaldo que se tira) con id, URL, medida y las advertencias de arriba.
+- **El pliego no lleva nada fuera de las piezas** (decisión de Daniel, 2026-08-13): ni línea de
+  identificación ni marcas en el margen. Todo lo que se imprime es sticker. **Las advertencias de
+  arriba (1:1, capa de corte, RGB, tipografías) hay que dárselas a la imprenta por fuera** — el
+  archivo ya no las lleva encima.
 
 **No incluye QRs de otras máquinas** (ADR-027): lo que se imprime en un pliego sirve solo para esa
 máquina.

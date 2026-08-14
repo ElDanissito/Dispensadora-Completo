@@ -105,6 +105,12 @@ pieza cambia de medida, si una guía se desplaza 1 mm o si la marca tapa más QR
   componen el pliego pieza a pieza) y literales dentro de la plantilla de `instrucciones.svg`. Que no
   se separen sin que nadie se entere lo vigila `TestElCopyDelWrapDerechoEsElDeInstruccionesSVG`, que
   renderiza el SVG real y exige encontrar las nueve líneas.
+- **Fuera la línea de identificación del margen inferior** (decisión de Daniel). Iba en el respaldo
+  que se tira y no ensuciaba ningún sticker, pero el pliego se quiere limpio: **todo lo que se
+  imprime es sticker**. Consecuencia a tener presente: el archivo ya **no lleva encima** el "1:1, no
+  reescalar", ni el aviso de la capa de corte, ni el del RGB y las tipografías. **Esas cuatro cosas
+  hay que decírselas a la imprenta por fuera** (§8.1 las lista). Si algún día molesta repetirlo, lo
+  natural es un `LEEME` junto al PDF, no volver a escribir sobre el pliego.
 - **Queda una asimetría en el par de wraps**, a la vista y consciente: el **izquierdo** conserva los
   filetes horizontales del banner y el **derecho** ahora lleva barra vertical. Van uno al lado del
   otro en la máquina. **Pendiente de decisión de Daniel:** unificar los dos (barra vertical en ambos)
