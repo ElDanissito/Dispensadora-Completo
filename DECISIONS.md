@@ -122,6 +122,10 @@ pieza cambia de medida, si una guía se desplaza 1 mm o si la marca tapa más QR
 - **Sigue en `--muted` el dominio del wrap derecho** (`grabi.napi.lat`): ahí es deliberadamente
   secundario, va a 9 mm de cuerpo —el triple— y así está también en `instrucciones.svg`. Si al ver
   el impreso se pierde, se sube igual.
+- **Fuera la previsualización de la placa** del bloque "Kit físico" del panel (Daniel). Deja
+  desactualizado ese punto de **ADR-026**, que decía "previsualización del QR y de la placa": ahora
+  solo se previsualiza el **QR**, y las piezas se descargan. De paso el detalle de máquina deja de
+  renderizar el SVG de la placa en cada carga. Una prueba comprueba que **no vuelva a colarse**.
 - **Los números de objeto del PDF pasan a escribirse con `ref()`** en vez de a pelo. Al meter la
   fuente nueva hubo que renumerar una decena de enlaces entre objetos, y basta con olvidar uno para
   que el PDF se abra roto sin que ninguna prueba lo note.

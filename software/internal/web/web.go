@@ -970,14 +970,9 @@ func (s *Server) handleAdminMachine(w http.ResponseWriter, r *http.Request) {
 			channels = append(channels, chanView{Slot: i})
 		}
 	}
-	// Previsualización de la placa del kit físico: se incrusta el SVG REAL que
-	// va en el ZIP, para que lo que ve el admin sea exactamente lo que imprime.
+	// El bloque del kit solo necesita la URL que codifica el QR: las piezas no se
+	// previsualizan, se descargan.
 	km := kit.Machine{ID: m.ID, Place: m.Name, Site: s.site}
-	placa, err := km.Placa()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	s.render(w, "admin_machine.html", page{
 		Title:  "Máquina " + m.ID + " · GRABI",
 		Admin:  true,
@@ -988,12 +983,11 @@ func (s *Server) handleAdminMachine(w http.ResponseWriter, r *http.Request) {
 			ProductCount int
 			Flash        string
 			FlashErr     string
-			PlacaSVG     template.HTML
 			QRURL        string
 			// Medida del pliego de imposición, para no repetirla en la plantilla.
 			ImpAncho, ImpAlto float64
 		}{m, channels, len(cat), flashText(r.URL.Query().Get("ok")), flashErrText(r.URL.Query().Get("err")),
-			template.HTML(placa), km.URL(), kit.ImpAncho, kit.ImpAlto},
+			km.URL(), kit.ImpAncho, kit.ImpAlto},
 	})
 }
 

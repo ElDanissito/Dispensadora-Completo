@@ -259,12 +259,17 @@ func TestElDetalleDeLaMaquinaMuestraElKitFisico(t *testing.T) {
 		"Hoja para imprenta (.pdf)",
 		`href="/admin/machines/M001/kit-imposicion.pdf"`,
 		`src="/admin/machines/M001/qr.svg?size=180"`, // previsualización del QR
-		`width="90mm" height="30mm"`,                 // la placa real, incrustada
-		"· M001",
-		"1000 × 320 mm a escala 1:1", // medida del pliego, desde las constantes
+		"1000 × 320 mm a escala 1:1",                 // medida del pliego, desde las constantes
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("el detalle de la máquina no contiene %q", want)
+		}
+	}
+	// La placa ya NO se previsualiza (decisión de Daniel, 2026-08-13): se descarga
+	// con el resto de piezas. Si vuelve a colarse el SVG incrustado, esto avisa.
+	for _, noQuiere := range []string{`width="90mm" height="30mm"`, "kitplaca"} {
+		if strings.Contains(html, noQuiere) {
+			t.Errorf("el detalle de la máquina sigue incrustando la placa (%q)", noQuiere)
 		}
 	}
 }
