@@ -1,5 +1,11 @@
 # Propuesta de productos — Piloto GRABI M001 (4 canales)
 
+> ⚠️ **Precios y mix superados.** Este documento asumía un punto de **oficina/gimnasio** y usaba
+> precios *estimados*. El punto real es un **conjunto residencial** y hay precios reales de
+> septiembre de 2026 en
+> [`investigacion-productos-2026-09.md`](./investigacion-productos-2026-09.md) (ADR-029).
+> Se conserva por los criterios de selección y las comparativas de marca, que siguen siendo válidos.
+
 > 4 slots (ADR-019), mecanismo espiral, **sin refrigeración** → productos **sellados y estables a
 > temperatura ambiente**. Mezcla snack + bebida. **Precios en COP estimados (2026) — CONFIRMAR con
 > tu proveedor** (D1 / Ara / Makro / mayorista de barrio). La idea es dar un punto de partida para el

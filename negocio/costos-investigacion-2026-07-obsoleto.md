@@ -1,3 +1,15 @@
+> # ⚠️ DOCUMENTO SUPERADO — no usar para decidir
+>
+> Sustituido el **2026-09-21** por
+> [`investigacion-productos-2026-09.md`](./investigacion-productos-2026-09.md), que trae precios
+> reales de septiembre de 2026 y el mix para **conjunto residencial** (este documento asumía
+> oficina/gimnasio).
+>
+> **Errores conocidos de este documento:** la paca de Agua Cristal a ~$630/u que cita es de
+> **300 ml**, no de 600 ml. Se conserva solo como registro histórico.
+
+---
+
 # Investigación de costos de producto — GRABI M001 (2026-07-22)
 
 > Insumo para `unit-economics-grabi-m001.xlsx` (hoja **Fuentes**). Precios reales de fuentes
